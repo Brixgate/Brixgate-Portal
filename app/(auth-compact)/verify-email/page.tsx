@@ -1,10 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { Mail01Icon } from 'hugeicons-react'
-import { Suspense } from 'react'
 
 function VerifyEmailContent() {
   const searchParams = useSearchParams()
