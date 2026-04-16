@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 
 const CHATGPT_IMG = '/images/ChatGPT%20Icon.png'
 
@@ -39,9 +40,11 @@ const TOOLS = [
     desc: 'Communicate with and direct AI models',
     iconBg: 'rgba(255,255,255,0.9)',
     renderIcon: () => (
-      <img
+      <Image
         src={CHATGPT_IMG}
         alt="ChatGPT"
+        width={32}
+        height={32}
         className="w-8 h-8 object-contain"
       />
     ),

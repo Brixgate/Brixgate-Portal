@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Notification01Icon, Delete02Icon } from 'hugeicons-react'
-import { MOCK_NOTIFICATIONS, getUnreadCount } from '@/lib/mock-data'
+import { MOCK_NOTIFICATIONS } from '@/lib/mock-data'
 import { cn } from '@/lib/utils'
 import type { Notification } from '@/lib/types'
 

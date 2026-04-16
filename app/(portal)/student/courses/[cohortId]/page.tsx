@@ -17,7 +17,6 @@ import {
   PresentationBarChart01Icon,
   FolderZipIcon,
   FileEditIcon,
-  Video01Icon,
   BookOpen01Icon,
   NoteEditIcon,
   StarIcon,

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import Image from 'next/image'
 import TopNav from '@/components/layout/TopNav'
 import {
   MOCK_STUDENT,
@@ -330,9 +331,11 @@ export default function SettingsPage() {
                     aria-label="Change profile photo"
                   >
                     {avatar ? (
-                      <img
+                      <Image
                         src={avatar}
                         alt="Profile"
+                        width={64}
+                        height={64}
                         className="w-16 h-16 rounded-full object-cover border-2 border-[#e5e7eb] group-hover:border-[#d51520] transition-colors"
                       />
                     ) : (

@@ -8,6 +8,12 @@ interface AuthShellProps {
   logoSrc?: string
   title: string
   subtitle: string
+  /** Tailwind grid-cols value e.g. "5fr_7fr" or "4fr_8fr" */
+  gridCols?: string
+  /** Person image width in px */
+  imageWidth?: number
+  /** Person image height in px */
+  imageHeight?: number
 }
 
 export default function AuthShell({
@@ -18,15 +24,18 @@ export default function AuthShell({
   logoSrc = '/images/logo3.png',
   title,
   subtitle,
+  gridCols = '5fr_7fr',
+  imageWidth = 395,
+  imageHeight = 495,
 }: AuthShellProps) {
   return (
     <div
-      className="min-h-screen w-full flex items-center justify-center p-[38px]"
+      className="min-h-screen w-full flex items-start justify-center p-[38px]"
       style={{ background: '#0D1724' }}
     >
       <div
-        className="w-full grid grid-cols-[5fr_7fr] gap-[24px]"
-        style={{ minHeight: '700px' }}
+        className={`w-full grid grid-cols-[${gridCols}] gap-[24px]`}
+        style={{ minHeight: 'calc(100vh - 76px)' }}
       >
         {/* ── LEFT PANEL ── */}
         <div
@@ -67,8 +76,8 @@ export default function AuthShell({
               <Image
                 src={imageSrc}
                 alt={imageAlt}
-                width={395}
-                height={495}
+                width={imageWidth}
+                height={imageHeight}
                 className="object-contain object-bottom"
               />
             </div>

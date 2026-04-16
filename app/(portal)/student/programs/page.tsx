@@ -9,7 +9,6 @@ import {
   BookOpen01Icon,
   UserGroupIcon,
   Clock01Icon,
-  CheckmarkCircle01Icon,
   ArrowRight01Icon,
 } from 'hugeicons-react'
 import EmptyState from '@/components/shared/EmptyState'

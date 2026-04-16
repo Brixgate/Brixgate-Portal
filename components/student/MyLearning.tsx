@@ -13,7 +13,7 @@ import {
   ArrowRight01Icon,
   Download01Icon,
 } from 'hugeicons-react'
-import { MOCK_COHORTS, MOCK_ENROLLMENTS, MOCK_RESOURCES } from '@/lib/mock-data'
+import { MOCK_ENROLLMENTS, MOCK_RESOURCES } from '@/lib/mock-data'
 import type { Resource } from '@/lib/types/index'
 import { getProgramImage } from '@/lib/program-images'
 import { cn } from '@/lib/utils'

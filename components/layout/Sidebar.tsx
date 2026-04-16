@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import Image from 'next/image'
+import { usePathname } from 'next/navigation'
 import {
   Home01Icon,
   BookOpen01Icon,
@@ -117,7 +118,7 @@ export default function Sidebar() {
         {/* Logo */}
         <div className="h-[84px] flex items-center justify-center lg:justify-start lg:px-6 max-[400px]:justify-start max-[400px]:px-5 border-b border-[#f3f4f6]">
           <div className="flex items-center gap-3">
-            <img
+            <Image
               src={LOGO_URL}
               alt="Brixgate"
               width={22}

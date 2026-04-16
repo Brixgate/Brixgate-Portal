@@ -28,7 +28,7 @@ export default function AnnouncementsList() {
               <Megaphone className="w-5 h-5 text-[#9CA3AF]" strokeWidth={1.8} />
             </div>
             <p className="text-[14px] font-medium text-[#111827]">No announcements</p>
-            <p className="text-[13px] text-[#9CA3AF] mt-1">You're all caught up!</p>
+            <p className="text-[13px] text-[#9CA3AF] mt-1">You&apos;re all caught up!</p>
           </div>
         )}
 

@@ -42,9 +42,9 @@ function VerifyEmailContent() {
 
         {/* Description */}
         <p className="text-[13px] text-[#6B7280] font-body text-center leading-[1.7] mb-7 max-w-[300px]">
-          We've sent a verification link to{' '}
+          We&apos;ve sent a verification link to{' '}
           <span className="font-medium text-[#374151]">{email}</span> — the link expires in
-          30 minutes. Check your spam folder if you don't see it.
+          30 minutes. Check your spam folder if you don&apos;t see it.
         </p>
 
         {/* Return to log in */}

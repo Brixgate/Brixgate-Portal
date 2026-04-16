@@ -1,4 +1,4 @@
-import { Download, Video, Award, BookOpen } from 'lucide-react'
+import { Download, Video, BookOpen } from 'lucide-react'
 
 interface ActivityItem {
   id: string
@@ -62,7 +62,7 @@ export default function RecentActivity() {
 
       {/* Activity feed */}
       <div className="p-4 space-y-1">
-        {RECENT_ACTIVITIES.map((activity, index) => (
+        {RECENT_ACTIVITIES.map((activity) => (
           <div key={activity.id} className="flex items-start gap-3 px-2 py-2.5 rounded-[8px] hover:bg-[#F9FAFB] transition-colors">
             {/* Icon */}
             <div
