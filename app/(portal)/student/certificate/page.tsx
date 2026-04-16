@@ -1,0 +1,236 @@
+import TopNav from '@/components/layout/TopNav'
+import { MOCK_ENROLLMENTS, MOCK_STUDENT, MOCK_CERTIFICATE } from '@/lib/mock-data'
+import { Award01Icon, LockIcon, Download01Icon, CheckmarkCircle01Icon } from 'hugeicons-react'
+import EmptyState from '@/components/shared/EmptyState'
+
+function getOverallProgress(enrollments: typeof MOCK_ENROLLMENTS): number {
+  if (enrollments.length === 0) return 0
+  const total = enrollments.reduce((sum, e) => sum + e.progress, 0)
+  return Math.round(total / enrollments.length)
+}
+
+export default function CertificatePage() {
+  const enrollment = MOCK_ENROLLMENTS[0]
+  const isEnrolled = MOCK_ENROLLMENTS.length > 0
+  const overallProgress = getOverallProgress(MOCK_ENROLLMENTS)
+  const isUnlocked = MOCK_CERTIFICATE !== null || overallProgress >= 100
+
+  const requirementsList = [
+    { label: 'Attend at least 80% of live sessions', done: overallProgress >= 40 },
+    { label: 'Submit all required assignments', done: overallProgress >= 60 },
+    { label: 'Complete all session materials', done: overallProgress >= 80 },
+    { label: 'Final assessment passed', done: overallProgress >= 100 },
+  ]
+
+  return (
+    <>
+      <TopNav title="My Certificate" />
+
+      <div className="px-8 pb-10">
+        {/* Page header */}
+        <div className="pt-7 pb-6">
+          <h1 className="text-[24px] font-bold text-[#111827] font-display leading-tight">
+            My Certificate
+          </h1>
+          <p className="text-[14px] text-[#6b7280] font-body mt-1">
+            Complete the programme requirements to earn your Brixgate certificate.
+          </p>
+        </div>
+
+        {!isEnrolled ? (
+          <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)]">
+            <EmptyState
+              icon={Award01Icon}
+              title="No certificate yet"
+              description="Enrol in a programme and complete all requirements to earn your certificate."
+              action={{ label: 'Browse Programmes', href: '/student/programs' }}
+            />
+          </div>
+        ) : (
+          <div className="grid grid-cols-[1fr_360px] gap-6">
+            {/* Left: Certificate preview */}
+            <div className="flex flex-col gap-5">
+              {/* Progress banner */}
+              <div className="bg-[#fef2f2] border border-[#fecdca] rounded-[12px] p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[14px] font-semibold text-[#111827] font-display">
+                    Programme Progress
+                  </p>
+                  <span className="text-[22px] font-bold text-[#d51520] font-display">
+                    {overallProgress}%
+                  </span>
+                </div>
+                <div className="h-2 bg-white rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-[#d51520] rounded-full transition-all duration-700"
+                    style={{ width: `${overallProgress}%` }}
+                  />
+                </div>
+                <p className="text-[12px] text-[#9ca3af] font-body mt-2">
+                  {isUnlocked
+                    ? 'Programme complete — your certificate is ready!'
+                    : `${100 - overallProgress}% remaining to unlock your certificate`}
+                </p>
+              </div>
+
+              {/* Certificate card */}
+              <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] overflow-hidden">
+                <div className="relative">
+                  {/* Certificate design */}
+                  <div
+                    className={`relative min-h-[380px] flex flex-col items-center justify-center p-10 text-center ${
+                      isUnlocked ? '' : 'select-none'
+                    }`}
+                    style={{
+                      background:
+                        'linear-gradient(160deg, #fff9f9 0%, #ffffff 50%, #fff9f9 100%)',
+                      borderBottom: '1px solid #f3f4f6',
+                    }}
+                  >
+                    {/* Decorative corner lines */}
+                    <div className="absolute top-4 left-4 w-8 h-8 border-t-2 border-l-2 border-[#fecdca] rounded-tl-[4px]" />
+                    <div className="absolute top-4 right-4 w-8 h-8 border-t-2 border-r-2 border-[#fecdca] rounded-tr-[4px]" />
+                    <div className="absolute bottom-4 left-4 w-8 h-8 border-b-2 border-l-2 border-[#fecdca] rounded-bl-[4px]" />
+                    <div className="absolute bottom-4 right-4 w-8 h-8 border-b-2 border-r-2 border-[#fecdca] rounded-br-[4px]" />
+
+                    {/* Blur overlay for locked state */}
+                    {!isUnlocked && (
+                      <div className="absolute inset-0 backdrop-blur-[6px] bg-white/60 z-10 flex flex-col items-center justify-center gap-3">
+                        <div className="w-14 h-14 rounded-full bg-[#f3f4f6] flex items-center justify-center">
+                          <LockIcon size={24} color="#9ca3af" strokeWidth={1.5} />
+                        </div>
+                        <p className="text-[14px] font-semibold text-[#374151] font-display">
+                          Complete the programme to unlock
+                        </p>
+                        <p className="text-[12px] text-[#9ca3af] font-body max-w-[260px]">
+                          {100 - overallProgress}% remaining — keep going!
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Certificate content */}
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#d51520] font-display mb-4">
+                      Certificate of Completion
+                    </p>
+                    <p className="text-[13px] text-[#9ca3af] font-body mb-2">
+                      This is to certify that
+                    </p>
+                    <p className="text-[32px] font-bold text-[#111827] font-display leading-tight mb-3">
+                      {MOCK_STUDENT.firstName} {MOCK_STUDENT.lastName}
+                    </p>
+                    <p className="text-[13px] text-[#6b7280] font-body mb-1">
+                      has successfully completed
+                    </p>
+                    <p className="text-[18px] font-semibold text-[#111827] font-display max-w-[380px] mb-4">
+                      {enrollment?.cohort?.program?.title}
+                    </p>
+                    <p className="text-[12px] text-[#9ca3af] font-body">
+                      {enrollment?.cohort?.name}
+                    </p>
+
+                    <div className="mt-6 flex items-center gap-6">
+                      <div className="text-center">
+                        <div className="w-20 h-px bg-[#e5e7eb] mb-1 mx-auto" />
+                        <p className="text-[10px] text-[#9ca3af] font-body">Date</p>
+                      </div>
+                      <div className="w-10 h-10 rounded-full border-2 border-[#d51520] flex items-center justify-center">
+                        <span className="text-[10px] font-bold text-[#d51520] font-display">BG</span>
+                      </div>
+                      <div className="text-center">
+                        <div className="w-20 h-px bg-[#e5e7eb] mb-1 mx-auto" />
+                        <p className="text-[10px] text-[#9ca3af] font-body">Instructor</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Download bar */}
+                  <div className="px-6 py-4 flex items-center justify-between">
+                    <p className="text-[12px] text-[#9ca3af] font-body">
+                      {isUnlocked ? 'Your certificate is ready to download.' : 'Certificate locked until programme completion.'}
+                    </p>
+                    <button
+                      disabled={!isUnlocked}
+                      className={`inline-flex items-center gap-2 text-[13px] font-medium font-display px-4 py-2 rounded-[8px] transition-colors ${
+                        isUnlocked
+                          ? 'bg-[#d51520] text-white hover:bg-[#b81119]'
+                          : 'bg-[#f3f4f6] text-[#d1d5db] cursor-not-allowed'
+                      }`}
+                    >
+                      <Download01Icon size={14} strokeWidth={1.5} />
+                      Download PDF
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right: Requirements panel */}
+            <div className="flex flex-col gap-5">
+              <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] p-6">
+                <p className="text-[16px] font-semibold text-[#111827] font-display mb-1">
+                  Requirements
+                </p>
+                <p className="text-[12px] text-[#9ca3af] font-body mb-5">
+                  Complete all steps to unlock your certificate.
+                </p>
+
+                <div className="flex flex-col gap-3">
+                  {requirementsList.map(({ label, done }) => (
+                    <div key={label} className="flex items-start gap-3">
+                      <div
+                        className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                          done ? 'bg-[#d51520]' : 'bg-[#f3f4f6]'
+                        }`}
+                      >
+                        {done ? (
+                          <CheckmarkCircle01Icon size={12} color="white" strokeWidth={2} />
+                        ) : (
+                          <div className="w-1.5 h-1.5 rounded-full bg-[#d1d5db]" />
+                        )}
+                      </div>
+                      <p
+                        className={`text-[13px] font-body leading-snug ${
+                          done ? 'text-[#374151]' : 'text-[#9ca3af]'
+                        }`}
+                      >
+                        {label}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Certificate details */}
+              <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] p-6">
+                <p className="text-[16px] font-semibold text-[#111827] font-display mb-5">
+                  Certificate Details
+                </p>
+                <div className="flex flex-col gap-4">
+                  {[
+                    { label: 'Recipient', value: `${MOCK_STUDENT.firstName} ${MOCK_STUDENT.lastName}` },
+                    { label: 'Programme', value: enrollment?.cohort?.program?.title ?? '—' },
+                    { label: 'Cohort', value: enrollment?.cohort?.name?.split('—')[1]?.trim() ?? '—' },
+                    {
+                      label: 'Completion Date',
+                      value: isUnlocked
+                        ? new Date().toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })
+                        : 'Not yet completed',
+                    },
+                    { label: 'Issuer', value: 'Brixgate Academy' },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="flex flex-col gap-0.5">
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">
+                        {label}
+                      </p>
+                      <p className="text-[13px] font-medium text-[#374151] font-body">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
