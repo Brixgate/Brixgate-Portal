@@ -32,7 +32,7 @@ function ProgressRing({ value }: { value: number }) {
           className="transition-all duration-500"
         />
       </svg>
-      <span className="absolute text-[10px] font-bold text-[#111827] font-display">{value}%</span>
+      <span className="absolute text-[10px] font-bold text-white font-display">{value}%</span>
     </div>
   )
 }
