@@ -1,8 +1,5 @@
 import TopNav from '@/components/layout/TopNav'
-import {
-  MOCK_ENROLLMENTS,
-  MOCK_PROGRAMS,
-} from '@/lib/mock-data'
+import { MOCK_ENROLLMENTS } from '@/lib/mock-data'
 import { getProgramImage } from '@/lib/program-images'
 import Link from 'next/link'
 import {
@@ -19,7 +16,7 @@ function ProgressRing({ value }: { value: number }) {
   const offset = circumference - (value / 100) * circumference
 
   return (
-    <div className="relative w-[52px] h-[52px] flex items-center justify-center flex-shrink-0">
+    <div className="relative w-[48px] h-[48px] flex items-center justify-center flex-shrink-0">
       <svg className="w-full h-full -rotate-90" viewBox="0 0 48 48">
         <circle cx="24" cy="24" r={r} fill="none" stroke="#f3f4f6" strokeWidth="4" />
         <circle
@@ -47,9 +44,6 @@ export default function ProgramsPage() {
     program: e.cohort.program,
   }))
 
-  const enrolledProgramIds = new Set(enrolledCohorts.map((e) => e.program.id))
-  const availablePrograms = MOCK_PROGRAMS.filter((p) => !enrolledProgramIds.has(p.id))
-
   return (
     <>
       <TopNav title="My Programs" />
@@ -76,82 +70,81 @@ export default function ProgramsPage() {
               <EmptyState
                 icon={BookOpen01Icon}
                 title="No programmes yet"
-                description="You haven't enrolled in any programme. Browse available programmes below to get started."
+                description="You haven&apos;t enrolled in any programme yet."
               />
             </div>
           ) : (
-            <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-3 gap-5">
               {enrolledCohorts.map(({ enrollment, cohort, program }) => (
                 <div
                   key={enrollment.id}
-                  className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] overflow-hidden flex"
+                  className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] overflow-hidden flex flex-col hover:shadow-[0px_4px_12px_rgba(16,24,40,0.10)] transition-shadow"
                 >
                   {/* Thumbnail */}
                   <div
-                    className="w-[200px] flex-shrink-0 bg-[#1a1d2e] bg-cover bg-center relative"
+                    className="h-[148px] bg-[#1a1d2e] bg-cover bg-center relative flex-shrink-0"
                     style={{ backgroundImage: `url(${getProgramImage(program.title)})` }}
                   >
                     <div className="absolute inset-0 bg-black/40" />
                     <div className="absolute top-3 left-3 bg-[#d51520] text-white text-[9px] font-semibold px-2 py-0.5 rounded-full font-display">
                       {program.category === 'beginner' ? 'Beginner' : 'Professional'}
                     </div>
+                    {/* Progress ring overlay */}
+                    <div className="absolute bottom-3 right-3">
+                      <ProgressRing value={enrollment.progress} />
+                    </div>
                   </div>
 
-                  {/* Details */}
-                  <div className="flex-1 p-6 flex items-center gap-6">
-                    {/* Info block */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[18px] font-semibold text-[#111827] font-display leading-snug mb-0.5">
-                        {program.title}
-                      </p>
-                      <p className="text-[13px] text-[#6b7280] font-body mb-3">
-                        {cohort.name}
-                      </p>
+                  {/* Card body */}
+                  <div className="flex flex-col flex-1 p-5">
+                    <p className="text-[15px] font-semibold text-[#111827] font-display leading-snug mb-0.5">
+                      {program.title}
+                    </p>
+                    <p className="text-[12px] text-[#6b7280] font-body mb-4">
+                      {cohort.name}
+                    </p>
 
-                      <div className="flex items-center gap-5 text-[12px] text-[#6b7280] font-body">
-                        <div className="flex items-center gap-1.5">
-                          <Clock01Icon size={13} color="#9ca3af" strokeWidth={1.5} />
-                          <span>{program.duration}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <UserGroupIcon size={13} color="#9ca3af" strokeWidth={1.5} />
-                          <span>{cohort.enrolled} students</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <BookOpen01Icon size={13} color="#9ca3af" strokeWidth={1.5} />
-                          <span>12 sessions</span>
-                        </div>
+                    {/* Meta */}
+                    <div className="flex flex-col gap-1.5 mb-4">
+                      <div className="flex items-center gap-1.5 text-[12px] text-[#6b7280] font-body">
+                        <Clock01Icon size={12} color="#9ca3af" strokeWidth={1.5} />
+                        <span>{program.duration}</span>
                       </div>
-
-                      {/* Progress bar */}
-                      <div className="mt-4">
-                        <div className="h-1.5 bg-[#f3f4f6] rounded-full overflow-hidden w-full max-w-[320px]">
-                          <div
-                            className="h-full bg-[#d51520] rounded-full transition-all duration-500"
-                            style={{ width: `${enrollment.progress}%` }}
-                          />
-                        </div>
-                        <p className="text-[11px] text-[#9ca3af] font-body mt-1">
-                          {enrollment.progress}% complete
-                        </p>
+                      <div className="flex items-center gap-1.5 text-[12px] text-[#6b7280] font-body">
+                        <UserGroupIcon size={12} color="#9ca3af" strokeWidth={1.5} />
+                        <span>{cohort.enrolled} students</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[12px] text-[#6b7280] font-body">
+                        <BookOpen01Icon size={12} color="#9ca3af" strokeWidth={1.5} />
+                        <span>12 sessions</span>
                       </div>
                     </div>
 
-                    {/* Progress ring */}
-                    <ProgressRing value={enrollment.progress} />
+                    {/* Progress bar */}
+                    <div className="mb-5">
+                      <div className="h-1.5 bg-[#f3f4f6] rounded-full overflow-hidden w-full">
+                        <div
+                          className="h-full bg-[#d51520] rounded-full transition-all duration-500"
+                          style={{ width: `${enrollment.progress}%` }}
+                        />
+                      </div>
+                      <p className="text-[11px] text-[#9ca3af] font-body mt-1">
+                        {enrollment.progress}% complete
+                      </p>
+                    </div>
 
-                    {/* CTA */}
-                    <div className="flex flex-col gap-2 flex-shrink-0">
+                    {/* CTAs — pushed to bottom */}
+                    <div className="flex gap-2 mt-auto">
                       <Link
                         href={`/student/courses/${enrollment.cohortId}`}
-                        className="inline-flex items-center gap-2 bg-[#d51520] text-white text-[13px] font-medium font-display px-5 py-2.5 rounded-[8px] hover:bg-[#b81119] transition-colors"
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 bg-[#d51520] text-white text-[12px] font-medium font-display px-4 py-2.5 rounded-[8px] hover:bg-[#b81119] transition-colors"
                       >
                         Continue
-                        <ArrowRight01Icon size={14} color="white" strokeWidth={2} />
+                        <ArrowRight01Icon size={13} color="white" strokeWidth={2} />
                       </Link>
                       <Link
                         href="/student/resources"
-                        className="inline-flex items-center justify-center border border-[#e5e7eb] text-[#374151] text-[13px] font-medium font-display px-5 py-2.5 rounded-[8px] hover:bg-[#f9fafb] transition-colors"
+                        className="flex-1 inline-flex items-center justify-center border border-[#e5e7eb] text-[#374151] text-[12px] font-medium font-display px-4 py-2.5 rounded-[8px] hover:bg-[#f9fafb] transition-colors"
                       >
                         Resources
                       </Link>
@@ -162,47 +155,6 @@ export default function ProgramsPage() {
             </div>
           )}
         </section>
-
-        {/* Available Programs */}
-        {availablePrograms.length > 0 && (
-          <section className="mt-10">
-            <p className="text-[13px] font-semibold text-[#374151] font-display uppercase tracking-widest mb-4">
-              Available Programmes
-            </p>
-            <div className="grid grid-cols-4 gap-4">
-              {availablePrograms.map((prog) => (
-                <div
-                  key={prog.id}
-                  className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] overflow-hidden hover:shadow-[0px_4px_12px_rgba(16,24,40,0.10)] transition-shadow"
-                >
-                  <div
-                    className="h-[110px] bg-[#1a1d2e] bg-cover bg-center relative"
-                    style={{ backgroundImage: `url(${getProgramImage(prog.title)})` }}
-                  >
-                    <div className="h-full w-full bg-black/30" />
-                    <div className="absolute top-2.5 left-2.5 bg-white/20 backdrop-blur-sm text-white text-[9px] font-medium px-2 py-0.5 rounded-full font-display">
-                      {prog.category === 'beginner' ? 'Beginner' : 'Professional'}
-                    </div>
-                  </div>
-                  <div className="p-4">
-                    <p className="text-[13px] font-semibold text-[#111827] font-display leading-snug mb-1">
-                      {prog.title}
-                    </p>
-                    <p className="text-[11px] text-[#9ca3af] font-body leading-snug line-clamp-2 mb-3">
-                      {prog.subtitle}
-                    </p>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] text-[#6b7280] font-body">{prog.duration}</span>
-                      <span className="text-[12px] font-bold text-[#111827] font-display">
-                        ₦{prog.price.toLocaleString('en-NG')}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
       </div>
     </>
   )

@@ -17,7 +17,7 @@ import { MOCK_STUDENT } from '@/lib/mock-data'
 import { useSidebar } from '@/lib/sidebar-context'
 import { useAvatar } from '@/lib/use-avatar'
 
-const LOGO_URL = 'https://www.figma.com/api/mcp/asset/de505de2-9589-4fc7-95d6-b063a224101f'
+const LOGO_URL = '/images/Logo red.png'
 
 const NAV_ITEMS = [
   { label: 'Dashboard',        href: '/student/dashboard',    icon: Home01Icon         },
