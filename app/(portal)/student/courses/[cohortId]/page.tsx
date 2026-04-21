@@ -206,7 +206,7 @@ export default function CourseDetailPage() {
       <div className="flex h-[calc(100vh-64px)] overflow-hidden">
 
         {/* ── LEFT SIDEBAR: Syllabus ── */}
-        <aside className="w-[280px] flex-shrink-0 bg-white border-r border-[#f3f4f6] flex flex-col h-full">
+        <aside className="w-[280px] flex-shrink-0 bg-white border-l-4 border-l-[#f7f8fa] border-r border-r-[#f3f4f6] flex flex-col h-full">
           {/* Sidebar header */}
           <div className="px-5 py-5 border-b border-[#f3f4f6] flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">

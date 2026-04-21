@@ -74,7 +74,7 @@ export default function ProgramsPage() {
               />
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
               {enrolledCohorts.map(({ enrollment, cohort, program }) => (
                 <div
                   key={enrollment.id}
@@ -101,7 +101,7 @@ export default function ProgramsPage() {
                       {program.title}
                     </p>
                     <p className="text-[12px] text-[#6b7280] font-body mb-4">
-                      {cohort.name}
+                      {cohort.name.replace(`${program.title} — `, '')}
                     </p>
 
                     {/* Meta */}

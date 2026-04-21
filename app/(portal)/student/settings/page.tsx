@@ -16,6 +16,7 @@ import {
   Upload01Icon,
   Delete01Icon,
   AlertCircleIcon,
+  FileAttachmentIcon,
 } from 'hugeicons-react'
 import { useAvatar } from '@/lib/use-avatar'
 
@@ -205,6 +206,10 @@ export default function SettingsPage() {
   // Notifications
   const [prefs, setPrefs] = useState(MOCK_NOTIFICATION_PREFERENCES)
 
+  // Resume
+  const [resume, setResume] = useState<{ name: string; size: string } | null>(null)
+  const resumeInputRef = useRef<HTMLInputElement>(null)
+
   // Avatar dropdown
   const [showAvatarMenu, setShowAvatarMenu] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -254,6 +259,25 @@ export default function SettingsPage() {
     e.target.value = ''
   }
 
+  // ── Resume upload ──
+  function handleResumeChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+    if (!allowedTypes.includes(file.type)) {
+      showToast('Please upload a PDF or Word document.', 'error')
+      return
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      showToast('File must be under 10MB.', 'error')
+      return
+    }
+    const sizeMB = (file.size / (1024 * 1024)).toFixed(1)
+    setResume({ name: file.name, size: `${sizeMB} MB` })
+    e.target.value = ''
+    showToast('Resume uploaded successfully.', 'success')
+  }
+
   function handleRemoveAvatar() {
     setAvatar(null)
     setShowAvatarMenu(false)
@@ -295,13 +319,20 @@ export default function SettingsPage() {
     <>
       <TopNav title="Profile Settings" />
 
-      {/* Hidden file input */}
+      {/* Hidden file inputs */}
       <input
         ref={fileInputRef}
         type="file"
         accept="image/*"
         className="hidden"
         onChange={handleFileChange}
+      />
+      <input
+        ref={resumeInputRef}
+        type="file"
+        accept=".pdf,.doc,.docx"
+        className="hidden"
+        onChange={handleResumeChange}
       />
 
       <div className="px-8 pb-10">
@@ -499,6 +530,60 @@ export default function SettingsPage() {
                 </button>
               </div>
             </SectionCard>
+            {/* Resume / CV Upload */}
+            <SectionCard
+              title="Resume & CV"
+              description="Upload your resume for CV and portfolio optimisation support."
+            >
+              {resume ? (
+                <div className="flex items-center justify-between gap-4 p-4 border border-[#e5e7eb] rounded-[8px] bg-[#f9fafb]">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-[8px] bg-[#fef2f2] flex items-center justify-center flex-shrink-0">
+                      <FileAttachmentIcon size={18} color="#d51520" strokeWidth={1.5} />
+                    </div>
+                    <div>
+                      <p className="text-[13px] font-medium text-[#111827] font-body truncate max-w-[240px]">{resume.name}</p>
+                      <p className="text-[11px] text-[#9ca3af] font-body">{resume.size}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => resumeInputRef.current?.click()}
+                      className="text-[12px] font-medium text-[#374151] font-display hover:text-[#d51520] transition-colors"
+                    >
+                      Replace
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setResume(null); showToast('Resume removed.', 'success') }}
+                      className="text-[12px] font-medium text-[#d51520] font-display hover:underline"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => resumeInputRef.current?.click()}
+                  className="w-full flex flex-col items-center justify-center gap-3 py-8 border-2 border-dashed border-[#e5e7eb] rounded-[10px] hover:border-[#d51520]/40 hover:bg-[#fef2f2]/30 transition-all group"
+                >
+                  <div className="w-10 h-10 rounded-[8px] bg-[#f3f4f6] group-hover:bg-[#fef2f2] flex items-center justify-center transition-colors">
+                    <Upload01Icon size={20} color="#9ca3af" strokeWidth={1.5} />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[13px] font-medium text-[#374151] font-display">
+                      Click to upload your resume
+                    </p>
+                    <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">
+                      PDF or Word document · Max 10MB
+                    </p>
+                  </div>
+                </button>
+              )}
+            </SectionCard>
+
           </div>
 
           {/* ── Right column ── */}
@@ -506,36 +591,62 @@ export default function SettingsPage() {
 
             {/* Account Details */}
             <SectionCard title="Account Details">
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-5">
+                {/* Static fields */}
                 {[
-                  { label: 'Role', value: 'Student' },
+                  { label: 'Role',      value: 'Student' },
                   { label: 'Programme', value: enrollment?.cohort?.program?.title ?? '—' },
-                  {
-                    label: 'Cohort',
-                    value: enrollment?.cohort?.name?.split('—')[1]?.trim() ?? '—',
-                  },
+                  { label: 'Cohort',    value: enrollment?.cohort?.name?.split('—')[1]?.trim() ?? '—' },
                   {
                     label: 'Enrolled',
                     value: enrollment
-                      ? new Date(enrollment.enrolledAt).toLocaleDateString('en-NG', {
-                          day: 'numeric',
-                          month: 'long',
-                          year: 'numeric',
-                        })
+                      ? new Date(enrollment.enrolledAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })
                       : '—',
                   },
                   {
-                    label: 'Payment Status',
-                    value: enrollment?.paymentStatus === 'paid' ? 'Paid ✓' : '—',
+                    label: 'Course End Date',
+                    value: enrollment?.cohort?.endDate
+                      ? new Date(enrollment.cohort.endDate).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })
+                      : '—',
                   },
                 ].map(({ label, value }) => (
                   <div key={label} className="flex flex-col gap-0.5">
-                    <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">
-                      {label}
-                    </p>
+                    <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">{label}</p>
                     <p className="text-[13px] font-medium text-[#374151] font-body">{value}</p>
                   </div>
                 ))}
+
+                {/* Course Status — derived from cohort dates */}
+                {(() => {
+                  const endDate   = enrollment?.cohort?.endDate   ? new Date(enrollment.cohort.endDate)   : null
+                  const startDate = enrollment?.cohort?.startDate ? new Date(enrollment.cohort.startDate) : null
+                  const now = new Date()
+
+                  let label = '—'
+                  let color = '#9ca3af'
+                  let bg    = '#f9fafb'
+                  let border = '#e5e7eb'
+
+                  if (endDate && now > endDate) {
+                    label = 'Ended'; color = '#6b7280'; bg = '#f3f4f6'; border = '#e5e7eb'
+                  } else if (startDate && endDate && now >= startDate && now <= endDate) {
+                    label = 'In Progress'; color = '#d97706'; bg = '#fffbeb'; border = '#fde68a'
+                  } else if (startDate && now < startDate) {
+                    label = 'Upcoming'; color = '#2563eb'; bg = '#eff6ff'; border = '#bfdbfe'
+                  }
+
+                  return (
+                    <div className="flex flex-col gap-0.5">
+                      <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">Course Status</p>
+                      <span
+                        className="inline-flex w-fit text-[11px] font-semibold px-2.5 py-0.5 rounded-full border font-display"
+                        style={{ color, background: bg, borderColor: border }}
+                      >
+                        {label}
+                      </span>
+                    </div>
+                  )
+                })()}
               </div>
             </SectionCard>
 

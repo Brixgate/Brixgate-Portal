@@ -10,6 +10,7 @@ import {
   Folder01Icon,
   Settings01Icon,
   Logout01Icon,
+  Award01Icon,
 } from 'hugeicons-react'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -22,6 +23,7 @@ const LOGO_URL = '/images/Logo red.png'
 const NAV_ITEMS = [
   { label: 'Dashboard',        href: '/student/dashboard',    icon: Home01Icon         },
   { label: 'My Programs',      href: '/student/programs',     icon: BookOpen01Icon     },
+  { label: 'My Certificate',   href: '/student/certificate',  icon: Award01Icon        },
   { label: 'Notifications',    href: '/student/notifications', icon: Notification01Icon },
   { label: 'Resources',        href: '/student/resources',    icon: Folder01Icon       },
   { label: 'Profile Settings', href: '/student/settings',     icon: Settings01Icon     },
@@ -106,7 +108,7 @@ export default function Sidebar() {
         className={cn(
           'bg-white flex flex-col h-screen transition-all duration-300',
           // Mobile drawer
-          'max-[400px]:fixed max-[400px]:inset-y-0 max-[400px]:left-0 max-[400px]:z-50 max-[400px]:w-[260px]',
+          'max-[400px]:fixed max-[400px]:inset-y-0 max-[400px]:left-0 max-[400px]:z-50 max-[400px]:w-[220px]',
           mobileOpen ? 'max-[400px]:translate-x-0' : 'max-[400px]:-translate-x-full',
           // Tablet: sticky in flow, icon-only
           'min-[400px]:sticky min-[400px]:top-0 min-[400px]:flex-shrink-0',
@@ -116,7 +118,7 @@ export default function Sidebar() {
         )}
       >
         {/* Logo */}
-        <div className="h-[84px] flex items-center justify-center lg:justify-start lg:px-6 max-[400px]:justify-start max-[400px]:px-5 border-b border-[#f3f4f6]">
+        <div className="h-[64px] flex items-center justify-center lg:justify-start lg:px-6 max-[400px]:justify-start max-[400px]:px-5 border-b border-[#f3f4f6]">
           <div className="flex items-center gap-3">
             <Image
               src={LOGO_URL}

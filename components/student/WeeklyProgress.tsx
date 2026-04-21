@@ -1,4 +1,4 @@
-import { MOCK_LOGIN_DAYS } from '@/lib/mock-data'
+import { MOCK_LOGIN_DAYS, MOCK_SESSIONS } from '@/lib/mock-data'
 
 const DAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 
@@ -11,6 +11,13 @@ function getWeekDates() {
   const dayOfWeek = now.getDay()
   const loginSet = new Set(MOCK_LOGIN_DAYS)
 
+  // Build a set of session dates (upcoming or live) for dot indicators
+  const sessionDates = new Set(
+    MOCK_SESSIONS
+      .filter((s) => s.status === 'upcoming' || s.status === 'live')
+      .map((s) => s.date)
+  )
+
   return DAYS.map((day, i) => {
     const d = new Date(now)
     d.setDate(now.getDate() - dayOfWeek + i)
@@ -18,8 +25,9 @@ function getWeekDates() {
     const isToday = i === dayOfWeek
     const isLoggedIn = loginSet.has(dateStr)
     const isFuture = d > now && !isToday
+    const hasSession = sessionDates.has(dateStr)
 
-    return { day, date: d.getDate(), isToday, isLoggedIn, isFuture }
+    return { day, date: d.getDate(), dateStr, isToday, isLoggedIn, isFuture, hasSession }
   })
 }
 
@@ -38,9 +46,9 @@ export default function WeeklyProgress() {
         </span>
       </div>
 
-      {/* Day cells — all same fixed height, no conditional children that add height */}
+      {/* Day cells */}
       <div className="grid grid-cols-7 gap-1">
-        {week.map(({ day, date, isToday, isLoggedIn, isFuture }) => {
+        {week.map(({ day, date, isToday, isLoggedIn, isFuture, hasSession }) => {
           const bg = isLoggedIn
             ? '#d51520'
             : isToday
@@ -67,16 +75,20 @@ export default function WeeklyProgress() {
             ? '#d1d5db'
             : '#374151'
 
+          // Dot: red for session days, white-on-red for logged-in session days
+          const dotColor = isLoggedIn && hasSession
+            ? 'rgba(255,255,255,0.85)'
+            : isLoggedIn
+            ? 'rgba(255,255,255,0.35)'
+            : hasSession
+            ? '#d51520'
+            : 'transparent'
+
           return (
             <div
               key={day}
               className="flex flex-col items-center justify-center gap-1 rounded-[6px] transition-all"
-              style={{
-                backgroundColor: bg,
-                border,
-                /* Fixed height — all 7 cells identical, no conditional children */
-                height: '52px',
-              }}
+              style={{ backgroundColor: bg, border, height: '52px' }}
             >
               <p
                 className="text-[8px] font-bold uppercase font-display tracking-wide leading-none"
@@ -90,18 +102,17 @@ export default function WeeklyProgress() {
               >
                 {date}
               </p>
-              {/* Dot as a visual-only indicator — same space reserved for all cells */}
+              {/* Session / activity dot */}
               <div
-                className="w-1 h-1 rounded-full"
-                style={{
-                  background: isLoggedIn ? 'rgba(255,255,255,0.5)' : 'transparent',
-                }}
+                className="w-1 h-1 rounded-full transition-all"
+                style={{ background: dotColor }}
               />
             </div>
           )
         })}
       </div>
 
+      {/* Streak text */}
       <p className="text-[11px] text-[#9ca3af] font-body mt-3 text-center leading-snug">
         {loggedDaysCount === 0
           ? 'No activity yet — log in daily to build your streak'
@@ -109,6 +120,12 @@ export default function WeeklyProgress() {
           ? '🔥 Perfect week! You logged in every day.'
           : `Active ${loggedDaysCount} day${loggedDaysCount > 1 ? 's' : ''} this week`}
       </p>
+
+      {/* Session dot legend */}
+      <div className="flex items-center justify-center gap-1.5 mt-2">
+        <div className="w-1.5 h-1.5 rounded-full bg-[#d51520]" />
+        <p className="text-[10px] text-[#9ca3af] font-body">Dot indicates a class day</p>
+      </div>
     </div>
   )
 }

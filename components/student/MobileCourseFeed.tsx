@@ -1,7 +1,12 @@
 import Link from 'next/link'
 import { MOCK_ENROLLMENTS } from '@/lib/mock-data'
 import { getProgramImage } from '@/lib/program-images'
-import { ArrowRight01Icon, BookOpen01Icon } from 'hugeicons-react'
+import {
+  ArrowRight01Icon,
+  BookOpen01Icon,
+  Clock01Icon,
+  UserGroupIcon,
+} from 'hugeicons-react'
 
 export default function MobileCourseFeed() {
   const enrollments = MOCK_ENROLLMENTS
@@ -35,79 +40,105 @@ export default function MobileCourseFeed() {
         Continue Learning
       </p>
 
-      {enrollments.map((enrollment) => {
-        const program = enrollment.cohort.program
-        const thumbImage = getProgramImage(program.title)
+      {/* Horizontal scroll row of course cards */}
+      <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory">
+        {enrollments.map((enrollment) => {
+          const program = enrollment.cohort.program
+          const thumbImage = getProgramImage(program.title)
+          const cohortLabel = enrollment.cohort.name.replace(`${program.title} — `, '')
 
-        return (
-          <div
-            key={enrollment.id}
-            className="bg-white rounded-[12px] border border-[#f0f0f2] overflow-hidden shadow-[0px_1px_3px_rgba(16,24,40,0.06)]"
-          >
-            {/* Thumbnail */}
+          return (
             <div
-              className="h-[120px] bg-cover bg-center relative"
-              style={{ backgroundImage: `url(${thumbImage})` }}
+              key={enrollment.id}
+              className="bg-white rounded-[12px] border border-[#f0f0f2] overflow-hidden shadow-[0px_1px_3px_rgba(16,24,40,0.06)] flex-shrink-0 w-[240px] snap-start"
             >
-              <div className="absolute inset-0 bg-black/40" />
-              <div className="absolute top-3 left-3 bg-[#d51520] text-white text-[9px] font-semibold px-2 py-0.5 rounded-full font-display">
-                Active
+              {/* Thumbnail */}
+              <div
+                className="h-[110px] bg-cover bg-center relative"
+                style={{ backgroundImage: `url(${thumbImage})` }}
+              >
+                <div className="absolute inset-0 bg-black/40" />
+                <div className="absolute top-2.5 left-2.5 bg-[#d51520] text-white text-[9px] font-semibold px-2 py-0.5 rounded-full font-display">
+                  Active
+                </div>
+                {/* Progress ring */}
+                <div className="absolute bottom-2.5 right-2.5">
+                  <div className="relative w-9 h-9">
+                    <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                      <circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="3" />
+                      <circle
+                        cx="18" cy="18" r="14" fill="none"
+                        stroke="#d51520" strokeWidth="3" strokeLinecap="round"
+                        strokeDasharray={`${2 * Math.PI * 14}`}
+                        strokeDashoffset={`${2 * Math.PI * 14 * (1 - enrollment.progress / 100)}`}
+                      />
+                    </svg>
+                    <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-white font-display">
+                      {enrollment.progress}%
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div className="absolute bottom-3 left-3 right-3">
-                <p className="text-white text-[14px] font-semibold font-display leading-snug">
+
+              {/* Body */}
+              <div className="p-3">
+                <p className="text-[13px] font-semibold text-[#111827] font-display leading-snug mb-0.5 line-clamp-2">
                   {program.title}
                 </p>
+                <p className="text-[11px] text-[#9ca3af] font-body mb-2.5 truncate">
+                  {cohortLabel}
+                </p>
+
+                {/* Meta */}
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="flex items-center gap-1 text-[11px] text-[#9ca3af] font-body">
+                    <Clock01Icon size={10} color="#9ca3af" strokeWidth={1.5} />
+                    <span>{program.duration}</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-[11px] text-[#9ca3af] font-body">
+                    <UserGroupIcon size={10} color="#9ca3af" strokeWidth={1.5} />
+                    <span>{enrollment.cohort.enrolled} students</span>
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                <div className="mb-3">
+                  <div className="h-1 bg-[#f3f4f6] rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-[#d51520] rounded-full"
+                      style={{ width: `${enrollment.progress}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-[#9ca3af] font-body mt-0.5">{enrollment.progress}% complete</p>
+                </div>
+
+                <Link
+                  href={`/student/courses/${enrollment.cohortId}`}
+                  className="flex items-center justify-center gap-1.5 bg-[#d51520] text-white text-[12px] font-medium font-display py-2 rounded-[7px] hover:bg-[#b81119] transition-colors"
+                >
+                  Continue
+                  <ArrowRight01Icon size={12} color="white" strokeWidth={2} />
+                </Link>
               </div>
             </div>
-
-            {/* Body */}
-            <div className="px-4 py-4">
-              <p className="text-[12px] text-[#9ca3af] font-body mb-3 truncate">
-                {enrollment.cohort.name}
-              </p>
-
-              {/* Progress */}
-              <div className="mb-4">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[11px] text-[#9ca3af] font-body">Progress</span>
-                  <span className="text-[12px] font-bold text-[#111827] font-display">
-                    {enrollment.progress}%
-                  </span>
-                </div>
-                <div className="h-1.5 bg-[#f3f4f6] rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-[#d51520] rounded-full transition-all duration-500"
-                    style={{ width: `${enrollment.progress}%` }}
-                  />
-                </div>
-              </div>
-
-              <Link
-                href="/student/programs"
-                className="flex items-center justify-center gap-2 bg-[#d51520] text-white text-[13px] font-medium font-display py-2.5 rounded-[8px] hover:bg-[#b81119] transition-colors"
-              >
-                Continue Learning
-                <ArrowRight01Icon size={14} color="white" strokeWidth={2} />
-              </Link>
-            </div>
-          </div>
-        )
-      })}
+          )
+        })}
+      </div>
 
       {/* Quick links */}
-      <div className="grid grid-cols-2 gap-3 mt-2">
+      <div className="grid grid-cols-2 gap-3 mt-1">
         <Link
           href="/student/resources"
-          className="bg-white border border-[#f0f0f2] rounded-[10px] p-4 flex flex-col gap-2 shadow-[0px_1px_3px_rgba(16,24,40,0.06)]"
+          className="bg-white border border-[#f0f0f2] rounded-[10px] p-4 flex flex-col gap-1.5 shadow-[0px_1px_3px_rgba(16,24,40,0.06)]"
         >
-          <span className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">Resources</span>
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">Resources</span>
           <span className="text-[13px] font-semibold text-[#111827] font-display">Session Materials</span>
         </Link>
         <Link
           href="/student/notifications"
-          className="bg-white border border-[#f0f0f2] rounded-[10px] p-4 flex flex-col gap-2 shadow-[0px_1px_3px_rgba(16,24,40,0.06)]"
+          className="bg-white border border-[#f0f0f2] rounded-[10px] p-4 flex flex-col gap-1.5 shadow-[0px_1px_3px_rgba(16,24,40,0.06)]"
         >
-          <span className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">Notifications</span>
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">Notifications</span>
           <span className="text-[13px] font-semibold text-[#111827] font-display">Updates & Alerts</span>
         </Link>
       </div>
