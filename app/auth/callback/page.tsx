@@ -3,12 +3,17 @@
 /**
  * /auth/callback?token=<jwt>
  *
- * One-time post-payment auto-login route.
- * The landing page (brixgate.com) redirects here after payment is verified.
- * The backend creates the student account and passes the JWT as a URL param.
- * This page stores the token cookie and redirects into the dashboard — no
- * password needed for this first session. After that, the student uses
- * /login normally.
+ * Post-payment auto-login. The landing page calls POST /auth/applicants to
+ * create an applicant record, initiates payment, then after verification the
+ * backend elevates that applicant token to a full STUDENT-level JWT and
+ * redirects here: portal.brixgate.com/auth/callback?token=<elevated-jwt>
+ *
+ * This page:
+ *   1. Stores the token as the session cookie
+ *   2. Calls GET /users/me to confirm it's valid and load the user profile
+ *   3. Redirects to the dashboard — no password entry needed for this session
+ *
+ * Subsequent visits require normal login with the credentials emailed to them.
  */
 
 import { useEffect, useState, Suspense } from 'react'
