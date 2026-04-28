@@ -36,13 +36,22 @@ apiClient.interceptors.request.use((config) => {
   return config
 })
 
-// Redirect to login on 401
+// Redirect to login on 401 — but NOT for auth endpoints themselves.
+// If /auth/login returns 401 it means wrong credentials: let the error
+// propagate to the form's catch block so it can show an inline message.
+// Only redirect when a protected endpoint rejects an expired/missing token.
+const AUTH_ENDPOINTS = ['/auth/login', '/auth/register', '/auth/applicants']
+
 apiClient.interceptors.response.use(
   (res) => res,
   (error) => {
     if (error.response?.status === 401 && typeof window !== 'undefined') {
-      clearTokenCookie()
-      window.location.href = '/login'
+      const requestUrl = (error.config?.url ?? '') as string
+      const isAuthEndpoint = AUTH_ENDPOINTS.some((ep) => requestUrl.includes(ep))
+      if (!isAuthEndpoint) {
+        clearTokenCookie()
+        window.location.href = '/login'
+      }
     }
     return Promise.reject(error)
   }
