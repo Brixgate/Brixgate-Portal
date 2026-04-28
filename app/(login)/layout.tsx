@@ -8,7 +8,7 @@ export default function LoginLayout({ children }: { children: React.ReactNode })
       imageAlt="Student"
       title={`Build Skills That Power\nGlobal Careers`}
       subtitle="We build and certify professionals who deliver with capability, character, and conviction AI-ready, trusted, and globally relevant."
-      gridCols="4fr_8fr"
+      gridCols="4fr 8fr"
       imageWidth={280}
       imageHeight={360}
     >

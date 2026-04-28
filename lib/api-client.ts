@@ -1,6 +1,7 @@
 import axios from 'axios'
 
-export const BASE_URL = 'https://api.brixgate.com/api/v1'
+export const BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL ?? 'https://api.brixgate.com/api/v1'
 
 // ── Cookie helpers (client-side only) ─────────────────────────────────────────
 export function getTokenFromCookie(): string | null {

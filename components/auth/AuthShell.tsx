@@ -8,11 +8,9 @@ interface AuthShellProps {
   logoSrc?: string
   title: string
   subtitle: string
-  /** Tailwind grid-cols value e.g. "5fr_7fr" or "4fr_8fr" */
+  /** Column ratio e.g. "4fr 8fr" or "5fr 7fr" */
   gridCols?: string
-  /** Person image width in px */
   imageWidth?: number
-  /** Person image height in px */
   imageHeight?: number
 }
 
@@ -24,22 +22,39 @@ export default function AuthShell({
   logoSrc = '/images/logo3.png',
   title,
   subtitle,
-  gridCols = '5fr_7fr',
+  gridCols = '5fr 7fr',
   imageWidth = 395,
   imageHeight = 495,
 }: AuthShellProps) {
+  // Normalise: callers used to pass "4fr_8fr" (underscores) — support both formats
+  const gridTemplate = gridCols.replace(/_/g, ' ')
+
   return (
     <div
-      className="min-h-screen w-full flex items-start justify-center p-[38px]"
+      className="min-h-screen w-full flex items-start justify-center p-5 lg:p-[38px]"
       style={{ background: '#0D1724' }}
     >
+      {/*
+       * Grid container:
+       *   mobile  → 1 column (left panel hidden, right panel fills width)
+       *   lg+     → two columns driven by the CSS variable --auth-cols
+       *
+       * We use a CSS variable instead of a dynamic Tailwind class because
+       * Tailwind JIT only scans static strings — template literals produce
+       * classes that are never compiled.
+       */}
       <div
-        className={`w-full grid grid-cols-[${gridCols}] gap-[24px]`}
-        style={{ minHeight: 'calc(100vh - 76px)' }}
+        className="w-full grid grid-cols-1 lg:[grid-template-columns:var(--auth-cols)] gap-5 lg:gap-6"
+        style={
+          {
+            '--auth-cols': gridTemplate,
+            minHeight: 'calc(100vh - 76px)',
+          } as React.CSSProperties
+        }
       >
-        {/* ── LEFT PANEL ── */}
+        {/* ── LEFT PANEL — hidden on mobile, shown lg+ ── */}
         <div
-          className="relative flex flex-col overflow-hidden rounded-[20px] shadow-2xl"
+          className="hidden lg:flex relative flex-col overflow-hidden rounded-[20px] shadow-2xl"
           style={{ background: gradient }}
         >
           {/* Logo + tagline */}
@@ -61,7 +76,7 @@ export default function AuthShell({
             </div>
           </div>
 
-          {/* Bottom: image + flags side by side */}
+          {/* Bottom: flags + person image */}
           <div className="absolute bottom-0 left-0 right-0 flex items-end justify-between z-10">
             <div className="mb-8 px-5">
               <Image
@@ -84,8 +99,8 @@ export default function AuthShell({
           </div>
         </div>
 
-        {/* ── RIGHT PANEL ── */}
-        <div className="bg-white flex flex-col overflow-y-auto rounded-[20px] shadow-2xl">
+        {/* ── RIGHT PANEL — full width on mobile, right column on lg+ ── */}
+        <div className="bg-white flex flex-col overflow-y-auto rounded-[20px] shadow-2xl min-h-screen lg:min-h-0">
           {children}
         </div>
       </div>
