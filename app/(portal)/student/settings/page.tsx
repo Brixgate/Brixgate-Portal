@@ -4,10 +4,11 @@ import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
 import TopNav from '@/components/layout/TopNav'
 import {
-  MOCK_STUDENT,
   MOCK_ENROLLMENTS,
   MOCK_NOTIFICATION_PREFERENCES,
 } from '@/lib/mock-data'
+import { useAuth } from '@/lib/auth-context'
+import { apiClient, getApiError } from '@/lib/api-client'
 import {
   Camera02Icon,
   EyeIcon,
@@ -189,12 +190,24 @@ function Toggle({
 export default function SettingsPage() {
   const enrollment = MOCK_ENROLLMENTS[0]
   const { avatar, setAvatar } = useAvatar()
+  const { user, updateUser } = useAuth()
 
-  // Personal info
-  const [firstName, setFirstName] = useState(MOCK_STUDENT.firstName)
-  const [lastName, setLastName] = useState(MOCK_STUDENT.lastName)
-  const [email] = useState(MOCK_STUDENT.email)
-  const [phone, setPhone] = useState(MOCK_STUDENT.phone?.replace('+234 ', '') ?? '')
+  // Personal info — initialised from auth context; updates once user loads
+  const [firstName, setFirstName] = useState(user?.firstName ?? '')
+  const [lastName, setLastName]   = useState(user?.lastName ?? '')
+  const [email]                   = useState(user?.email ?? '')
+  const [phone, setPhone]         = useState('')
+
+  // Sync from context when it first loads
+  useEffect(() => {
+    if (user) {
+      setFirstName(user.firstName)
+      setLastName(user.lastName)
+    }
+  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Saving state
+  const [savingProfile, setSavingProfile] = useState(false)
 
   // Password
   const [currentPassword, setCurrentPassword] = useState('')
@@ -285,16 +298,27 @@ export default function SettingsPage() {
   }
 
   // ── Personal info save ──
-  function handleSavePersonal() {
+  async function handleSavePersonal() {
     if (!firstName.trim() || !lastName.trim()) {
       showToast('First and last name are required.', 'error')
       return
     }
-    showToast('Personal information saved.', 'success')
+    setSavingProfile(true)
+    try {
+      await apiClient.put('/users/me', {
+        name: `${firstName.trim()} ${lastName.trim()}`.trim(),
+      })
+      updateUser({ firstName: firstName.trim(), lastName: lastName.trim(), name: `${firstName.trim()} ${lastName.trim()}` })
+      showToast('Personal information saved.', 'success')
+    } catch (err) {
+      showToast(getApiError(err), 'error')
+    } finally {
+      setSavingProfile(false)
+    }
   }
 
   // ── Password update ──
-  function handleUpdatePassword() {
+  async function handleUpdatePassword() {
     const errors: Record<string, string> = {}
     if (!currentPassword) errors.current = 'Enter your current password.'
     if (!newPassword) errors.new = 'Enter a new password.'
@@ -303,13 +327,21 @@ export default function SettingsPage() {
     else if (newPassword !== confirmPassword) errors.confirm = 'Passwords do not match.'
 
     setPasswordErrors(errors)
+    if (Object.keys(errors).length > 0) return
 
-    if (Object.keys(errors).length === 0) {
+    try {
+      await apiClient.put('/users/me/password', {
+        current_password: currentPassword,
+        new_password: newPassword,
+        new_password_confirmation: confirmPassword,
+      })
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
       setPasswordErrors({})
       showToast('Password updated successfully.', 'success')
+    } catch (err) {
+      showToast(getApiError(err), 'error')
     }
   }
 
@@ -465,9 +497,10 @@ export default function SettingsPage() {
               <div className="mt-5 flex justify-end">
                 <button
                   onClick={handleSavePersonal}
-                  className="inline-flex items-center gap-2 bg-[#d51520] text-white text-[13px] font-medium font-display px-5 py-2.5 rounded-[8px] hover:bg-[#b81119] transition-colors"
+                  disabled={savingProfile}
+                  className="inline-flex items-center gap-2 bg-[#d51520] text-white text-[13px] font-medium font-display px-5 py-2.5 rounded-[8px] hover:bg-[#b81119] transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                  Save Changes
+                  {savingProfile ? 'Saving…' : 'Save Changes'}
                 </button>
               </div>
             </SectionCard>

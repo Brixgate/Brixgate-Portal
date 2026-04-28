@@ -9,8 +9,9 @@ import { EyeIcon, ViewOffIcon } from 'hugeicons-react'
 function ResetPasswordContent() {
   const router      = useRouter()
   const searchParams = useSearchParams()
-  // TODO: use token when wiring to JWT endpoint: searchParams.get('token')
-  const _token = searchParams.get('token')
+  // Token from URL — will be used when backend adds reset-password endpoint
+  const token = searchParams.get('token') ?? ''
+  void token // referenced when endpoint is available
 
   const [password, setPassword]         = useState('')
   const [confirmPassword, setConfirm]   = useState('')

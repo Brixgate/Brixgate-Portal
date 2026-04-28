@@ -14,9 +14,10 @@ import {
 } from 'hugeicons-react'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { MOCK_STUDENT } from '@/lib/mock-data'
 import { useSidebar } from '@/lib/sidebar-context'
 import { useAvatar } from '@/lib/use-avatar'
+import { useAuth } from '@/lib/auth-context'
+import { useRouter } from 'next/navigation'
 
 const LOGO_URL = '/images/Logo red.png'
 
@@ -78,10 +79,21 @@ function NavItem({
 }
 
 export default function Sidebar() {
-  const pathname = usePathname()
+  const pathname  = usePathname()
+  const router    = useRouter()
   const { mobileOpen, closeMobile } = useSidebar()
   const { avatar } = useAvatar()
-  const initials = `${MOCK_STUDENT.firstName[0]}${MOCK_STUDENT.lastName[0]}`
+  const { user, logout } = useAuth()
+
+  const displayName = user ? `${user.firstName} ${user.lastName}`.trim() : ''
+  const initials    = user
+    ? `${user.firstName[0] ?? ''}${user.lastName[0] ?? ''}`.toUpperCase()
+    : '??'
+
+  async function handleLogout() {
+    await logout()
+    router.push('/login')
+  }
 
   // Collapse to icon-only on course detail pages — they have their own sidebar
   const forceCollapsed = pathname.startsWith('/student/courses/')
@@ -171,20 +183,24 @@ export default function Sidebar() {
               : 'hidden lg:flex px-7 py-7'
           )}>
             <Avatar className="h-9 w-9 flex-shrink-0">
-              <AvatarImage src={avatar ?? MOCK_STUDENT.avatar} alt={MOCK_STUDENT.firstName} />
+              <AvatarImage src={avatar ?? user?.profileImageUrl} alt={displayName} />
               <AvatarFallback className="bg-[#d51520] text-white text-[12px] font-bold font-display">{initials}</AvatarFallback>
             </Avatar>
             {!forceCollapsed && (
               <>
                 <div className="flex-1 min-w-0 overflow-hidden">
                   <p className="text-[13px] font-semibold text-[#111827] font-display leading-[18px] truncate">
-                    {MOCK_STUDENT.firstName} {MOCK_STUDENT.lastName}
+                    {displayName}
                   </p>
                   <p className="text-[11px] text-[#6b7280] font-body leading-[14px] capitalize">
-                    {MOCK_STUDENT.role}
+                    {user?.role?.toLowerCase() ?? 'student'}
                   </p>
                 </div>
-                <button aria-label="Logout" className="text-[#9ca3af] hover:text-[#6b7280] transition-colors flex-shrink-0">
+                <button
+                  aria-label="Logout"
+                  onClick={handleLogout}
+                  className="text-[#9ca3af] hover:text-[#d51520] transition-colors flex-shrink-0"
+                >
                   <Logout01Icon size={18} color="currentColor" strokeWidth={1.5} />
                 </button>
               </>
@@ -194,21 +210,21 @@ export default function Sidebar() {
           {/* Mobile drawer: full */}
           <div className="max-[400px]:flex hidden items-center gap-3 px-5 py-5">
             <Avatar className="h-9 w-9 flex-shrink-0">
-              <AvatarImage src={avatar ?? MOCK_STUDENT.avatar} alt={MOCK_STUDENT.firstName} />
+              <AvatarImage src={avatar ?? user?.profileImageUrl} alt={displayName} />
               <AvatarFallback className="bg-[#d51520] text-white text-[12px] font-bold font-display">{initials}</AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
               <p className="text-[13px] font-semibold text-[#111827] font-display">
-                {MOCK_STUDENT.firstName} {MOCK_STUDENT.lastName}
+                {displayName}
               </p>
-              <p className="text-[11px] text-[#6b7280] font-body capitalize">{MOCK_STUDENT.role}</p>
+              <p className="text-[11px] text-[#6b7280] font-body capitalize">{user?.role?.toLowerCase() ?? 'student'}</p>
             </div>
           </div>
 
           {/* Tablet: avatar only */}
           <div className="min-[400px]:flex lg:hidden max-[400px]:hidden items-center justify-center py-5">
             <Avatar className="h-8 w-8">
-              <AvatarImage src={avatar ?? MOCK_STUDENT.avatar} alt={MOCK_STUDENT.firstName} />
+              <AvatarImage src={avatar ?? user?.profileImageUrl} alt={displayName} />
               <AvatarFallback className="bg-[#d51520] text-white text-[11px] font-bold font-display">{initials}</AvatarFallback>
             </Avatar>
           </div>

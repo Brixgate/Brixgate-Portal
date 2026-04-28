@@ -1,3 +1,5 @@
+'use client'
+
 import TopNav from '@/components/layout/TopNav'
 import DashboardStats from '@/components/student/DashboardStats'
 import WeeklyProgress from '@/components/student/WeeklyProgress'
@@ -7,7 +9,8 @@ import NotificationsPanel from '@/components/student/NotificationsPanel'
 import PastSessionsPanel from '@/components/student/PastSessionsPanel'
 import NewUserDashboard from '@/components/student/NewUserDashboard'
 import MobileCourseFeed from '@/components/student/MobileCourseFeed'
-import { MOCK_STUDENT, MOCK_ENROLLMENTS } from '@/lib/mock-data'
+import { MOCK_ENROLLMENTS } from '@/lib/mock-data'
+import { useAuth } from '@/lib/auth-context'
 
 function getTodayFormatted() {
   const now = new Date()
@@ -17,7 +20,9 @@ function getTodayFormatted() {
 }
 
 export default function DashboardPage() {
+  const { user } = useAuth()
   const isNewUser = MOCK_ENROLLMENTS.length === 0
+  const firstName = user?.firstName ?? ''
 
   return (
     <>
@@ -28,7 +33,7 @@ export default function DashboardPage() {
         <div className="flex items-start justify-between pt-6 pb-5">
           <div className="flex flex-col gap-1">
             <h1 className="text-[22px] md:text-[28px] font-semibold text-black font-display leading-tight">
-              Welcome {MOCK_STUDENT.firstName}!
+              Welcome{firstName ? ` ${firstName}` : ''}!
             </h1>
             <p className="text-[13px] md:text-[14px] text-[#6b7280] font-body">
               {isNewUser ? 'Get started by enrolling in a programme.' : "Let's learn something new today"}

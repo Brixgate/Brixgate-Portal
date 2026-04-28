@@ -1,25 +1,30 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { EyeIcon, ViewOffIcon, AlertCircleIcon } from 'hugeicons-react'
+import { useAuth } from '@/lib/auth-context'
+import { apiClient, extractToken, getApiError } from '@/lib/api-client'
 
 interface FormErrors {
   email?: string
   password?: string
+  form?: string
 }
 
-export default function LoginPage() {
-  const router = useRouter()
+function LoginPageContent() {
+  const router       = useRouter()
+  const searchParams = useSearchParams()
+  const { login }    = useAuth()
 
-  const [email, setEmail]           = useState('')
-  const [password, setPassword]     = useState('')
-  const [rememberMe, setRememberMe] = useState(false)
+  const [email, setEmail]               = useState('')
+  const [password, setPassword]         = useState('')
+  const [rememberMe, setRememberMe]     = useState(false)
   const [showPassword, setShowPassword] = useState(false)
-  const [errors, setErrors]         = useState<FormErrors>({})
-  const [loading, setLoading]       = useState(false)
+  const [errors, setErrors]             = useState<FormErrors>({})
+  const [loading, setLoading]           = useState(false)
 
   function validate(): boolean {
     const next: FormErrors = {}
@@ -35,10 +40,22 @@ export default function LoginPage() {
     if (!validate()) return
 
     setLoading(true)
-    // Simulate API call — wire to JWT endpoint later
-    await new Promise((r) => setTimeout(r, 1200))
-    setLoading(false)
-    router.push('/student/dashboard')
+    setErrors({})
+
+    try {
+      const res = await apiClient.post('/auth/login', { email, password })
+      const token = extractToken(res.data)
+      if (!token) throw new Error('No token returned from server.')
+
+      await login(token)
+
+      const redirect = searchParams.get('redirect') ?? '/student/dashboard'
+      router.push(redirect)
+    } catch (err) {
+      setErrors({ form: getApiError(err) })
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -149,6 +166,14 @@ export default function LoginPage() {
             </Link>
           </div>
 
+          {/* Form-level error */}
+          {errors.form && (
+            <div className="flex items-center gap-2 bg-[#fef2f2] border border-[#fecdca] rounded-[6px] px-3 py-2.5">
+              <AlertCircleIcon size={14} color="#D51520" strokeWidth={1.5} />
+              <p className="text-[12px] text-[#D51520] font-body">{errors.form}</p>
+            </div>
+          )}
+
           {/* Submit */}
           <button
             type="submit"
@@ -181,5 +206,13 @@ export default function LoginPage() {
       {/* Footer */}
       <p className="text-[12px] text-[#D1D5DB] font-body mt-6">Brixgate 2024</p>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginPageContent />
+    </Suspense>
   )
 }

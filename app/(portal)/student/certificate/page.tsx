@@ -1,8 +1,86 @@
-import TopNav from '@/components/layout/TopNav'
-import { MOCK_ENROLLMENTS, MOCK_STUDENT } from '@/lib/mock-data'
-import { Award01Icon, LockIcon, Download01Icon, CheckmarkCircle01Icon } from 'hugeicons-react'
-import EmptyState from '@/components/shared/EmptyState'
+'use client'
 
+import { useState, useEffect } from 'react'
+import TopNav from '@/components/layout/TopNav'
+import { Award01Icon, LockIcon, Download01Icon, CheckmarkCircle01Icon, Loading01Icon } from 'hugeicons-react'
+import EmptyState from '@/components/shared/EmptyState'
+import { apiClient, unwrap, getApiError } from '@/lib/api-client'
+import { useAuth } from '@/lib/auth-context'
+
+// ── API shapes ────────────────────────────────────────────────────────────────
+interface ApiCohort {
+  id: number
+  name: string
+  end_date?: string
+  start_date?: string
+}
+
+interface ApiEnrollment {
+  id: number
+  progress?: number
+  cohort_id?: number
+  cohort?: ApiCohort
+}
+
+interface ApiProgram {
+  id: number
+  title: string
+  category?: string
+  duration?: string
+  enrollment?: ApiEnrollment
+  progress?: number
+  cohort?: ApiCohort
+  cohort_id?: number
+}
+
+interface ApiCertification {
+  id: number
+  program_id?: number
+  program_title?: string
+  issued_at?: string
+  certificate_url?: string
+  pdf_url?: string
+}
+
+// ── Normalised ────────────────────────────────────────────────────────────────
+interface CertRow {
+  key: string
+  programId: number
+  title: string
+  cohortLabel: string
+  progress: number
+  cohortId: number
+  endDate: string
+  certificateUrl: string | null
+  issuedAt: string | null
+}
+
+function normaliseProgramToCertRow(raw: ApiProgram, certMap: Map<number, ApiCertification>): CertRow {
+  const enrollment = raw.enrollment
+  const cohort = enrollment?.cohort ?? raw.cohort ?? null
+  const title = raw.title ?? 'Untitled Programme'
+  const cohortName = cohort?.name ?? ''
+  const cohortLabel = cohortName.replace(`${title} — `, '').replace(`${title} - `, '') || cohortName
+  const cert = certMap.get(raw.id)
+
+  return {
+    key: String(raw.id),
+    programId: raw.id,
+    title,
+    cohortLabel,
+    progress: enrollment?.progress ?? raw.progress ?? 0,
+    cohortId: enrollment?.cohort_id ?? cohort?.id ?? raw.cohort_id ?? 0,
+    endDate: cohort?.end_date
+      ? new Date(cohort.end_date).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })
+      : '—',
+    certificateUrl: cert?.certificate_url ?? cert?.pdf_url ?? null,
+    issuedAt: cert?.issued_at
+      ? new Date(cert.issued_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })
+      : null,
+  }
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
 function getStatusBadge(progress: number) {
   if (progress >= 100) return { label: 'Completed', color: '#16a34a', bg: '#ecfdf3', border: '#bbf7d0' }
   if (progress > 0)    return { label: 'In Progress', color: '#d97706', bg: '#fffbeb', border: '#fde68a' }
@@ -24,21 +102,10 @@ function RequirementItem({ done, label }: { done: boolean; label: string }) {
   )
 }
 
-function CertificateCard({
-  enrollment,
-}: {
-  enrollment: (typeof MOCK_ENROLLMENTS)[number]
-}) {
-  const { cohort, progress } = enrollment
-  const program = cohort.program
+function CertificateCard({ row, fullName }: { row: CertRow; fullName: string }) {
+  const { title, cohortLabel, progress, endDate, certificateUrl } = row
   const isUnlocked = progress >= 100
   const status = getStatusBadge(progress)
-
-  const cohortLabel = cohort.name.replace(`${program.title} — `, '')
-
-  const endDate = cohort.endDate
-    ? new Date(cohort.endDate).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })
-    : '—'
 
   const requirements = [
     { label: 'Attend at least 80% of live sessions', done: progress >= 40 },
@@ -55,9 +122,7 @@ function CertificateCard({
         <div className="bg-[#fef2f2] border border-[#fecdca] rounded-[12px] p-5">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <p className="text-[15px] font-semibold text-[#111827] font-display leading-tight">
-                {program.title}
-              </p>
+              <p className="text-[15px] font-semibold text-[#111827] font-display leading-tight">{title}</p>
               <p className="text-[12px] text-[#9ca3af] font-body mt-0.5">{cohortLabel}</p>
             </div>
             <div className="flex items-center gap-3">
@@ -116,10 +181,10 @@ function CertificateCard({
               </p>
               <p className="text-[13px] text-[#9ca3af] font-body mb-2">This is to certify that</p>
               <p className="text-[28px] font-bold text-[#111827] font-display leading-tight mb-3">
-                {MOCK_STUDENT.firstName} {MOCK_STUDENT.lastName}
+                {fullName}
               </p>
               <p className="text-[12px] text-[#6b7280] font-body mb-1">has successfully completed</p>
-              <p className="text-[16px] font-semibold text-[#111827] font-display max-w-[360px] mb-1">{program.title}</p>
+              <p className="text-[16px] font-semibold text-[#111827] font-display max-w-[360px] mb-1">{title}</p>
               <p className="text-[11px] text-[#9ca3af] font-body">{cohortLabel}</p>
 
               <div className="mt-5 flex items-center gap-6">
@@ -142,17 +207,29 @@ function CertificateCard({
               <p className="text-[12px] text-[#9ca3af] font-body">
                 {isUnlocked ? 'Your certificate is ready to download.' : 'Certificate locked until programme completion.'}
               </p>
-              <button
-                disabled={!isUnlocked}
-                className={`inline-flex items-center gap-2 text-[13px] font-medium font-display px-4 py-2 rounded-[8px] transition-colors ${
-                  isUnlocked
-                    ? 'bg-[#d51520] text-white hover:bg-[#b81119]'
-                    : 'bg-[#f3f4f6] text-[#d1d5db] cursor-not-allowed'
-                }`}
-              >
-                <Download01Icon size={14} strokeWidth={1.5} />
-                Download PDF
-              </button>
+              {isUnlocked && certificateUrl ? (
+                <a
+                  href={certificateUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-[13px] font-medium font-display px-4 py-2 rounded-[8px] bg-[#d51520] text-white hover:bg-[#b81119] transition-colors"
+                >
+                  <Download01Icon size={14} strokeWidth={1.5} />
+                  Download PDF
+                </a>
+              ) : (
+                <button
+                  disabled={!isUnlocked}
+                  className={`inline-flex items-center gap-2 text-[13px] font-medium font-display px-4 py-2 rounded-[8px] transition-colors ${
+                    isUnlocked
+                      ? 'bg-[#d51520] text-white hover:bg-[#b81119]'
+                      : 'bg-[#f3f4f6] text-[#d1d5db] cursor-not-allowed'
+                  }`}
+                >
+                  <Download01Icon size={14} strokeWidth={1.5} />
+                  Download PDF
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -160,7 +237,6 @@ function CertificateCard({
 
       {/* Right: requirements + details */}
       <div className="flex flex-col gap-4">
-        {/* Requirements */}
         <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] p-6">
           <p className="text-[15px] font-semibold text-[#111827] font-display mb-0.5">Requirements</p>
           <p className="text-[12px] text-[#9ca3af] font-body mb-4">Complete all steps to unlock your certificate.</p>
@@ -171,13 +247,12 @@ function CertificateCard({
           </div>
         </div>
 
-        {/* Certificate details */}
         <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] p-6">
           <p className="text-[15px] font-semibold text-[#111827] font-display mb-4">Certificate Details</p>
           <div className="flex flex-col gap-4">
             {[
-              { label: 'Recipient',   value: `${MOCK_STUDENT.firstName} ${MOCK_STUDENT.lastName}` },
-              { label: 'Programme',   value: program.title },
+              { label: 'Recipient',   value: fullName },
+              { label: 'Programme',   value: title },
               { label: 'Cohort',      value: cohortLabel },
               { label: 'Course Ends', value: endDate },
               { label: 'Issuer',      value: 'Brixgate Academy' },
@@ -194,15 +269,51 @@ function CertificateCard({
   )
 }
 
+// ── Page ──────────────────────────────────────────────────────────────────────
 export default function CertificatePage() {
-  const isEnrolled = MOCK_ENROLLMENTS.length > 0
+  const { user } = useAuth()
+  const [rows, setRows]       = useState<CertRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError]     = useState<string | null>(null)
+
+  const fullName = user ? `${user.firstName} ${user.lastName}`.trim() : ''
+
+  useEffect(() => {
+    async function load() {
+      try {
+        // Fetch programs and certifications in parallel
+        const [programsRes, certsRes] = await Promise.all([
+          apiClient.get('/users/me/programs'),
+          apiClient.get('/users/me/certifications').catch(() => ({ data: [] })),
+        ])
+
+        const programs = (unwrap<ApiProgram[]>(programsRes.data) ?? [])
+        const certs    = (unwrap<ApiCertification[]>(certsRes.data) ?? [])
+
+        // Build a map of program_id → certification
+        const certMap = new Map<number, ApiCertification>()
+        for (const c of certs) {
+          if (c.program_id) certMap.set(c.program_id, c)
+        }
+
+        const certRows = (Array.isArray(programs) ? programs : []).map((p) =>
+          normaliseProgramToCertRow(p, certMap)
+        )
+        setRows(certRows)
+      } catch (err) {
+        setError(getApiError(err))
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [])
 
   return (
     <>
       <TopNav title="My Certificate" />
 
       <div className="px-8 pb-10">
-        {/* Page header */}
         <div className="pt-7 pb-6">
           <h1 className="text-[24px] font-bold text-[#111827] font-display leading-tight">
             My Certificates
@@ -212,7 +323,23 @@ export default function CertificatePage() {
           </p>
         </div>
 
-        {!isEnrolled ? (
+        {/* Loading */}
+        {loading && (
+          <div className="flex items-center justify-center py-16 gap-2 text-[#9ca3af]">
+            <Loading01Icon size={18} className="animate-spin" strokeWidth={1.5} />
+            <span className="text-[13px] font-body">Loading your certificates…</span>
+          </div>
+        )}
+
+        {/* Error */}
+        {!loading && error && (
+          <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] p-8 text-center">
+            <p className="text-[14px] text-[#d51520] font-body">{error}</p>
+          </div>
+        )}
+
+        {/* Empty */}
+        {!loading && !error && rows.length === 0 && (
           <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)]">
             <EmptyState
               icon={Award01Icon}
@@ -221,10 +348,13 @@ export default function CertificatePage() {
               action={{ label: 'View Programmes', href: '/student/programs' }}
             />
           </div>
-        ) : (
+        )}
+
+        {/* Cards */}
+        {!loading && !error && rows.length > 0 && (
           <div className="flex flex-col gap-10">
-            {MOCK_ENROLLMENTS.map((enrollment) => (
-              <CertificateCard key={enrollment.cohortId} enrollment={enrollment} />
+            {rows.map((row) => (
+              <CertificateCard key={row.key} row={row} fullName={fullName} />
             ))}
           </div>
         )}
