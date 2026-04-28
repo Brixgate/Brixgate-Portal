@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation'
 import { Search01Icon, Menu01Icon, BookOpen01Icon, Settings01Icon, HelpCircleIcon, Logout01Icon } from 'hugeicons-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import NotificationDropdown from '@/components/shared/NotificationDropdown'
-import { MOCK_STUDENT } from '@/lib/mock-data'
 import { useSidebar } from '@/lib/sidebar-context'
 import { useAvatar } from '@/lib/use-avatar'
+import { useAuth } from '@/lib/auth-context'
 
 interface TopNavProps {
   title: string
@@ -21,11 +21,16 @@ const PROFILE_MENU = [
 ]
 
 export default function TopNav({ title, breadcrumbs = [] }: TopNavProps) {
-  const initials = `${MOCK_STUDENT.firstName[0]}${MOCK_STUDENT.lastName[0]}`
+  const { user, logout } = useAuth()
   const crumbPath = [...breadcrumbs, title]
   const { openMobile } = useSidebar()
   const { avatar } = useAvatar()
   const router = useRouter()
+
+  const displayName = user ? `${user.firstName} ${user.lastName}`.trim() : ''
+  const initials    = user
+    ? `${user.firstName[0] ?? ''}${user.lastName[0] ?? ''}`.toUpperCase()
+    : '?'
 
   const [showProfileMenu, setShowProfileMenu] = useState(false)
   const profileRef = useRef<HTMLDivElement>(null)
@@ -97,7 +102,7 @@ export default function TopNav({ title, breadcrumbs = [] }: TopNavProps) {
           aria-label="Open profile menu"
         >
           <Avatar className="h-9 w-9 cursor-pointer ring-2 ring-transparent hover:ring-[#d51520]/30 transition-all rounded-full">
-            <AvatarImage src={avatar ?? MOCK_STUDENT.avatar} alt={MOCK_STUDENT.firstName} />
+            <AvatarImage src={avatar ?? user?.profileImageUrl} alt={displayName} />
             <AvatarFallback className="bg-[#d51520] text-white text-[11px] font-bold font-display">
               {initials}
             </AvatarFallback>
@@ -110,10 +115,10 @@ export default function TopNav({ title, breadcrumbs = [] }: TopNavProps) {
             {/* User info header */}
             <div className="px-4 py-3 border-b border-[#f3f4f6]">
               <p className="text-[13px] font-semibold text-[#111827] font-display">
-                {MOCK_STUDENT.firstName} {MOCK_STUDENT.lastName}
+                {displayName}
               </p>
               <p className="text-[11px] text-[#9ca3af] font-body truncate mt-0.5">
-                {MOCK_STUDENT.email}
+                {user?.email ?? ''}
               </p>
             </div>
 
@@ -137,9 +142,9 @@ export default function TopNav({ title, breadcrumbs = [] }: TopNavProps) {
             {/* Logout */}
             <div className="border-t border-[#f3f4f6] py-1 mt-1">
               <button
-                onClick={() => {
+                onClick={async () => {
                   setShowProfileMenu(false)
-                  // Auth logout will be wired to API — shows route for now
+                  await logout()
                   router.push('/login')
                 }}
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] font-medium text-[#d51520] font-body hover:bg-[#fef2f2] transition-colors text-left"
