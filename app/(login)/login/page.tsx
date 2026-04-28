@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -17,7 +17,7 @@ interface FormErrors {
 function LoginPageContent() {
   const router       = useRouter()
   const searchParams = useSearchParams()
-  const { login }    = useAuth()
+  const { login, user, isLoading } = useAuth()
 
   const [email, setEmail]               = useState('')
   const [password, setPassword]         = useState('')
@@ -25,6 +25,14 @@ function LoginPageContent() {
   const [showPassword, setShowPassword] = useState(false)
   const [errors, setErrors]             = useState<FormErrors>({})
   const [loading, setLoading]           = useState(false)
+
+  // Already authenticated — go straight to the portal
+  useEffect(() => {
+    if (!isLoading && user) {
+      const redirect = searchParams.get('redirect') ?? '/student/dashboard'
+      router.replace(redirect)
+    }
+  }, [isLoading, user]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function validate(): boolean {
     const next: FormErrors = {}

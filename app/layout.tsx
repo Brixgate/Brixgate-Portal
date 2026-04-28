@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { DM_Sans, Inter } from 'next/font/google'
+import Providers from '@/components/providers'
 import './globals.css'
 
 const dmSans = DM_Sans({
@@ -28,7 +29,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${dmSans.variable} ${inter.variable}`}>
-      <body>{children}</body>
+      <body>
+        <Providers>{children}</Providers>
+      </body>
     </html>
   )
 }
