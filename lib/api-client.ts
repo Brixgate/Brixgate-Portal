@@ -93,18 +93,27 @@ export function extractToken(responseData: unknown): string | null {
 // ── Error message extractor ────────────────────────────────────────────────────
 export function getApiError(error: unknown): string {
   if (axios.isAxiosError(error)) {
+    // Network error / CORS — no response received at all
+    if (!error.response) {
+      return 'Unable to reach the server. Please check your connection and try again.'
+    }
+
     const data = error.response?.data as Record<string, unknown> | undefined
     if (data) {
-      if (typeof data.message === 'string') return data.message
-      if (typeof data.error === 'string') return data.error
+      // Surface the API's own message directly — it knows best
+      if (typeof data.message === 'string' && data.message) return data.message
+      if (typeof data.error === 'string' && data.error)     return data.error
       if (Array.isArray(data.errors) && data.errors.length > 0) {
         return String(data.errors[0])
       }
     }
-    if (error.response?.status === 401) return 'Invalid email or password.'
+
+    // Status-based fallbacks when no message body
+    if (error.response?.status === 401) return 'Incorrect password. Please try again.'
+    if (error.response?.status === 404) return 'No account found with that email address.'
     if (error.response?.status === 422) return 'Please check your details and try again.'
-    if (error.response?.status === 429) return 'Too many attempts. Please try again later.'
-    if (error.response?.status && error.response.status >= 500) return 'Server error. Please try again.'
+    if (error.response?.status === 429) return 'Too many attempts. Please wait a moment and try again.'
+    if (error.response?.status && error.response.status >= 500) return 'Server error. Please try again in a moment.'
   }
   return 'Something went wrong. Please try again.'
 }

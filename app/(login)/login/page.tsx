@@ -202,13 +202,6 @@ function LoginPageContent() {
           </button>
         </form>
 
-        {/* Sign up link */}
-        <p className="text-[13px] text-[#6B7280] font-body text-center mt-5">
-          Don&apos;t have an account?{' '}
-          <Link href="/signup" className="text-[#D51520] font-medium hover:underline">
-            Create an account
-          </Link>
-        </p>
       </div>
 
       {/* Footer */}

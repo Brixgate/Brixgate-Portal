@@ -19,7 +19,7 @@ export default function AuthShell({
   gradient,
   imageSrc,
   imageAlt = 'Student',
-  logoSrc = '/images/logo3.png',
+  logoSrc = '/images/Logo3.png',
   title,
   subtitle,
   gridCols = '5fr 7fr',
