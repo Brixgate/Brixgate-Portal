@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import TopNav from '@/components/layout/TopNav'
 import { Award01Icon, LockIcon, Download01Icon, CheckmarkCircle01Icon, Loading01Icon } from 'hugeicons-react'
 import EmptyState from '@/components/shared/EmptyState'
+import axios from 'axios'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 import { useAuth } from '@/lib/auth-context'
 
@@ -301,7 +302,12 @@ export default function CertificatePage() {
         )
         setRows(certRows)
       } catch (err) {
-        setError(getApiError(err))
+        // 401 / 403 = not enrolled or session not active — show empty state,
+        // not a scary error message. Only surface unexpected failures.
+        const status = axios.isAxiosError(err) ? err.response?.status : null
+        if (status !== 401 && status !== 403) {
+          setError(getApiError(err))
+        }
       } finally {
         setLoading(false)
       }
