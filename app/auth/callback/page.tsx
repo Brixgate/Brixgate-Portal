@@ -17,7 +17,7 @@
 import { Suspense, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
-import { BASE_URL, setTokenCookie } from '@/lib/api-client'
+import { setTokenCookie } from '@/lib/api-client'
 
 function CallbackContent() {
   const router       = useRouter()

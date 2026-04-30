@@ -1,12 +1,20 @@
 import axios from 'axios'
 
-// In the browser, route all requests through the Next.js proxy (/api/proxy/...)
-// so they stay same-origin and CORS is never an issue.
-// On the server (SSR / API routes), call the real API directly.
+const DIRECT_API = process.env.NEXT_PUBLIC_API_URL ?? 'https://api.brixgate.com/api/v1'
+
+// ── CORS proxy toggle ──────────────────────────────────────────────────────────
+// While api.brixgate.com doesn't have CORS headers set, browser calls must go
+// through the Next.js server proxy (/api/proxy/...) to avoid being blocked.
+//
+// Once the backend adds  Access-Control-Allow-Origin: https://portal.brixgate.com
+// set  NEXT_PUBLIC_USE_PROXY=false  in Vercel env vars to revert to direct calls.
+// No code change needed — just flip the env var and redeploy.
+const USE_PROXY = process.env.NEXT_PUBLIC_USE_PROXY !== 'false'
+
 export const BASE_URL =
-  typeof window !== 'undefined'
+  typeof window !== 'undefined' && USE_PROXY
     ? '/api/proxy'
-    : (process.env.NEXT_PUBLIC_API_URL ?? 'https://api.brixgate.com/api/v1')
+    : DIRECT_API
 
 // ── Cookie helpers (client-side only) ─────────────────────────────────────────
 export function getTokenFromCookie(): string | null {
