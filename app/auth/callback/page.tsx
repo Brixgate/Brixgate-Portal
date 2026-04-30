@@ -35,7 +35,9 @@ function CallbackContent() {
 
       try {
         // Validate the token directly — don't store it until we know it's good
-        const res = await fetch(`${BASE_URL}/users/me`, {
+        // Always use the proxy path — BASE_URL may resolve to the direct API
+        // URL on the server, but this runs in the browser where CORS applies.
+        const res = await fetch(`/api/proxy/users/me`, {
           headers: {
             Authorization: `Bearer ${token}`,
             Accept: 'application/json',

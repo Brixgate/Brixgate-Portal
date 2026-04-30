@@ -1,7 +1,12 @@
 import axios from 'axios'
 
+// In the browser, route all requests through the Next.js proxy (/api/proxy/...)
+// so they stay same-origin and CORS is never an issue.
+// On the server (SSR / API routes), call the real API directly.
 export const BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? 'https://api.brixgate.com/api/v1'
+  typeof window !== 'undefined'
+    ? '/api/proxy'
+    : (process.env.NEXT_PUBLIC_API_URL ?? 'https://api.brixgate.com/api/v1')
 
 // ── Cookie helpers (client-side only) ─────────────────────────────────────────
 export function getTokenFromCookie(): string | null {
