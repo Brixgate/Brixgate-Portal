@@ -18,6 +18,5 @@ export default function RootPage({
   if (token && typeof token === 'string') {
     redirect(`/auth/callback?token=${encodeURIComponent(token)}`)
   }
-  // AUTH TEMPORARILY DISABLED — go straight to dashboard
-  redirect('/student/dashboard')
+  redirect('/login')
 }

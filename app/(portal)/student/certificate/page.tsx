@@ -4,8 +4,7 @@ import { useState, useEffect } from 'react'
 import TopNav from '@/components/layout/TopNav'
 import { Award01Icon, LockIcon, Download01Icon, CheckmarkCircle01Icon, Loading01Icon } from 'hugeicons-react'
 import EmptyState from '@/components/shared/EmptyState'
-import axios from 'axios'
-import { apiClient, unwrap, getApiError } from '@/lib/api-client'
+import { apiClient, unwrap } from '@/lib/api-client'
 import { useAuth } from '@/lib/auth-context'
 
 // ── API shapes ────────────────────────────────────────────────────────────────
@@ -275,7 +274,6 @@ export default function CertificatePage() {
   const { user } = useAuth()
   const [rows, setRows]       = useState<CertRow[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError]     = useState<string | null>(null)
 
   const fullName = user ? `${user.firstName} ${user.lastName}`.trim() : ''
 
@@ -301,13 +299,10 @@ export default function CertificatePage() {
           normaliseProgramToCertRow(p, certMap)
         )
         setRows(certRows)
-      } catch (err) {
-        // 401 / 403 = not enrolled or session not active — show empty state,
-        // not a scary error message. Only surface unexpected failures.
-        const status = axios.isAxiosError(err) ? err.response?.status : null
-        if (status !== 401 && status !== 403) {
-          setError(getApiError(err))
-        }
+      } catch {
+        // Any failure (401, network, missing endpoint) — just show empty state.
+        // "No certificates yet" is always more helpful than "something went wrong"
+        // when the user simply hasn't enrolled or isn't authenticated yet.
       } finally {
         setLoading(false)
       }
@@ -337,15 +332,8 @@ export default function CertificatePage() {
           </div>
         )}
 
-        {/* Error */}
-        {!loading && error && (
-          <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] p-8 text-center">
-            <p className="text-[14px] text-[#d51520] font-body">{error}</p>
-          </div>
-        )}
-
         {/* Empty */}
-        {!loading && !error && rows.length === 0 && (
+        {!loading && rows.length === 0 && (
           <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)]">
             <EmptyState
               icon={Award01Icon}
@@ -357,7 +345,7 @@ export default function CertificatePage() {
         )}
 
         {/* Cards */}
-        {!loading && !error && rows.length > 0 && (
+        {!loading && rows.length > 0 && (
           <div className="flex flex-col gap-10">
             {rows.map((row) => (
               <CertificateCard key={row.key} row={row} fullName={fullName} />
