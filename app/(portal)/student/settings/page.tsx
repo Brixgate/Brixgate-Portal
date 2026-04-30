@@ -116,7 +116,8 @@ function FormField({
   )
 }
 
-// ── Password strength ──────────────────────────────────────────────────────────
+// ── Password strength (kept for future use) ───────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function getPasswordStrength(pw: string): { level: number; label: string; color: string } {
   if (!pw) return { level: 0, label: '', color: '' }
   let score = 0
@@ -208,13 +209,6 @@ export default function SettingsPage() {
 
   // Saving state
   const [savingProfile, setSavingProfile] = useState(false)
-
-  // Password
-  const [currentPassword, setCurrentPassword] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [passwordErrors, setPasswordErrors] = useState<Record<string, string>>({})
-  const strength = getPasswordStrength(newPassword)
 
   // Notifications
   const [prefs, setPrefs] = useState(MOCK_NOTIFICATION_PREFERENCES)
@@ -314,34 +308,6 @@ export default function SettingsPage() {
       showToast(getApiError(err), 'error')
     } finally {
       setSavingProfile(false)
-    }
-  }
-
-  // ── Password update ──
-  async function handleUpdatePassword() {
-    const errors: Record<string, string> = {}
-    if (!currentPassword) errors.current = 'Enter your current password.'
-    if (!newPassword) errors.new = 'Enter a new password.'
-    else if (newPassword.length < 8) errors.new = 'Password must be at least 8 characters.'
-    if (!confirmPassword) errors.confirm = 'Please confirm your new password.'
-    else if (newPassword !== confirmPassword) errors.confirm = 'Passwords do not match.'
-
-    setPasswordErrors(errors)
-    if (Object.keys(errors).length > 0) return
-
-    try {
-      await apiClient.put('/users/me/password', {
-        current_password: currentPassword,
-        new_password: newPassword,
-        new_password_confirmation: confirmPassword,
-      })
-      setCurrentPassword('')
-      setNewPassword('')
-      setConfirmPassword('')
-      setPasswordErrors({})
-      showToast('Password updated successfully.', 'success')
-    } catch (err) {
-      showToast(getApiError(err), 'error')
     }
   }
 
@@ -505,64 +471,6 @@ export default function SettingsPage() {
               </div>
             </SectionCard>
 
-            {/* Change Password */}
-            <SectionCard
-              title="Change Password"
-              description="Choose a strong password with at least 8 characters."
-            >
-              <div className="flex flex-col gap-4">
-                <FormField
-                  label="Current Password"
-                  value={currentPassword}
-                  onChange={setCurrentPassword}
-                  type="password"
-                  placeholder="Enter current password"
-                  error={passwordErrors.current}
-                />
-                <div>
-                  <FormField
-                    label="New Password"
-                    value={newPassword}
-                    onChange={setNewPassword}
-                    type="password"
-                    placeholder="Enter new password"
-                    error={passwordErrors.new}
-                  />
-                  {newPassword && (
-                    <div className="mt-2">
-                      <div className="flex gap-1 mb-1">
-                        {[1, 2, 3, 4].map((i) => (
-                          <div
-                            key={i}
-                            className="h-1 flex-1 rounded-full transition-all duration-300"
-                            style={{ background: i <= strength.level ? strength.color : '#f3f4f6' }}
-                          />
-                        ))}
-                      </div>
-                      <p className="text-[11px] font-body" style={{ color: strength.color }}>
-                        {strength.label} password
-                      </p>
-                    </div>
-                  )}
-                </div>
-                <FormField
-                  label="Confirm New Password"
-                  value={confirmPassword}
-                  onChange={setConfirmPassword}
-                  type="password"
-                  placeholder="Confirm new password"
-                  error={passwordErrors.confirm}
-                />
-              </div>
-              <div className="mt-5 flex justify-end">
-                <button
-                  onClick={handleUpdatePassword}
-                  className="inline-flex items-center gap-2 border border-[#e5e7eb] text-[#374151] text-[13px] font-medium font-display px-5 py-2.5 rounded-[8px] hover:bg-[#f9fafb] transition-colors"
-                >
-                  Update Password
-                </button>
-              </div>
-            </SectionCard>
             {/* Resume / CV Upload */}
             <SectionCard
               title="Resume & CV"

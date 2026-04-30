@@ -2,13 +2,13 @@
 
 import TopNav from '@/components/layout/TopNav'
 import DashboardStats from '@/components/student/DashboardStats'
-import WeeklyProgress from '@/components/student/WeeklyProgress'
 import PromoBanner from '@/components/student/PromoBanner'
 import MyLearning from '@/components/student/MyLearning'
 import NotificationsPanel from '@/components/student/NotificationsPanel'
 import PastSessionsPanel from '@/components/student/PastSessionsPanel'
 import NewUserDashboard from '@/components/student/NewUserDashboard'
 import MobileCourseFeed from '@/components/student/MobileCourseFeed'
+import { MOCK_ENROLLMENTS } from '@/lib/mock-data'
 import { useAuth } from '@/lib/auth-context'
 
 function getTodayFormatted() {
@@ -20,9 +20,7 @@ function getTodayFormatted() {
 
 export default function DashboardPage() {
   const { user } = useAuth()
-  // Show the enrolled dashboard only when the user has a confirmed session.
-  // Until the backend supplies real enrollment data, default to empty state.
-  const isEnrolled = false
+  const isNewUser = MOCK_ENROLLMENTS.length === 0
   const firstName = user?.firstName ?? ''
 
   return (
@@ -37,7 +35,7 @@ export default function DashboardPage() {
               Welcome{firstName ? ` ${firstName}` : ''}!
             </h1>
             <p className="text-[13px] md:text-[14px] text-[#6b7280] font-body">
-              {!isEnrolled ? 'Get started by enrolling in a programme.' : "Let's learn something new today"}
+              {isNewUser ? 'Get started by enrolling in a programme.' : "Let's learn something new today"}
             </p>
           </div>
           {/* Date — hidden on mobile */}
@@ -54,7 +52,7 @@ export default function DashboardPage() {
 
         {/* ── DESKTOP / TABLET VIEW (400px+) ───────────────────────────────── */}
         <div className="max-[400px]:hidden">
-          {!isEnrolled ? (
+          {isNewUser ? (
             <NewUserDashboard />
           ) : (
             <div className="flex gap-6">
@@ -67,7 +65,6 @@ export default function DashboardPage() {
 
               {/* Right panel */}
               <div className="w-[280px] xl:w-[320px] flex-shrink-0 flex flex-col gap-4">
-                <WeeklyProgress />
                 <NotificationsPanel />
                 <PastSessionsPanel />
               </div>
