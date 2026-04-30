@@ -1,21 +1,9 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-const PROTECTED_PREFIXES = ['/student', '/instructor', '/admin']
-
-export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl
-
-  const isProtected = PROTECTED_PREFIXES.some((prefix) => pathname.startsWith(prefix))
-  if (!isProtected) return NextResponse.next()
-
-  const token = request.cookies.get('brixgate_token')?.value
-  if (!token) {
-    const loginUrl = new URL('/login', request.url)
-    loginUrl.searchParams.set('redirect', pathname)
-    return NextResponse.redirect(loginUrl)
-  }
-
+// AUTH TEMPORARILY DISABLED — allow all routes without a token
+// Re-enable by restoring the token check below before go-live
+export function middleware(_request: NextRequest) {
   return NextResponse.next()
 }
 
