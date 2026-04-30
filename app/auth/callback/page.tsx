@@ -17,7 +17,7 @@
 import { Suspense, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
-import { setTokenCookie } from '@/lib/api-client'
+import { BASE_URL, setTokenCookie } from '@/lib/api-client'
 
 function CallbackContent() {
   const router       = useRouter()
@@ -35,9 +35,7 @@ function CallbackContent() {
 
       try {
         // Validate the token directly — don't store it until we know it's good
-        // Always use the proxy path — BASE_URL may resolve to the direct API
-        // URL on the server, but this runs in the browser where CORS applies.
-        const res = await fetch(`/api/proxy/users/me`, {
+        const res = await fetch(`${BASE_URL}/users/me`, {
           headers: {
             Authorization: `Bearer ${token}`,
             Accept: 'application/json',
