@@ -68,8 +68,11 @@ apiClient.interceptors.response.use(
 
       const isAuthEndpoint   = AUTH_ENDPOINTS.some((ep) => requestUrl.includes(ep))
       const isCallbackPage   = currentPath.startsWith('/auth/')
+      // Only redirect if there was a token — means session expired.
+      // No token = auth intentionally disabled (review mode), don't redirect.
+      const hadToken         = !!getTokenFromCookie()
 
-      if (!isAuthEndpoint && !isCallbackPage) {
+      if (!isAuthEndpoint && !isCallbackPage && hadToken) {
         clearTokenCookie()
         window.location.href = '/login'
       }
