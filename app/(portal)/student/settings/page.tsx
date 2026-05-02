@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import TopNav from '@/components/layout/TopNav'
 import {
   MOCK_NOTIFICATION_PREFERENCES,
@@ -630,6 +631,22 @@ export default function SettingsPage() {
             </SectionCard>
 
             {/* Notifications */}
+            {/* Security */}
+            <SectionCard title="Security" description="Manage your login credentials">
+              <div className="flex items-center justify-between py-1">
+                <div>
+                  <p className="text-[13px] font-medium text-[#374151] font-body">Password</p>
+                  <p className="text-[12px] text-[#9ca3af] font-body mt-0.5">Change your account password at any time</p>
+                </div>
+                <Link
+                  href="/update-password"
+                  className="h-9 px-4 inline-flex items-center justify-center border border-[#e5e7eb] text-[#374151] text-[13px] font-medium font-body rounded-[7px] hover:bg-[#f9fafb] transition-colors flex-shrink-0"
+                >
+                  Change Password
+                </Link>
+              </div>
+            </SectionCard>
+
             <SectionCard title="Notifications">
               <div className="divide-y divide-[#f3f4f6]">
                 <Toggle
