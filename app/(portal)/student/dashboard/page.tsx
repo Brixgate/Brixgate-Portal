@@ -1,6 +1,5 @@
 'use client'
 
-import { useState, useEffect } from 'react'
 import TopNav from '@/components/layout/TopNav'
 import PromoBanner from '@/components/student/PromoBanner'
 import MyLearning from '@/components/student/MyLearning'
@@ -8,8 +7,8 @@ import NotificationsPanel from '@/components/student/NotificationsPanel'
 import PastSessionsPanel from '@/components/student/PastSessionsPanel'
 import NewUserDashboard from '@/components/student/NewUserDashboard'
 import MobileCourseFeed from '@/components/student/MobileCourseFeed'
+import { MOCK_ENROLLMENTS } from '@/lib/mock-data'
 import { useAuth } from '@/lib/auth-context'
-import { apiClient, unwrap } from '@/lib/api-client'
 
 function getTodayFormatted() {
   const now = new Date()
@@ -20,25 +19,8 @@ function getTodayFormatted() {
 
 export default function DashboardPage() {
   const { user } = useAuth()
+  const isNewUser = MOCK_ENROLLMENTS.length === 0
   const firstName = user?.firstName ?? ''
-
-  const [isEnrolled, setIsEnrolled] = useState(false)
-  const [checkingEnrollment, setCheckingEnrollment] = useState(true)
-
-  useEffect(() => {
-    async function checkEnrollment() {
-      try {
-        const res = await apiClient.get('/users/me/programs')
-        const programs = unwrap<unknown[]>(res.data)
-        setIsEnrolled(Array.isArray(programs) && programs.length > 0)
-      } catch {
-        setIsEnrolled(false)
-      } finally {
-        setCheckingEnrollment(false)
-      }
-    }
-    checkEnrollment()
-  }, [])
 
   return (
     <>
@@ -49,25 +31,26 @@ export default function DashboardPage() {
         <div className="flex items-start justify-between pt-6 pb-5">
           <div className="flex flex-col gap-1">
             <h1 className="text-[22px] md:text-[28px] font-semibold text-black font-display leading-tight">
-              Welcome{firstName ? `, ${firstName}` : ''}!
+              Welcome{firstName ? ` ${firstName}` : ''}!
             </h1>
             <p className="text-[13px] md:text-[14px] text-[#6b7280] font-body">
-              {isEnrolled ? "Let's learn something new today" : 'Get started by enrolling in a programme.'}
+              {isNewUser ? 'Get started by enrolling in a programme.' : "Let's learn something new today"}
             </p>
           </div>
+          {/* Date — hidden on mobile */}
           <p className="hidden min-[400px]:block text-[14px] text-[#6b7280] font-body pt-1 shrink-0">
             {getTodayFormatted()}
           </p>
         </div>
 
-        {/* ── MOBILE VIEW ───────────────────────────────────────────────────── */}
+        {/* ── MOBILE VIEW (< 400px) ─────────────────────────────────────────── */}
         <div className="max-[400px]:block hidden">
           <MobileCourseFeed />
         </div>
 
-        {/* ── DESKTOP / TABLET VIEW ─────────────────────────────────────────── */}
+        {/* ── DESKTOP / TABLET VIEW (400px+) ───────────────────────────────── */}
         <div className="max-[400px]:hidden">
-          {checkingEnrollment ? null : !isEnrolled ? (
+          {isNewUser ? (
             <NewUserDashboard />
           ) : (
             <div className="flex gap-6">
