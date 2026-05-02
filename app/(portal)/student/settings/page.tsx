@@ -4,11 +4,10 @@ import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
 import TopNav from '@/components/layout/TopNav'
 import {
-  MOCK_ENROLLMENTS,
   MOCK_NOTIFICATION_PREFERENCES,
 } from '@/lib/mock-data'
 import { useAuth } from '@/lib/auth-context'
-import { apiClient, getApiError } from '@/lib/api-client'
+import { apiClient, getApiError, unwrap } from '@/lib/api-client'
 import {
   Camera02Icon,
   EyeIcon,
@@ -188,24 +187,71 @@ function Toggle({
   )
 }
 
+// ── Account details shape from /users/me/programs ────────────────────────────
+interface ApiProgram {
+  id: number
+  title?: string
+  cohort?: { id?: number; name?: string; start_date?: string; end_date?: string }
+  cohort_id?: number
+  enrollment?: { enrolled_at?: string; cohort?: { name?: string; start_date?: string; end_date?: string } }
+}
+
 export default function SettingsPage() {
-  const enrollment = MOCK_ENROLLMENTS[0]
   const { avatar, setAvatar } = useAvatar()
   const { user, updateUser } = useAuth()
 
-  // Personal info — initialised from auth context; updates once user loads
-  const [firstName, setFirstName] = useState(user?.firstName ?? '')
-  const [lastName, setLastName]   = useState(user?.lastName ?? '')
-  const [email]                   = useState(user?.email ?? '')
+  // Personal info — synced from auth context once user loads
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName]   = useState('')
+  const [email, setEmail]         = useState('')
   const [phone, setPhone]         = useState('')
 
-  // Sync from context when it first loads
+  // Account details — fetched from /users/me/programs
+  const [programme, setProgramme]   = useState('—')
+  const [cohortName, setCohortName] = useState('—')
+  const [enrolledAt, setEnrolledAt] = useState('—')
+  const [endDate, setEndDate]       = useState<Date | null>(null)
+  const [startDate, setStartDate]   = useState<Date | null>(null)
+
+  // Sync personal info from auth context when user loads
   useEffect(() => {
     if (user) {
       setFirstName(user.firstName)
       setLastName(user.lastName)
+      setEmail(user.email)
     }
   }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch programme / cohort details
+  useEffect(() => {
+    async function loadProgram() {
+      try {
+        const res = await apiClient.get('/users/me/programs')
+        const programs = unwrap<ApiProgram[]>(res.data)
+        const first = Array.isArray(programs) ? programs[0] : null
+        if (!first) return
+
+        const cohort = first.enrollment?.cohort ?? first.cohort ?? null
+        setProgramme(first.title ?? '—')
+
+        const rawName = cohort?.name ?? ''
+        // Strip programme title prefix e.g. "AI in Cyber Security — Cohort 1" → "Cohort 1"
+        setCohortName(rawName.includes('—') ? rawName.split('—')[1]?.trim() : rawName || '—')
+
+        const enrolled = first.enrollment?.enrolled_at
+        setEnrolledAt(
+          enrolled
+            ? new Date(enrolled).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })
+            : '—'
+        )
+        if (cohort?.start_date) setStartDate(new Date(cohort.start_date))
+        if (cohort?.end_date)   setEndDate(new Date(cohort.end_date))
+      } catch {
+        // Not enrolled or not authenticated — leave defaults as '—'
+      }
+    }
+    loadProgram()
+  }, [])
 
   // Saving state
   const [savingProfile, setSavingProfile] = useState(false)
@@ -533,21 +579,15 @@ export default function SettingsPage() {
             {/* Account Details */}
             <SectionCard title="Account Details">
               <div className="flex flex-col gap-5">
-                {/* Static fields */}
                 {[
-                  { label: 'Role',      value: 'Student' },
-                  { label: 'Programme', value: enrollment?.cohort?.program?.title ?? '—' },
-                  { label: 'Cohort',    value: enrollment?.cohort?.name?.split('—')[1]?.trim() ?? '—' },
-                  {
-                    label: 'Enrolled',
-                    value: enrollment
-                      ? new Date(enrollment.enrolledAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })
-                      : '—',
-                  },
+                  { label: 'Role',           value: user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1).toLowerCase() : 'Student' },
+                  { label: 'Programme',      value: programme },
+                  { label: 'Cohort',         value: cohortName },
+                  { label: 'Enrolled',       value: enrolledAt },
                   {
                     label: 'Course End Date',
-                    value: enrollment?.cohort?.endDate
-                      ? new Date(enrollment.cohort.endDate).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })
+                    value: endDate
+                      ? endDate.toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })
                       : '—',
                   },
                 ].map(({ label, value }) => (
@@ -557,12 +597,9 @@ export default function SettingsPage() {
                   </div>
                 ))}
 
-                {/* Course Status — derived from cohort dates */}
+                {/* Course Status — derived from real cohort dates */}
                 {(() => {
-                  const endDate   = enrollment?.cohort?.endDate   ? new Date(enrollment.cohort.endDate)   : null
-                  const startDate = enrollment?.cohort?.startDate ? new Date(enrollment.cohort.startDate) : null
                   const now = new Date()
-
                   let label = '—'
                   let color = '#9ca3af'
                   let bg    = '#f9fafb'
