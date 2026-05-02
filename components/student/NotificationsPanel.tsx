@@ -1,20 +1,55 @@
-import { MOCK_NOTIFICATIONS } from '@/lib/mock-data'
-import type { Notification } from '@/lib/types/index'
+'use client'
+
+import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import {
   File01Icon,
   Video01Icon,
   CheckmarkCircle01Icon,
   Notification01Icon,
   Award01Icon,
+  Loading01Icon,
 } from 'hugeicons-react'
-import Link from 'next/link'
+import { apiClient, unwrap } from '@/lib/api-client'
 
+// ── API shape ────────────────────────────────────────────────────────────────
+interface ApiNotification {
+  id: number | string
+  title?: string
+  body?: string
+  message?: string
+  type?: string
+  is_read?: boolean
+  isRead?: boolean
+  created_at?: string
+  createdAt?: string
+}
+
+interface Notif {
+  id: string
+  title: string
+  type: string
+  isRead: boolean
+  createdAt: string
+}
+
+function mapNotif(n: ApiNotification): Notif {
+  return {
+    id: String(n.id),
+    title: n.title ?? n.message ?? 'Notification',
+    type: n.type ?? 'announcement',
+    isRead: n.is_read ?? n.isRead ?? false,
+    createdAt: n.created_at ?? n.createdAt ?? new Date().toISOString(),
+  }
+}
+
+// ── Type config ──────────────────────────────────────────────────────────────
 const TYPE_CONFIG: Record<string, { icon: React.ElementType; bg: string; color: string }> = {
-  resource:     { icon: File01Icon,             bg: '#fef2f2', color: '#d51520' },
-  session:      { icon: Video01Icon,            bg: '#eff6ff', color: '#3b82f6' },
-  enrollment:   { icon: CheckmarkCircle01Icon,  bg: '#ecfdf3', color: '#16a34a' },
-  certificate:  { icon: Award01Icon,            bg: '#fffbeb', color: '#d97706' },
-  announcement: { icon: Notification01Icon,     bg: '#f5f3ff', color: '#7c3aed' },
+  resource:     { icon: File01Icon,            bg: '#fef2f2', color: '#d51520' },
+  session:      { icon: Video01Icon,           bg: '#eff6ff', color: '#3b82f6' },
+  enrollment:   { icon: CheckmarkCircle01Icon, bg: '#ecfdf3', color: '#16a34a' },
+  certificate:  { icon: Award01Icon,           bg: '#fffbeb', color: '#d97706' },
+  announcement: { icon: Notification01Icon,    bg: '#f5f3ff', color: '#7c3aed' },
 }
 
 function formatShortDate(iso: string): string {
@@ -25,7 +60,7 @@ function formatShortDate(iso: string): string {
   }) + ' WAT'
 }
 
-function NotifRow({ n }: { n: Notification }) {
+function NotifRow({ n }: { n: Notif }) {
   const config = TYPE_CONFIG[n.type] ?? TYPE_CONFIG.announcement
   const Icon = config.icon
 
@@ -59,7 +94,23 @@ function NotifRow({ n }: { n: Notification }) {
 }
 
 export default function NotificationsPanel() {
-  const notifications = MOCK_NOTIFICATIONS.slice(0, 4)
+  const [notifications, setNotifications] = useState<Notif[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    apiClient.get('/users/me/notifications')
+      .then((res) => {
+        const data = unwrap<ApiNotification[]>(res.data)
+        const mapped = (Array.isArray(data) ? data : [])
+          .map(mapNotif)
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .slice(0, 4)
+        setNotifications(mapped)
+      })
+      .catch(() => setNotifications([]))
+      .finally(() => setLoading(false))
+  }, [])
+
   const unread = notifications.filter((n) => !n.isRead).length
 
   return (
@@ -75,16 +126,22 @@ export default function NotificationsPanel() {
         )}
       </div>
 
-      <div className="divide-y divide-[#f7f8fa]">
-        {notifications.map((n) => (
-          <NotifRow key={n.id} n={n} />
-        ))}
-        {notifications.length === 0 && (
-          <p className="text-[12px] text-[#9ca3af] font-body text-center py-6">
-            No notifications yet.
-          </p>
-        )}
-      </div>
+      {loading ? (
+        <div className="flex items-center justify-center py-6 gap-2 text-[#9ca3af]">
+          <Loading01Icon size={14} className="animate-spin" strokeWidth={1.5} />
+          <span className="text-[12px] font-body">Loading…</span>
+        </div>
+      ) : (
+        <div className="divide-y divide-[#f7f8fa]">
+          {notifications.length === 0 ? (
+            <p className="text-[12px] text-[#9ca3af] font-body text-center py-6">
+              No notifications yet.
+            </p>
+          ) : (
+            notifications.map((n) => <NotifRow key={n.id} n={n} />)
+          )}
+        </div>
+      )}
 
       <Link
         href="/student/notifications"
