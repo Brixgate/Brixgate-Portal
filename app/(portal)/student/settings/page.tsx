@@ -219,6 +219,7 @@ export default function SettingsPage() {
       setFirstName(user.firstName)
       setLastName(user.lastName)
       setEmail(user.email)
+      if (user.phone) setPhone(user.phone)
     }
   }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 

@@ -11,11 +11,15 @@ import {
 import { apiClient, unwrap, getTokenFromCookie, setTokenCookie, clearTokenCookie } from './api-client'
 
 // ── API shape coming from the backend ─────────────────────────────────────────
+// Handles both { name } (combined) and { first_name, last_name } (split) formats
 export interface ApiUser {
   id: number
-  name: string
+  name?: string
+  first_name?: string
+  last_name?: string
   email: string
   role: string
+  phone?: string
   title?: string
   biography?: string
   expertise?: string
@@ -33,6 +37,7 @@ export interface AuthUser {
   lastName: string
   email: string
   role: string
+  phone?: string
   title?: string
   biography?: string
   expertise?: string
@@ -55,16 +60,18 @@ const AuthContext = createContext<AuthContextType | null>(null)
 
 // ── Mapper ────────────────────────────────────────────────────────────────────
 function mapUser(u: ApiUser): AuthUser {
-  const parts = (u.name ?? '').trim().split(/\s+/)
-  const firstName = parts[0] ?? ''
-  const lastName = parts.slice(1).join(' ')
+  // Prefer split fields if present, fall back to splitting combined name
+  const firstName = u.first_name?.trim() ?? (u.name ?? '').trim().split(/\s+/)[0] ?? ''
+  const lastName  = u.last_name?.trim()  ?? (u.name ?? '').trim().split(/\s+/).slice(1).join(' ')
+  const fullName  = u.name?.trim() || [firstName, lastName].filter(Boolean).join(' ')
   return {
     id: u.id,
-    name: u.name,
+    name: fullName,
     firstName,
     lastName,
     email: u.email,
     role: u.role,
+    phone: u.phone,
     title: u.title,
     biography: u.biography,
     expertise: u.expertise,
