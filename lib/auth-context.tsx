@@ -11,20 +11,25 @@ import {
 import { apiClient, unwrap, getTokenFromCookie, setTokenCookie, clearTokenCookie } from './api-client'
 
 // ── API shape coming from the backend ─────────────────────────────────────────
-// Handles both { name } (combined) and { first_name, last_name } (split) formats
+// Handles snake_case, camelCase, and combined name formats
 export interface ApiUser {
   id: number
+  // Name — all possible formats the backend might send
   name?: string
   first_name?: string
   last_name?: string
+  firstName?: string
+  lastName?: string
   email: string
-  role: string
+  role?: string
   phone?: string
+  phone_number?: string
   title?: string
   biography?: string
   expertise?: string
   years_of_experience?: number
   profile_image_url?: string
+  profile_photo_url?: string
   linkedin_url?: string
   twitter_url?: string
 }
@@ -60,23 +65,27 @@ const AuthContext = createContext<AuthContextType | null>(null)
 
 // ── Mapper ────────────────────────────────────────────────────────────────────
 function mapUser(u: ApiUser): AuthUser {
-  // Prefer split fields if present, fall back to splitting combined name
-  const firstName = u.first_name?.trim() ?? (u.name ?? '').trim().split(/\s+/)[0] ?? ''
-  const lastName  = u.last_name?.trim()  ?? (u.name ?? '').trim().split(/\s+/).slice(1).join(' ')
-  const fullName  = u.name?.trim() || [firstName, lastName].filter(Boolean).join(' ')
+  // Handle every naming format the backend might use
+  const firstName = (u.first_name ?? u.firstName ?? '').trim()
+    || (u.name ?? '').trim().split(/\s+/)[0]
+    || ''
+  const lastName = (u.last_name ?? u.lastName ?? '').trim()
+    || (u.name ?? '').trim().split(/\s+/).slice(1).join(' ')
+    || ''
+  const fullName = u.name?.trim() || [firstName, lastName].filter(Boolean).join(' ')
   return {
     id: u.id,
     name: fullName,
     firstName,
     lastName,
     email: u.email,
-    role: u.role,
-    phone: u.phone,
+    role: u.role ?? 'student',
+    phone: u.phone ?? u.phone_number,
     title: u.title,
     biography: u.biography,
     expertise: u.expertise,
     yearsOfExperience: u.years_of_experience,
-    profileImageUrl: u.profile_image_url,
+    profileImageUrl: u.profile_image_url ?? u.profile_photo_url,
     linkedinUrl: u.linkedin_url,
     twitterUrl: u.twitter_url,
   }
@@ -91,11 +100,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchUser = useCallback(async () => {
     try {
       const res = await apiClient.get('/users/me')
+      // eslint-disable-next-line no-console
+      console.log('[auth] /users/me raw response:', JSON.stringify(res.data))
       const data = unwrap<ApiUser>(res.data)
+      // eslint-disable-next-line no-console
+      console.log('[auth] unwrapped user data:', JSON.stringify(data))
       setUser(mapUser(data))
-    } catch {
-      clearTokenCookie()
-      setToken(null)
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.log('[auth] /users/me failed:', err)
+      // Only clear token on 401 — keep it for network errors
+      const status = (err as { response?: { status?: number } })?.response?.status
+      if (status === 401) {
+        clearTokenCookie()
+        setToken(null)
+      }
       setUser(null)
     }
   }, [])
