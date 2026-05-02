@@ -12,7 +12,8 @@ import {
   Loading01Icon,
 } from 'hugeicons-react'
 import EmptyState from '@/components/shared/EmptyState'
-import { apiClient, unwrap, getApiError } from '@/lib/api-client'
+import { apiClient, unwrap } from '@/lib/api-client'
+import axios from 'axios'
 
 // ── API shape ─────────────────────────────────────────────────────────────────
 interface ApiCohort {
@@ -127,7 +128,12 @@ export default function ProgramsPage() {
         const rows = (Array.isArray(data) ? data : []).map(normalise)
         setPrograms(rows)
       } catch (err) {
-        setError(getApiError(err))
+        if (axios.isAxiosError(err) && err.response?.status === 401) {
+          // Not logged in — show empty state, not an error
+          setPrograms([])
+        } else {
+          setError('Unable to load programmes. Please try again.')
+        }
       } finally {
         setLoading(false)
       }
