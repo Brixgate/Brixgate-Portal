@@ -17,48 +17,26 @@
 import { Suspense, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
-import { BASE_URL, setTokenCookie } from '@/lib/api-client'
+import { setTokenCookie } from '@/lib/api-client'
 
 function CallbackContent() {
   const router       = useRouter()
   const searchParams = useSearchParams()
 
   useEffect(() => {
-    async function run() {
-      const token = searchParams.get('token')
+    const token = searchParams.get('token')
 
-      // No token in URL — nothing to do
-      if (!token) {
-        router.replace('/login')
-        return
-      }
-
-      try {
-        // Validate the token directly — don't store it until we know it's good
-        const res = await fetch(`${BASE_URL}/users/me`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: 'application/json',
-          },
-        })
-
-        if (!res.ok) {
-          // Token rejected by the API
-          router.replace('/login')
-          return
-        }
-
-        // Valid — persist session and enter the portal
-        // router.replace clears the token from the URL naturally
-        setTokenCookie(token)
-        router.replace('/student/dashboard')
-      } catch {
-        // Network error / CORS not yet configured — send to login
-        router.replace('/login')
-      }
+    if (!token) {
+      // No token — send to login
+      router.replace('/login')
+      return
     }
 
-    run()
+    // Store the token immediately and go to dashboard.
+    // The auth context validates it on mount via GET /users/me —
+    // no need to double-validate here and risk blocking first-time users.
+    setTokenCookie(token)
+    router.replace('/student/dashboard')
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Stays on screen for ~200ms before the redirect fires
