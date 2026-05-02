@@ -4,7 +4,6 @@ import TopNav from '@/components/layout/TopNav'
 import PromoBanner from '@/components/student/PromoBanner'
 import MyLearning from '@/components/student/MyLearning'
 import NotificationsPanel from '@/components/student/NotificationsPanel'
-import PastSessionsPanel from '@/components/student/PastSessionsPanel'
 import NewUserDashboard from '@/components/student/NewUserDashboard'
 import MobileCourseFeed from '@/components/student/MobileCourseFeed'
 import { MOCK_ENROLLMENTS } from '@/lib/mock-data'
@@ -63,7 +62,6 @@ export default function DashboardPage() {
               {/* Right panel */}
               <div className="w-[280px] xl:w-[320px] flex-shrink-0 flex flex-col gap-4">
                 <NotificationsPanel />
-                <PastSessionsPanel />
               </div>
             </div>
           )}
