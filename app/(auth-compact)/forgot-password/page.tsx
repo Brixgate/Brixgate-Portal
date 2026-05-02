@@ -5,16 +5,17 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { AlertCircleIcon } from 'hugeicons-react'
+import { apiClient, getApiError } from '@/lib/api-client'
 
 export default function ForgotPasswordPage() {
   const router = useRouter()
-  const [email, setEmail]   = useState('')
-  const [error, setError]   = useState('')
+  const [email, setEmail]     = useState('')
+  const [error, setError]     = useState('')
   const [loading, setLoading] = useState(false)
 
   function validate(): boolean {
-    if (!email.trim())                    { setError('Email address is required.'); return false }
-    if (!/\S+@\S+\.\S+/.test(email))      { setError('Enter a valid email address.'); return false }
+    if (!email.trim())               { setError('Email address is required.'); return false }
+    if (!/\S+@\S+\.\S+/.test(email)) { setError('Enter a valid email address.'); return false }
     setError('')
     return true
   }
@@ -24,10 +25,21 @@ export default function ForgotPasswordPage() {
     if (!validate()) return
 
     setLoading(true)
-    // TODO: call POST /api/auth/forgot-password with { email }
-    await new Promise((r) => setTimeout(r, 1200))
-    setLoading(false)
-    router.push(`/forgot-password/check-email?email=${encodeURIComponent(email)}`)
+    try {
+      await apiClient.post('/auth/forgot-password', { email })
+      router.push(`/forgot-password/check-email?email=${encodeURIComponent(email)}`)
+    } catch (err) {
+      // If the API returns 404 / no account, still show check-email
+      // so we don't leak whether an email exists (security best practice)
+      const status = (err as { response?: { status?: number } })?.response?.status
+      if (status === 404 || status === 422) {
+        router.push(`/forgot-password/check-email?email=${encodeURIComponent(email)}`)
+      } else {
+        setError(getApiError(err))
+      }
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

@@ -4,7 +4,8 @@ import { Suspense, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { EyeIcon, ViewOffIcon } from 'hugeicons-react'
+import { EyeIcon, ViewOffIcon, AlertCircleIcon } from 'hugeicons-react'
+import { apiClient, getApiError } from '@/lib/api-client'
 
 function ResetPasswordContent() {
   const router      = useRouter()
@@ -17,7 +18,7 @@ function ResetPasswordContent() {
   const [confirmPassword, setConfirm]   = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm]   = useState(false)
-  const [errors, setErrors]             = useState<{ password?: string; confirm?: string }>({})
+  const [errors, setErrors]             = useState<{ password?: string; confirm?: string; form?: string }>({})
   const [loading, setLoading]           = useState(false)
 
   // Live password rule checks
@@ -44,10 +45,19 @@ function ResetPasswordContent() {
     if (!validate()) return
 
     setLoading(true)
-    // TODO: call POST /api/auth/reset-password with { token: _token, password }
-    await new Promise((r) => setTimeout(r, 1200))
-    setLoading(false)
-    router.push('/login')
+    setErrors({})
+    try {
+      await apiClient.post('/auth/reset-password', {
+        token,
+        password,
+        password_confirmation: confirmPassword,
+      })
+      router.push('/login')
+    } catch (err) {
+      setErrors({ form: getApiError(err) })
+    } finally {
+      setLoading(false)
+    }
   }
 
   const RuleItem = ({ met, label }: { met: boolean; label: string }) => (
@@ -157,6 +167,14 @@ function ResetPasswordContent() {
             <RuleItem met={rules.uppercase} label="One uppercase letter" />
             <RuleItem met={rules.special}   label="One number or special character" />
           </div>
+
+          {/* Form-level error */}
+          {errors.form && (
+            <div className="flex items-center gap-2 bg-[#fef2f2] border border-[#fecdca] rounded-[6px] px-3 py-2.5">
+              <AlertCircleIcon size={14} color="#D51520" strokeWidth={1.5} />
+              <p className="text-[12px] text-[#D51520] font-body">{errors.form}</p>
+            </div>
+          )}
 
           {/* Submit */}
           <button
