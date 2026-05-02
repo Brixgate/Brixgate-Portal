@@ -47,9 +47,9 @@ export default function TopNav({ title, breadcrumbs = [] }: TopNavProps) {
 
   return (
     <header className="h-[64px] bg-white border-b border-[#f3f4f6] flex items-center gap-4 px-4 lg:px-6 sticky top-0 z-30">
-      {/* Hamburger — mobile only (< 400px) */}
+      {/* Hamburger — visible below lg (1024px) */}
       <button
-        className="max-[400px]:flex hidden items-center justify-center w-9 h-9 rounded-[8px] hover:bg-[#f3f4f6] transition-colors flex-shrink-0"
+        className="lg:hidden flex items-center justify-center w-9 h-9 rounded-[8px] hover:bg-[#f3f4f6] transition-colors flex-shrink-0"
         onClick={openMobile}
         aria-label="Open menu"
       >
@@ -57,7 +57,7 @@ export default function TopNav({ title, breadcrumbs = [] }: TopNavProps) {
       </button>
 
       {/* Breadcrumb — hidden on mobile */}
-      <div className="hidden min-[400px]:flex items-center gap-[6px] text-[14px] text-[#6b7280] font-body shrink-0">
+      <div className="hidden lg:flex items-center gap-[6px] text-[14px] text-[#6b7280] font-body shrink-0">
         {crumbPath.map((crumb, i) => (
           <span key={i} className="flex items-center gap-[6px]">
             {i > 0 && <span className="text-[#d1d5db]">/</span>}
@@ -70,14 +70,14 @@ export default function TopNav({ title, breadcrumbs = [] }: TopNavProps) {
       </div>
 
       {/* Page title on mobile */}
-      <p className="max-[400px]:block hidden text-[15px] font-semibold text-[#111827] font-display flex-1 truncate">
+      <p className="lg:hidden block text-[15px] font-semibold text-[#111827] font-display flex-1 truncate">
         {title}
       </p>
 
-      <div className="flex-1 min-[400px]:block hidden" />
+      <div className="flex-1 hidden lg:block" />
 
-      {/* Search — hidden on mobile */}
-      <div className="relative w-[280px] shrink-0 hidden min-[400px]:block">
+      {/* Search — hidden on mobile, visible at lg+ */}
+      <div className="relative w-[280px] shrink-0 hidden lg:block">
         <Search01Icon
           className="absolute left-4 top-1/2 -translate-y-1/2"
           size={18}

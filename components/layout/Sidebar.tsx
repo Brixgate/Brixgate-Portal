@@ -55,7 +55,7 @@ function NavItem({
         // Centre when icon-only, left-align when full
         forceCollapsed
           ? 'justify-center'
-          : 'justify-center lg:justify-start max-[400px]:justify-start',
+          : 'justify-center lg:justify-start max-lg:justify-start',
         isActive ? 'bg-[#fef2f2]' : 'hover:bg-[#f7f8fa]'
       )}
     >
@@ -67,8 +67,8 @@ function NavItem({
       <span
         className={cn(
           'text-[14px] leading-[20px] font-display whitespace-nowrap',
-          // Hide label when force-collapsed, otherwise normal responsive rules
-          forceCollapsed ? 'hidden' : 'hidden lg:inline max-[400px]:inline',
+          // Hide label when force-collapsed, otherwise show in drawer (max-lg) and desktop (lg+)
+          forceCollapsed ? 'hidden' : 'hidden lg:inline max-lg:inline',
           isActive ? 'font-semibold text-[#d51520]' : 'font-medium text-[#374151]'
         )}
       >
@@ -100,37 +100,35 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Mobile backdrop — only active below 400px */}
+      {/* Mobile backdrop — only active below lg (1024px) */}
       <div
         className={cn(
           'fixed inset-0 bg-black/50 z-40 transition-opacity duration-300',
-          'min-[400px]:hidden',
+          'lg:hidden',
           mobileOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         )}
         onClick={closeMobile}
       />
 
       {/*
-        Three responsive modes:
-        < 400px  : fixed overlay drawer (260px), slides in/out
-        400–1024 : sticky in-flow icon-only (64px)
+        Two responsive modes:
+        < 1024px : fixed overlay drawer (260px), slides in/out
         1024px+  : sticky in-flow full sidebar (270px)
       */}
       <aside
         className={cn(
           'bg-white flex flex-col h-screen transition-all duration-300',
-          // Mobile drawer
-          'max-[400px]:fixed max-[400px]:inset-y-0 max-[400px]:left-0 max-[400px]:z-50 max-[400px]:w-[220px]',
-          mobileOpen ? 'max-[400px]:translate-x-0' : 'max-[400px]:-translate-x-full',
-          // Tablet: sticky in flow, icon-only
-          'min-[400px]:sticky min-[400px]:top-0 min-[400px]:flex-shrink-0',
-          'min-[400px]:max-lg:w-16 min-[400px]:max-lg:translate-x-0',
-          // Desktop: full sidebar — collapse to icon-only on course detail pages
+          // Mobile/tablet: fixed overlay drawer
+          'max-lg:fixed max-lg:inset-y-0 max-lg:left-0 max-lg:z-50 max-lg:w-[260px]',
+          mobileOpen ? 'max-lg:translate-x-0' : 'max-lg:-translate-x-full',
+          // Desktop: sticky in-flow, always visible
+          'lg:sticky lg:top-0 lg:flex-shrink-0 lg:translate-x-0',
+          // Desktop: collapse to icon-only on course detail pages
           forceCollapsed ? 'lg:w-16' : 'lg:w-[270px]',
         )}
       >
         {/* Logo */}
-        <div className="h-[64px] flex items-center justify-center lg:justify-start lg:px-6 max-[400px]:justify-start max-[400px]:px-5 border-b border-[#f3f4f6]">
+        <div className="h-[64px] flex items-center justify-center lg:justify-start lg:px-6 max-lg:justify-start max-lg:px-5 border-b border-[#f3f4f6]">
           <div className="flex items-center gap-3">
             <Image
               src={LOGO_URL}
@@ -148,10 +146,10 @@ export default function Sidebar() {
             <div className="hidden w-[22px] h-[26px] rounded-[6px] bg-[#d51520] items-center justify-center flex-shrink-0">
               <span className="text-white font-bold text-[13px] font-display">B</span>
             </div>
-            {/* Wordmark: desktop + mobile drawer, hidden on tablet or when force-collapsed */}
+            {/* Wordmark: desktop + mobile drawer, hidden when force-collapsed */}
             <span className={cn(
               'text-[#111827] font-semibold text-[18px] font-display leading-[24px]',
-              forceCollapsed ? 'hidden' : 'hidden lg:block max-[400px]:block'
+              forceCollapsed ? 'hidden' : 'block'
             )}>
               Brixgate
             </span>
@@ -159,7 +157,7 @@ export default function Sidebar() {
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto py-4 flex flex-col gap-1 px-2 lg:px-2 max-[400px]:px-3">
+        <nav className="flex-1 overflow-y-auto py-4 flex flex-col gap-1 px-2 lg:px-2 max-lg:px-3">
           {NAV_ITEMS.map((item) => (
             <NavItem
               key={item.href}
@@ -175,12 +173,10 @@ export default function Sidebar() {
 
         {/* User card */}
         <div className="border-t border-[#e5e7eb]">
-          {/* Desktop: full — icon-only when force-collapsed */}
+          {/* Full user card — shown in drawer (max-lg) and desktop (lg) unless force-collapsed */}
           <div className={cn(
-            'items-center gap-3 py-5',
-            forceCollapsed
-              ? 'hidden lg:flex justify-center px-0'
-              : 'hidden lg:flex px-7 py-7'
+            'flex items-center gap-3 px-5 py-5',
+            forceCollapsed ? 'lg:justify-center lg:px-0' : ''
           )}>
             <Avatar className="h-9 w-9 flex-shrink-0">
               <AvatarImage src={avatar ?? user?.profileImageUrl} alt={displayName} />
@@ -205,28 +201,6 @@ export default function Sidebar() {
                 </button>
               </>
             )}
-          </div>
-
-          {/* Mobile drawer: full */}
-          <div className="max-[400px]:flex hidden items-center gap-3 px-5 py-5">
-            <Avatar className="h-9 w-9 flex-shrink-0">
-              <AvatarImage src={avatar ?? user?.profileImageUrl} alt={displayName} />
-              <AvatarFallback className="bg-[#d51520] text-white text-[12px] font-bold font-display">{initials}</AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <p className="text-[13px] font-semibold text-[#111827] font-display">
-                {displayName}
-              </p>
-              <p className="text-[11px] text-[#6b7280] font-body capitalize">{user?.role?.toLowerCase() ?? 'student'}</p>
-            </div>
-          </div>
-
-          {/* Tablet: avatar only */}
-          <div className="min-[400px]:flex lg:hidden max-[400px]:hidden items-center justify-center py-5">
-            <Avatar className="h-8 w-8">
-              <AvatarImage src={avatar ?? user?.profileImageUrl} alt={displayName} />
-              <AvatarFallback className="bg-[#d51520] text-white text-[11px] font-bold font-display">{initials}</AvatarFallback>
-            </Avatar>
           </div>
         </div>
       </aside>

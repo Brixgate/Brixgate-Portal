@@ -381,7 +381,7 @@ export default function SettingsPage() {
         onChange={handleResumeChange}
       />
 
-      <div className="px-8 pb-10">
+      <div className="px-4 lg:px-8 pb-10">
         {/* Page header */}
         <div className="pt-7 pb-6">
           <h1 className="text-[24px] font-bold text-[#111827] font-display leading-tight">
@@ -392,7 +392,7 @@ export default function SettingsPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-[1fr_340px] gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6">
           {/* ── Left column ── */}
           <div className="flex flex-col gap-6">
 
@@ -478,7 +478,7 @@ export default function SettingsPage() {
               title="Personal Information"
               description="Update your name and contact details."
             >
-              <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                 <FormField
                   label="First Name"
                   value={firstName}
