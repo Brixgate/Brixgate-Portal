@@ -68,7 +68,7 @@ function CallbackContent() {
       style={{ background: '#0D1724' }}
     >
       <Image
-        src="/images/logo3.png"
+        src="/images/Logo3.png"
         alt="Brixgate"
         width={40}
         height={40}
