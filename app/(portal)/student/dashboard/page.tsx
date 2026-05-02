@@ -51,8 +51,8 @@ export default function DashboardPage() {
               <MyLearning />
             </div>
 
-            {/* Right panel — full width on mobile, fixed width on desktop */}
-            <div className="w-full lg:w-[280px] xl:w-[320px] lg:flex-shrink-0 flex flex-col gap-4">
+            {/* Right panel — hidden on mobile (topnav bell handles it), fixed width on desktop */}
+            <div className="hidden lg:flex lg:w-[280px] xl:w-[320px] lg:flex-shrink-0 flex-col gap-4">
               <NotificationsPanel />
             </div>
           </div>

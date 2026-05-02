@@ -125,7 +125,7 @@ export default function NotificationDropdown() {
       {/* Dropdown */}
       {open && (
         <div
-          className="absolute right-0 top-[calc(100%+8px)] w-[380px] bg-white rounded-[12px] shadow-[0px_12px_32px_rgba(16,24,40,0.14)] border border-[#f3f4f6] z-50 overflow-hidden"
+          className="fixed lg:absolute left-4 right-4 top-[72px] lg:left-auto lg:right-0 lg:top-[calc(100%+8px)] lg:w-[380px] bg-white rounded-[12px] shadow-[0px_12px_32px_rgba(16,24,40,0.14)] border border-[#f3f4f6] z-50 overflow-hidden"
           style={{ animation: 'fadeInDown 0.15s ease-out' }}
         >
           {/* Header */}

@@ -72,7 +72,7 @@ export default function PromoBanner() {
       />
 
       {/* Left — text + CTA */}
-      <div className="flex flex-col gap-3 min-w-0 shrink flex-1 max-w-[300px] relative z-10">
+      <div className="flex flex-col gap-3 min-w-0 shrink flex-1 lg:max-w-[300px] relative z-10">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-white/60 font-display mb-1.5">
             AI Co-Pilot Programme
@@ -93,8 +93,8 @@ export default function PromoBanner() {
         </Link>
       </div>
 
-      {/* Right — AI tool cards */}
-      <div className="flex gap-3 shrink-0 relative z-10">
+      {/* Right — AI tool cards (hidden on mobile) */}
+      <div className="hidden lg:flex gap-3 shrink-0 relative z-10">
         {TOOLS.map((tool, i) => (
           <div
             key={tool.name}
