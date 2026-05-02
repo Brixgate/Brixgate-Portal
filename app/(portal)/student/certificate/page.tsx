@@ -314,7 +314,7 @@ export default function CertificatePage() {
     <>
       <TopNav title="My Certificate" />
 
-      <div className="px-8 pb-10">
+      <div className="px-4 md:px-8 pb-10">
         <div className="pt-7 pb-6">
           <h1 className="text-[24px] font-bold text-[#111827] font-display leading-tight">
             My Certificates

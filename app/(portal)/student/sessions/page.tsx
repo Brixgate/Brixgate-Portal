@@ -184,7 +184,7 @@ export default function SessionsPage() {
     <>
       <TopNav title="Live Sessions" />
 
-      <div className="px-8 pb-10">
+      <div className="px-4 md:px-8 pb-10">
         {/* Page header */}
         <div className="pt-7 pb-6 flex items-start justify-between">
           <div>

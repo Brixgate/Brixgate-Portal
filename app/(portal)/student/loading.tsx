@@ -1,6 +1,6 @@
 export default function StudentLoading() {
   return (
-    <div className="px-8 pb-10">
+    <div className="px-4 md:px-8 pb-10">
       {/* Topnav skeleton */}
       <div className="h-[64px] border-b border-[#f3f4f6] bg-white -mx-8 px-8 flex items-center gap-4 mb-0">
         <div className="h-4 w-32 bg-[#f3f4f6] rounded-full animate-pulse" />
