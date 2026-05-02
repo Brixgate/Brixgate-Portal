@@ -100,15 +100,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchUser = useCallback(async () => {
     try {
       const res = await apiClient.get('/users/me')
-      // eslint-disable-next-line no-console
-      console.log('[auth] /users/me raw response:', JSON.stringify(res.data))
-      const data = unwrap<ApiUser>(res.data)
-      // eslint-disable-next-line no-console
-      console.log('[auth] unwrapped user data:', JSON.stringify(data))
+      const outer = unwrap<{ user?: ApiUser } | ApiUser>(res.data)
+      // API returns { data: { user: {...} } } — unwrap strips data, leaving { user: {...} }
+      const data: ApiUser = (outer as { user?: ApiUser }).user ?? (outer as ApiUser)
       setUser(mapUser(data))
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.log('[auth] /users/me failed:', err)
       // Only clear token on 401 — keep it for network errors
       const status = (err as { response?: { status?: number } })?.response?.status
       if (status === 401) {
