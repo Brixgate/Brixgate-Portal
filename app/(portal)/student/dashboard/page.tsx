@@ -3,7 +3,7 @@
 import TopNav from '@/components/layout/TopNav'
 import PromoBanner from '@/components/student/PromoBanner'
 import MyLearning from '@/components/student/MyLearning'
-import NotificationsPanel from '@/components/student/NotificationsPanel'
+// FEATURE_OFF: notifications — import NotificationsPanel from '@/components/student/NotificationsPanel'
 import NewUserDashboard from '@/components/student/NewUserDashboard'
 import { MOCK_ENROLLMENTS } from '@/lib/mock-data'
 import { useAuth } from '@/lib/auth-context'
@@ -51,10 +51,10 @@ export default function DashboardPage() {
               <MyLearning />
             </div>
 
-            {/* Right panel — hidden on mobile (topnav bell handles it), fixed width on desktop */}
-            <div className="hidden lg:flex lg:w-[280px] xl:w-[320px] lg:flex-shrink-0 flex-col gap-4">
+            {/* FEATURE_OFF: notifications — right panel hidden; re-enable by uncommenting below */}
+            {/* <div className="hidden lg:flex lg:w-[280px] xl:w-[320px] lg:flex-shrink-0 flex-col gap-4">
               <NotificationsPanel />
-            </div>
+            </div> */}
           </div>
         )}
       </div>

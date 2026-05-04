@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search01Icon, Menu01Icon, BookOpen01Icon, Settings01Icon, HelpCircleIcon, Logout01Icon } from 'hugeicons-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import NotificationDropdown from '@/components/shared/NotificationDropdown'
+// FEATURE_OFF: notifications — import NotificationDropdown from '@/components/shared/NotificationDropdown'
 import { useSidebar } from '@/lib/sidebar-context'
 import { useAvatar } from '@/lib/use-avatar'
 import { useAuth } from '@/lib/auth-context'
@@ -91,8 +91,7 @@ export default function TopNav({ title, breadcrumbs = [] }: TopNavProps) {
         />
       </div>
 
-      {/* Notification dropdown */}
-      <NotificationDropdown />
+      {/* FEATURE_OFF: notifications — <NotificationDropdown /> */}
 
       {/* Profile avatar + dropdown */}
       <div className="relative shrink-0" ref={profileRef}>

@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 import {
   Home01Icon,
   BookOpen01Icon,
-  Notification01Icon,
+  // Notification01Icon, // FEATURE_OFF: notifications
   Folder01Icon,
   Settings01Icon,
   Logout01Icon,
@@ -25,7 +25,7 @@ const NAV_ITEMS = [
   { label: 'Dashboard',        href: '/student/dashboard',    icon: Home01Icon         },
   { label: 'My Programs',      href: '/student/programs',     icon: BookOpen01Icon     },
   { label: 'My Certificate',   href: '/student/certificate',  icon: Award01Icon        },
-  { label: 'Notifications',    href: '/student/notifications', icon: Notification01Icon },
+  // FEATURE_OFF: notifications — { label: 'Notifications', href: '/student/notifications', icon: Notification01Icon },
   { label: 'Resources',        href: '/student/resources',    icon: Folder01Icon       },
   { label: 'Profile Settings', href: '/student/settings',     icon: Settings01Icon     },
 ]

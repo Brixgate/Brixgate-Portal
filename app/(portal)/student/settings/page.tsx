@@ -4,9 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import TopNav from '@/components/layout/TopNav'
-import {
-  MOCK_NOTIFICATION_PREFERENCES,
-} from '@/lib/mock-data'
+// FEATURE_OFF: notifications — import { MOCK_NOTIFICATION_PREFERENCES } from '@/lib/mock-data'
 import { useAuth } from '@/lib/auth-context'
 import { apiClient, getApiError, unwrap } from '@/lib/api-client'
 import {
@@ -152,6 +150,8 @@ function Toast({ message, type }: { message: string; type: 'success' | 'error' }
   )
 }
 
+// FEATURE_OFF: notifications — Toggle component kept for re-enabling notification preferences
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function Toggle({
   checked,
   onChange,
@@ -258,8 +258,7 @@ export default function SettingsPage() {
   // Saving state
   const [savingProfile, setSavingProfile] = useState(false)
 
-  // Notifications
-  const [prefs, setPrefs] = useState(MOCK_NOTIFICATION_PREFERENCES)
+  // FEATURE_OFF: notifications — const [prefs, setPrefs] = useState(MOCK_NOTIFICATION_PREFERENCES)
 
   // Resume
   const [resume, setResume] = useState<{ name: string; size: string } | null>(null)
@@ -617,7 +616,7 @@ export default function SettingsPage() {
 
                   return (
                     <div className="flex flex-col gap-0.5">
-                      <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">Course Status</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">Cohort Status</p>
                       <span
                         className="inline-flex w-fit text-[11px] font-semibold px-2.5 py-0.5 rounded-full border font-display"
                         style={{ color, background: bg, borderColor: border }}
@@ -647,7 +646,8 @@ export default function SettingsPage() {
               </div>
             </SectionCard>
 
-            <SectionCard title="Notifications">
+            {/* FEATURE_OFF: notifications — notification preferences panel hidden; re-enable by uncommenting below */}
+            {/* <SectionCard title="Notifications">
               <div className="divide-y divide-[#f3f4f6]">
                 <Toggle
                   checked={prefs.emailNewResource}
@@ -688,7 +688,7 @@ export default function SettingsPage() {
                   Save Preferences
                 </button>
               </div>
-            </SectionCard>
+            </SectionCard> */}
           </div>
         </div>
       </div>
