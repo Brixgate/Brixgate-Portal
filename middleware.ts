@@ -1,9 +1,15 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-// AUTH TEMPORARILY DISABLED — allow all routes without a token
-// Re-enable by restoring the token check below before go-live
-export function middleware(_request: NextRequest) {
+export function middleware(request: NextRequest) {
+  const token = request.cookies.get('brixgate_token')?.value
+
+  if (!token) {
+    const loginUrl = new URL('/login', request.url)
+    loginUrl.searchParams.set('next', request.nextUrl.pathname)
+    return NextResponse.redirect(loginUrl)
+  }
+
   return NextResponse.next()
 }
 
