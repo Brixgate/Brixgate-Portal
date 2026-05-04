@@ -107,7 +107,7 @@ function UpdatePasswordContent() {
     setErrors({})
 
     try {
-      await apiClient.put('/auth/change-password', {
+      await apiClient.put('/users/me/password', {
         current_password:      currentPassword,
         password:              newPassword,
         password_confirmation: confirmPassword,
