@@ -108,9 +108,9 @@ function UpdatePasswordContent() {
 
     try {
       await apiClient.put('/users/me/password', {
-        current_password:          currentPassword,
-        new_password:              newPassword,
-        new_password_confirmation: confirmPassword,
+        currentPassword,
+        newPassword,
+        newPasswordConfirmation: confirmPassword,
       })
       setSuccess(true)
     } catch (err) {
