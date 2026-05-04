@@ -18,5 +18,5 @@ export default function RootPage({
   if (token && typeof token === 'string') {
     redirect(`/auth/callback?token=${encodeURIComponent(token)}`)
   }
-  redirect('/login')
+  redirect('/student/dashboard')
 }
