@@ -32,50 +32,53 @@ const FILE_COLOURS: Record<string, { bg: string; text: string }> = {
   docx: { bg: '#F0FDF4', text: '#16A34A' },
 }
 
-// ── API shape ─────────────────────────────────────────────────────────────────
-interface ApiResource {
-  id: number | string
-  title?: string
-  name?: string
-  type?: string           // e.g. "PDF", "SLIDES", "ZIP", "DOC"
-  file_type?: string      // e.g. "pdf", "pptx"
-  file_size?: string
-  size?: string
-  week?: number
-  week_number?: number
-  module?: string
-  week_title?: string
-  uploaded_at?: string
-  created_at?: string
-  uploaded_by?: string
-  instructor?: string
-  download_url?: string
-  url?: string
-  cohort_id?: number | string
+// ── API shapes (matches Swagger spec) ────────────────────────────────────────
+interface ApiCohortSummary {
+  cohortId: number
+  cohortTitle: string
 }
 
-function inferFileType(raw: ApiResource): ResourceFileType {
-  const t = (raw.type ?? raw.file_type ?? '').toLowerCase()
-  if (t.includes('ppt') || t.includes('slide')) return 'pptx'
-  if (t.includes('zip'))  return 'zip'
-  if (t.includes('doc'))  return 'docx'
-  if (t.includes('mp4') || t.includes('video') || t.includes('record')) return 'mp4'
+interface ApiProgramsResponse {
+  programs: Array<{ id: number; myCohorts?: ApiCohortSummary[] }>
+}
+
+interface ApiResource {
+  id: number
+  title?: string
+  type?: string     // PDF, VIDEO, ARTICLE, PRESENTATION, LECTURE, IMAGE
+  link?: string
+  status?: string
+  createdAt?: string
+  programModuleId?: number
+}
+
+interface ApiResourcesResponse {
+  cohortId: number
+  resources: ApiResource[]
+}
+
+function inferFileType(type: string): ResourceFileType {
+  const t = type.toUpperCase()
+  if (t === 'PDF')                      return 'pdf'
+  if (t === 'PRESENTATION')             return 'pptx'
+  if (t === 'VIDEO' || t === 'LECTURE') return 'mp4'
+  if (t === 'ARTICLE')                  return 'docx'
   return 'pdf'
 }
 
 function normaliseResource(raw: ApiResource): Resource {
   return {
     id: String(raw.id),
-    cohortId: String(raw.cohort_id ?? ''),
-    title: raw.title ?? raw.name ?? 'Untitled Resource',
-    fileName: raw.title ?? raw.name ?? 'file',
-    fileType: inferFileType(raw),
-    fileSize: raw.file_size ?? raw.size ?? '',
-    weekNumber: raw.week_number ?? raw.week ?? 0,
-    weekTitle: raw.week_title ?? raw.module ?? '',
-    uploadedAt: raw.uploaded_at ?? raw.created_at ?? '',
-    uploadedBy: raw.uploaded_by ?? raw.instructor ?? '',
-    downloadUrl: raw.download_url ?? raw.url ?? '#',
+    cohortId: '',
+    title: raw.title ?? 'Untitled Resource',
+    fileName: raw.title ?? 'file',
+    fileType: inferFileType(raw.type ?? ''),
+    fileSize: '',
+    weekNumber: raw.programModuleId ?? 0,
+    weekTitle: '',
+    uploadedAt: raw.createdAt ?? '',
+    uploadedBy: '',
+    downloadUrl: raw.link ?? '#',
   }
 }
 
@@ -164,9 +167,20 @@ export default function ResourcesPage() {
   useEffect(() => {
     async function load() {
       try {
-        const res = await apiClient.get('/users/me/resources')
-        const data = unwrap<ApiResource[]>(res.data)
-        const rows = (Array.isArray(data) ? data : []).map(normaliseResource)
+        // Step 1 — get the student's cohortId from their enrolled programs
+        const programsRes = await apiClient.get('/users/me/programs')
+        const programsData = unwrap<ApiProgramsResponse>(programsRes.data)
+        const cohortId = programsData?.programs?.[0]?.myCohorts?.[0]?.cohortId
+        if (!cohortId) {
+          setResources([])
+          setLoading(false)
+          return
+        }
+
+        // Step 2 — fetch resources for that cohort
+        const res = await apiClient.get(`/cohorts/${cohortId}/resources`)
+        const data = unwrap<ApiResourcesResponse>(res.data)
+        const rows = (Array.isArray(data?.resources) ? data.resources : []).map(normaliseResource)
         setResources(rows)
       } catch (err) {
         setError(getApiError(err))

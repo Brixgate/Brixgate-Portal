@@ -5,11 +5,11 @@ import Link from 'next/link'
 import {
   StarIcon,
   BookOpen01Icon,
-  UserGroupIcon,
   File01Icon,
   PresentationBarChart01Icon,
   FolderZipIcon,
   FileEditIcon,
+  Video01Icon,
   ArrowRight01Icon,
   Download01Icon,
   Loading01Icon,
@@ -18,53 +18,73 @@ import { apiClient, unwrap } from '@/lib/api-client'
 import { getProgramImage } from '@/lib/program-images'
 import { cn } from '@/lib/utils'
 
-// ── API shapes ──────────────────────────────────────────────────────────────
+// ── API shapes (matches Swagger spec) ────────────────────────────────────────
+interface ApiCohortSummary {
+  cohortId: number
+  cohortTitle: string
+  role: string
+  membershipStatus: string
+}
+
 interface ApiProgram {
   id: number
   title?: string
-  progress?: number
-  cohort_id?: number
-  cohort?: { id?: number; name?: string }
-  enrollment?: {
-    progress?: number
-    cohort_id?: number
-    cohort?: { id?: number; name?: string }
-  }
+  level?: string
+  autoPercentCompletion?: number
+  enrolledStudentsCount?: number
+  myCohorts?: ApiCohortSummary[]
+}
+
+interface ApiProgramsResponse {
+  programs: ApiProgram[]
 }
 
 interface ApiResource {
   id: number
   title?: string
-  file_name?: string
-  file_type?: string
-  file_size?: string
-  created_at?: string
-  uploaded_at?: string
-  download_url?: string
-  url?: string
+  type?: string   // PDF, VIDEO, ARTICLE, PRESENTATION, LECTURE, IMAGE
+  link?: string
+  status?: string
+  createdAt?: string
+}
+
+interface ApiResourcesResponse {
+  cohortId: number
+  resources: ApiResource[]
 }
 
 const TABS = ['My Programs', 'Resources', 'Certifications']
 
-// ── File type config ────────────────────────────────────────────────────────
+// ── File type config ─────────────────────────────────────────────────────────
+function inferFileType(type: string) {
+  const t = type.toUpperCase()
+  if (t === 'PDF')                    return 'pdf'
+  if (t === 'PRESENTATION')           return 'pptx'
+  if (t === 'VIDEO' || t === 'LECTURE') return 'mp4'
+  if (t === 'ARTICLE')                return 'docx'
+  return 'pdf'
+}
+
 const FILE_ICONS: Record<string, React.ElementType> = {
   pdf:  File01Icon,
   pptx: PresentationBarChart01Icon,
   zip:  FolderZipIcon,
   docx: FileEditIcon,
+  mp4:  Video01Icon,
 }
 const FILE_COLOURS: Record<string, { bg: string; text: string }> = {
   pdf:  { bg: '#FEF2F2', text: '#D51520' },
   pptx: { bg: '#FFF7ED', text: '#EA580C' },
   zip:  { bg: '#F0F9FF', text: '#0EA5E9' },
   docx: { bg: '#F0FDF4', text: '#16A34A' },
+  mp4:  { bg: '#F5F3FF', text: '#7C3AED' },
 }
 
 function ResourceRow({ resource }: { resource: ApiResource }) {
-  const type = (resource.file_type ?? '').toLowerCase()
+  const type = inferFileType(resource.type ?? '')
   const FileIcon = FILE_ICONS[type] ?? File01Icon
   const colours = FILE_COLOURS[type] ?? { bg: '#F7F8FA', text: '#6b7280' }
-  const dateStr = resource.uploaded_at ?? resource.created_at ?? ''
+  const dateStr = resource.createdAt ?? ''
   const uploaded = dateStr
     ? new Date(dateStr).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })
     : ''
@@ -79,32 +99,36 @@ function ResourceRow({ resource }: { resource: ApiResource }) {
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-[13px] font-medium text-[#111827] font-body truncate leading-snug">
-          {resource.title ?? resource.file_name ?? 'Resource'}
+          {resource.title ?? 'Resource'}
         </p>
         <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">
-          {type.toUpperCase()}{resource.file_size ? ` · ${resource.file_size}` : ''}{uploaded ? ` · ${uploaded}` : ''}
+          {(resource.type ?? '').toUpperCase()}{uploaded ? ` · ${uploaded}` : ''}
         </p>
       </div>
-      <a
-        href={resource.download_url ?? resource.url ?? '#'}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 text-[#9ca3af] hover:text-[#374151]"
-        aria-label="Download"
-      >
-        <Download01Icon size={14} strokeWidth={1.5} />
-      </a>
+      {resource.link && (
+        <a
+          href={resource.link}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 text-[#9ca3af] hover:text-[#374151]"
+          aria-label="Download"
+        >
+          <Download01Icon size={14} strokeWidth={1.5} />
+        </a>
+      )}
     </div>
   )
 }
 
-// ── Course card ─────────────────────────────────────────────────────────────
+// ── Course card ──────────────────────────────────────────────────────────────
 function CourseCard({ program }: { program: ApiProgram }) {
-  const title = program.title ?? 'Untitled Programme'
-  const progress = program.enrollment?.progress ?? program.progress ?? 0
-  const cohort = program.enrollment?.cohort ?? program.cohort
-  const cohortName = cohort?.name ?? title
-  const cohortId = program.enrollment?.cohort_id ?? cohort?.id ?? program.cohort_id ?? program.id
+  const title    = program.title ?? 'Untitled Programme'
+  const progress = program.autoPercentCompletion ?? 0
+  const cohort   = program.myCohorts?.[0]
+  const cohortId = cohort?.cohortId ?? program.id
+  const cohortLabel = cohort?.cohortTitle
+    ? cohort.cohortTitle.replace(`${title} — `, '').replace(`${title} - `, '')
+    : ''
 
   return (
     <div className="border border-[#eee] rounded-[12px] overflow-hidden w-[271px] shrink-0">
@@ -118,7 +142,7 @@ function CourseCard({ program }: { program: ApiProgram }) {
       >
         <div className="absolute inset-0 bg-black/40" />
         <div className="absolute top-3 left-3 bg-[#d51520] text-white text-[8px] font-medium px-2 py-0.5 rounded-full font-display z-10">
-          Beginner — Expert
+          {program.level ?? 'Intermediate'}
         </div>
         <p className="text-white text-[13px] font-semibold font-display leading-tight pr-4 relative z-10">
           {title}
@@ -126,27 +150,16 @@ function CourseCard({ program }: { program: ApiProgram }) {
       </div>
 
       <div className="bg-white p-4 flex flex-col gap-4">
-        <div className="flex flex-col gap-2">
-          <p className="text-[16px] font-semibold text-[#0f172a] font-display leading-snug">
-            {cohortName.includes('—') ? cohortName.split('—')[0].trim() : cohortName}
+        <div className="flex flex-col gap-1">
+          <p className="text-[15px] font-semibold text-[#0f172a] font-display leading-snug">
+            {title}
           </p>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-0.5">
-              <StarIcon size={12} color="#f59e0b" strokeWidth={0} />
-              <span className="text-[12px] text-[#f59e0b] font-semibold font-body">4.8</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1">
-            <BookOpen01Icon size={12} color="#374151" strokeWidth={1.5} />
-            <span className="text-[12px] font-medium text-[#374151] font-body">Sessions</span>
-          </div>
-          <span className="text-[#d1d5db]">|</span>
-          <div className="flex items-center gap-1">
-            <UserGroupIcon size={12} color="#374151" strokeWidth={1.5} />
-            <span className="text-[12px] font-medium text-[#374151] font-body">Students</span>
+          {cohortLabel && (
+            <p className="text-[12px] text-[#6b7280] font-body">{cohortLabel}</p>
+          )}
+          <div className="flex items-center gap-0.5 mt-0.5">
+            <StarIcon size={12} color="#f59e0b" strokeWidth={0} />
+            <span className="text-[12px] text-[#f59e0b] font-semibold font-body">—</span>
           </div>
         </div>
 
@@ -175,43 +188,42 @@ function CourseCard({ program }: { program: ApiProgram }) {
   )
 }
 
-// ── Main component ──────────────────────────────────────────────────────────
+// ── Main component ───────────────────────────────────────────────────────────
 export default function MyLearning() {
   const [activeTab, setActiveTab] = useState('My Programs')
 
-  const [programs, setPrograms]           = useState<ApiProgram[]>([])
-  const [resources, setResources]         = useState<ApiResource[]>([])
-  const [loadingPrograms, setLoadingPrograms]   = useState(true)
+  const [programs, setPrograms]               = useState<ApiProgram[]>([])
+  const [resources, setResources]             = useState<ApiResource[]>([])
+  const [loadingPrograms, setLoadingPrograms] = useState(true)
   const [loadingResources, setLoadingResources] = useState(false)
 
+  // Fetch programs on mount
   useEffect(() => {
     apiClient.get('/users/me/programs')
       .then((res) => {
-        const data = unwrap<ApiProgram[]>(res.data)
-        setPrograms(Array.isArray(data) ? data : [])
+        const data = unwrap<ApiProgramsResponse>(res.data)
+        setPrograms(Array.isArray(data?.programs) ? data.programs : [])
       })
       .catch(() => setPrograms([]))
       .finally(() => setLoadingPrograms(false))
   }, [])
 
+  // Fetch resources when Resources tab is activated — needs cohortId from programs
   useEffect(() => {
     if (activeTab !== 'Resources') return
+    const cohortId = programs[0]?.myCohorts?.[0]?.cohortId
+    if (!cohortId) return
+
     setLoadingResources(true)
-    apiClient.get('/users/me/resources')
+    apiClient.get(`/cohorts/${cohortId}/resources`)
       .then((res) => {
-        const data = unwrap<ApiResource[]>(res.data)
-        const sorted = (Array.isArray(data) ? data : [])
-          .sort((a, b) => {
-            const aDate = a.uploaded_at ?? a.created_at ?? ''
-            const bDate = b.uploaded_at ?? b.created_at ?? ''
-            return new Date(bDate).getTime() - new Date(aDate).getTime()
-          })
-          .slice(0, 4)
-        setResources(sorted)
+        const data = unwrap<ApiResourcesResponse>(res.data)
+        const list = Array.isArray(data?.resources) ? data.resources : []
+        setResources(list.slice(0, 4))
       })
       .catch(() => setResources([]))
       .finally(() => setLoadingResources(false))
-  }, [activeTab])
+  }, [activeTab, programs])
 
   return (
     <div className="bg-white rounded-[10px] overflow-hidden shadow-[0px_1px_3px_rgba(16,24,40,0.06)]">
