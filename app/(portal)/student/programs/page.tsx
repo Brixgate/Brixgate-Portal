@@ -15,74 +15,72 @@ import EmptyState from '@/components/shared/EmptyState'
 import { apiClient, unwrap } from '@/lib/api-client'
 import axios from 'axios'
 
-// ── API shape ─────────────────────────────────────────────────────────────────
-interface ApiCohort {
-  id: number
-  name: string
-  enrolled?: number
-  start_date?: string
-  end_date?: string
-}
-
-interface ApiEnrollment {
-  id: number
-  progress?: number
-  enrolled_at?: string
-  cohort_id?: number
-  cohort?: ApiCohort
+// ── API shape (matches /users/me/programs Swagger spec) ──────────────────────
+interface ApiCohortSummary {
+  cohortId: number
+  cohortTitle: string
+  role: string
+  membershipStatus: string
 }
 
 interface ApiProgram {
   id: number
   title: string
   slug?: string
-  category?: string
-  duration?: string
-  enrollment?: ApiEnrollment
-  // Sometimes programs come with nested enrollment, sometimes as flat enrollments
-  progress?: number
-  cohort?: ApiCohort
-  cohort_id?: number
-  enrolled_at?: string
+  level?: string
+  autoPercentCompletion?: number
+  modulesCount?: number
+  lessonsCount?: number
+  enrolledStudentsCount?: number
+  myCohorts?: ApiCohortSummary[]
+}
+
+interface ApiProgramsResponse {
+  programs: ApiProgram[]
+  pagination?: {
+    page: number
+    size: number
+    totalElements: number
+    totalPages: number
+  }
 }
 
 // ── Normalised row ────────────────────────────────────────────────────────────
 interface ProgramRow {
-  enrollmentId: number
+  programId: number
   cohortId: number
   title: string
-  category: string
-  duration: string
+  level: string
   progress: number
   cohortName: string
   cohortLabel: string
   enrolled: number
-  enrolledAt: string
-  endDate: string
-  startDate: string
+  membershipStatus: string
+  modulesCount: number
+  lessonsCount: number
 }
 
 function normalise(raw: ApiProgram): ProgramRow {
-  const enrollment = raw.enrollment
-  const cohort = enrollment?.cohort ?? raw.cohort ?? null
-
+  const cohort = raw.myCohorts?.[0] ?? null
   const title = raw.title ?? 'Untitled Programme'
-  const cohortName = cohort?.name ?? 'Cohort'
-  const cohortLabel = cohortName.replace(`${title} — `, '').replace(`${title} - `, '')
+  const cohortName = cohort?.cohortTitle ?? ''
+  const cohortLabel = cohortName
+    .replace(`${title} — `, '')
+    .replace(`${title} - `, '')
+    || cohortName
 
   return {
-    enrollmentId: enrollment?.id ?? raw.id,
-    cohortId: enrollment?.cohort_id ?? cohort?.id ?? raw.cohort_id ?? 0,
+    programId: raw.id,
+    cohortId: cohort?.cohortId ?? 0,
     title,
-    category: raw.category ?? 'professional',
-    duration: raw.duration ?? '12 weeks',
-    progress: enrollment?.progress ?? raw.progress ?? 0,
+    level: raw.level ?? 'INTERMEDIATE',
+    progress: raw.autoPercentCompletion ?? 0,
     cohortName,
     cohortLabel,
-    enrolled: cohort?.enrolled ?? 0,
-    enrolledAt: enrollment?.enrolled_at ?? raw.enrolled_at ?? '',
-    endDate: cohort?.end_date ?? '',
-    startDate: cohort?.start_date ?? '',
+    enrolled: raw.enrolledStudentsCount ?? 0,
+    membershipStatus: cohort?.membershipStatus ?? '',
+    modulesCount: raw.modulesCount ?? 0,
+    lessonsCount: raw.lessonsCount ?? 0,
   }
 }
 
@@ -124,8 +122,9 @@ export default function ProgramsPage() {
     async function load() {
       try {
         const res = await apiClient.get('/users/me/programs')
-        const data = unwrap<ApiProgram[]>(res.data)
-        const rows = (Array.isArray(data) ? data : []).map(normalise)
+        const data = unwrap<ApiProgramsResponse>(res.data)
+        const list = Array.isArray(data?.programs) ? data.programs : []
+        const rows = list.map(normalise)
         setPrograms(rows)
       } catch (err) {
         if (axios.isAxiosError(err) && err.response?.status === 401) {
@@ -199,7 +198,7 @@ export default function ProgramsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
               {programs.map((p) => (
                 <div
-                  key={p.enrollmentId}
+                  key={p.programId}
                   className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] overflow-hidden flex flex-col hover:shadow-[0px_4px_12px_rgba(16,24,40,0.10)] transition-shadow"
                 >
                   {/* Thumbnail */}
@@ -209,7 +208,7 @@ export default function ProgramsPage() {
                   >
                     <div className="absolute inset-0 bg-black/40" />
                     <div className="absolute top-3 left-3 bg-[#d51520] text-white text-[9px] font-semibold px-2 py-0.5 rounded-full font-display">
-                      {p.category === 'beginner' ? 'Beginner' : 'Professional'}
+                      {p.level === 'BEGINNER' ? 'Beginner' : 'Intermediate'}
                     </div>
                     <div className="absolute bottom-3 right-3">
                       <ProgressRing value={p.progress} />
@@ -222,25 +221,29 @@ export default function ProgramsPage() {
                       {p.title}
                     </p>
                     <p className="text-[12px] text-[#6b7280] font-body mb-4">
-                      {p.cohortLabel}
+                      {p.cohortLabel || p.cohortName || '—'}
                     </p>
 
                     {/* Meta */}
                     <div className="flex flex-col gap-1.5 mb-4">
-                      <div className="flex items-center gap-1.5 text-[12px] text-[#6b7280] font-body">
-                        <Clock01Icon size={12} color="#9ca3af" strokeWidth={1.5} />
-                        <span>{p.duration}</span>
-                      </div>
+                      {p.modulesCount > 0 && (
+                        <div className="flex items-center gap-1.5 text-[12px] text-[#6b7280] font-body">
+                          <Clock01Icon size={12} color="#9ca3af" strokeWidth={1.5} />
+                          <span>{p.modulesCount} module{p.modulesCount !== 1 ? 's' : ''}</span>
+                        </div>
+                      )}
                       {p.enrolled > 0 && (
                         <div className="flex items-center gap-1.5 text-[12px] text-[#6b7280] font-body">
                           <UserGroupIcon size={12} color="#9ca3af" strokeWidth={1.5} />
-                          <span>{p.enrolled} students</span>
+                          <span>{p.enrolled} students enrolled</span>
                         </div>
                       )}
-                      <div className="flex items-center gap-1.5 text-[12px] text-[#6b7280] font-body">
-                        <BookOpen01Icon size={12} color="#9ca3af" strokeWidth={1.5} />
-                        <span>12 sessions</span>
-                      </div>
+                      {p.lessonsCount > 0 && (
+                        <div className="flex items-center gap-1.5 text-[12px] text-[#6b7280] font-body">
+                          <BookOpen01Icon size={12} color="#9ca3af" strokeWidth={1.5} />
+                          <span>{p.lessonsCount} lesson{p.lessonsCount !== 1 ? 's' : ''}</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Progress bar */}

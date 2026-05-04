@@ -188,13 +188,22 @@ function Toggle({
   )
 }
 
-// ── Account details shape from /users/me/programs ────────────────────────────
-interface ApiProgram {
+// ── Account details shape from /users/me/programs (matches Swagger spec) ─────
+interface ApiSettingsCohort {
+  cohortId: number
+  cohortTitle: string
+  role: string
+  membershipStatus: string
+}
+
+interface ApiSettingsProgram {
   id: number
   title?: string
-  cohort?: { id?: number; name?: string; start_date?: string; end_date?: string }
-  cohort_id?: number
-  enrollment?: { enrolled_at?: string; cohort?: { name?: string; start_date?: string; end_date?: string } }
+  myCohorts?: ApiSettingsCohort[]
+}
+
+interface ApiSettingsProgramsResponse {
+  programs: ApiSettingsProgram[]
 }
 
 export default function SettingsPage() {
@@ -208,11 +217,9 @@ export default function SettingsPage() {
   const [phone, setPhone]         = useState('')
 
   // Account details — fetched from /users/me/programs
-  const [programme, setProgramme]   = useState('—')
-  const [cohortName, setCohortName] = useState('—')
-  const [enrolledAt, setEnrolledAt] = useState('—')
-  const [endDate, setEndDate]       = useState<Date | null>(null)
-  const [startDate, setStartDate]   = useState<Date | null>(null)
+  const [programme, setProgramme]       = useState('—')
+  const [cohortName, setCohortName]     = useState('—')
+  const [membershipStatus, setMembershipStatus] = useState('—')
 
   // Sync personal info from auth context when user loads
   useEffect(() => {
@@ -229,25 +236,18 @@ export default function SettingsPage() {
     async function loadProgram() {
       try {
         const res = await apiClient.get('/users/me/programs')
-        const programs = unwrap<ApiProgram[]>(res.data)
-        const first = Array.isArray(programs) ? programs[0] : null
+        const data = unwrap<ApiSettingsProgramsResponse>(res.data)
+        const first = Array.isArray(data?.programs) ? data.programs[0] : null
         if (!first) return
 
-        const cohort = first.enrollment?.cohort ?? first.cohort ?? null
+        const cohort = first.myCohorts?.[0] ?? null
         setProgramme(first.title ?? '—')
 
-        const rawName = cohort?.name ?? ''
+        const rawName = cohort?.cohortTitle ?? ''
         // Strip programme title prefix e.g. "AI in Cyber Security — Cohort 1" → "Cohort 1"
         setCohortName(rawName.includes('—') ? rawName.split('—')[1]?.trim() : rawName || '—')
 
-        const enrolled = first.enrollment?.enrolled_at
-        setEnrolledAt(
-          enrolled
-            ? new Date(enrolled).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })
-            : '—'
-        )
-        if (cohort?.start_date) setStartDate(new Date(cohort.start_date))
-        if (cohort?.end_date)   setEndDate(new Date(cohort.end_date))
+        if (cohort?.membershipStatus) setMembershipStatus(cohort.membershipStatus)
       } catch {
         // Not enrolled or not authenticated — leave defaults as '—'
       }
@@ -581,16 +581,9 @@ export default function SettingsPage() {
             <SectionCard title="Account Details">
               <div className="flex flex-col gap-5">
                 {[
-                  { label: 'Role',           value: user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1).toLowerCase() : 'Student' },
-                  { label: 'Programme',      value: programme },
-                  { label: 'Cohort',         value: cohortName },
-                  { label: 'Enrolled',       value: enrolledAt },
-                  {
-                    label: 'Course End Date',
-                    value: endDate
-                      ? endDate.toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })
-                      : '—',
-                  },
+                  { label: 'Role',      value: user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1).toLowerCase() : 'Student' },
+                  { label: 'Programme', value: programme },
+                  { label: 'Cohort',    value: cohortName },
                 ].map(({ label, value }) => (
                   <div key={label} className="flex flex-col gap-0.5">
                     <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">{label}</p>
@@ -598,20 +591,20 @@ export default function SettingsPage() {
                   </div>
                 ))}
 
-                {/* Course Status — derived from real cohort dates */}
+                {/* Cohort Status — from API membershipStatus */}
                 {(() => {
-                  const now = new Date()
-                  let label = '—'
-                  let color = '#9ca3af'
-                  let bg    = '#f9fafb'
+                  const status = membershipStatus.toUpperCase()
+                  let label  = membershipStatus || '—'
+                  let color  = '#9ca3af'
+                  let bg     = '#f9fafb'
                   let border = '#e5e7eb'
 
-                  if (endDate && now > endDate) {
-                    label = 'Ended'; color = '#6b7280'; bg = '#f3f4f6'; border = '#e5e7eb'
-                  } else if (startDate && endDate && now >= startDate && now <= endDate) {
-                    label = 'In Progress'; color = '#d97706'; bg = '#fffbeb'; border = '#fde68a'
-                  } else if (startDate && now < startDate) {
-                    label = 'Upcoming'; color = '#2563eb'; bg = '#eff6ff'; border = '#bfdbfe'
+                  if (status === 'ACTIVE') {
+                    label = 'Active'; color = '#16a34a'; bg = '#ecfdf3'; border = '#bbf7d0'
+                  } else if (status === 'INACTIVE') {
+                    label = 'Inactive'; color = '#6b7280'; bg = '#f3f4f6'; border = '#e5e7eb'
+                  } else if (status === 'REMOVED') {
+                    label = 'Removed'; color = '#d51520'; bg = '#fef2f2'; border = '#fecdca'
                   }
 
                   return (
