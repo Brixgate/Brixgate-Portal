@@ -26,6 +26,8 @@ function LoginPageContent() {
   const [errors, setErrors]             = useState<FormErrors>({})
   const [loading, setLoading]           = useState(false)
 
+  const passwordReset = searchParams.get('reset') === 'success'
+
   // Already authenticated — go straight to the portal
   useEffect(() => {
     if (!isLoading && user) {
@@ -91,6 +93,17 @@ function LoginPageContent() {
         <p className="text-[14px] text-[#6B7280] font-body text-center leading-[1.6] mb-8 max-w-[340px] mx-auto">
           Log in to access your Brixgate program and learning resources.
         </p>
+
+        {/* Password reset success banner */}
+        {passwordReset && (
+          <div className="flex items-center gap-2 bg-[#ecfdf3] border border-[#bbf7d0] rounded-[6px] px-3 py-2.5 mb-2">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <circle cx="7" cy="7" r="7" fill="#16a34a" />
+              <path d="M4 7l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <p className="text-[12px] text-[#16a34a] font-body">Password reset successfully. You can now log in.</p>
+          </div>
+        )}
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="flex flex-col gap-3" noValidate>

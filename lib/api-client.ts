@@ -47,7 +47,7 @@ apiClient.interceptors.request.use((config) => {
 // 2. /auth/callback — the elevated applicant token is being validated here;
 //    a 401 means the token is stale/invalid. Let the catch block show the
 //    "couldn't sign you in" error screen instead of a silent redirect.
-const AUTH_ENDPOINTS = ['/auth/login', '/auth/register', '/auth/applicants']
+const AUTH_ENDPOINTS = ['/auth/login', '/auth/register', '/auth/applicants', '/auth/reset-password', '/auth/forgot-password']
 
 apiClient.interceptors.response.use(
   (res) => res,

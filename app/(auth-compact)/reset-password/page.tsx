@@ -49,10 +49,10 @@ function ResetPasswordContent() {
     try {
       await apiClient.post('/auth/reset-password', {
         token,
-        password,
-        password_confirmation: confirmPassword,
+        new_password: password,
+        confirm_password: confirmPassword,
       })
-      router.push('/login')
+      router.push('/login?reset=success')
     } catch (err) {
       setErrors({ form: getApiError(err) })
     } finally {
