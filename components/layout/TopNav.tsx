@@ -2,12 +2,13 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search01Icon, Menu01Icon, BookOpen01Icon, Settings01Icon, HelpCircleIcon, Logout01Icon } from 'hugeicons-react'
+import { Search01Icon, Menu01Icon, BookOpen01Icon, Settings01Icon, HelpCircleIcon, Logout01Icon, UserGroup02Icon } from 'hugeicons-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 // FEATURE_OFF: notifications — import NotificationDropdown from '@/components/shared/NotificationDropdown'
 import { useSidebar } from '@/lib/sidebar-context'
 import { useAvatar } from '@/lib/use-avatar'
 import { useAuth } from '@/lib/auth-context'
+import TeamFeature, { DUMMY_ACCOUNT_TYPE } from '@/components/teams/TeamFeature'
 
 interface TopNavProps {
   title: string
@@ -33,6 +34,7 @@ export default function TopNav({ title, breadcrumbs = [] }: TopNavProps) {
     : '?'
 
   const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [showTeams, setShowTeams] = useState(false)
   const profileRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -136,6 +138,27 @@ export default function TopNav({ title, breadcrumbs = [] }: TopNavProps) {
                   {label}
                 </button>
               ))}
+
+              {/* Teams */}
+              <button
+                onClick={() => {
+                  setShowProfileMenu(false)
+                  setShowTeams(true)
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 text-[13px] font-medium font-body transition-colors text-left ${
+                  DUMMY_ACCOUNT_TYPE === 'individual'
+                    ? 'text-[#9ca3af] cursor-not-allowed'
+                    : 'text-[#374151] hover:bg-[#f9fafb]'
+                }`}
+              >
+                <UserGroup02Icon size={15} color={DUMMY_ACCOUNT_TYPE === 'individual' ? '#d1d5db' : '#6b7280'} strokeWidth={1.5} />
+                Teams
+                {DUMMY_ACCOUNT_TYPE !== 'individual' && (
+                  <span className="ml-auto text-[9px] font-semibold uppercase tracking-wide bg-[#fef2f2] text-[#d51520] px-1.5 py-0.5 rounded-[4px] font-display">
+                    {DUMMY_ACCOUNT_TYPE === 'team_lead' ? 'Lead' : 'Member'}
+                  </span>
+                )}
+              </button>
             </div>
 
             {/* Logout */}
@@ -155,6 +178,11 @@ export default function TopNav({ title, breadcrumbs = [] }: TopNavProps) {
           </div>
         )}
       </div>
+
+      {/* Teams modal */}
+      {showTeams && (
+        <TeamFeature accountType={DUMMY_ACCOUNT_TYPE} onClose={() => setShowTeams(false)} />
+      )}
     </header>
   )
 }
