@@ -4,22 +4,29 @@ import { Suspense, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { EyeIcon, ViewOffIcon, AlertCircleIcon } from 'hugeicons-react'
+import { EyeIcon, ViewOffIcon, AlertCircleIcon, UserCircleIcon } from 'hugeicons-react'
 import { apiClient, getApiError } from '@/lib/api-client'
 
 function ResetPasswordContent() {
-  const router      = useRouter()
+  const router       = useRouter()
   const searchParams = useSearchParams()
-  // Token from URL — will be used when backend adds reset-password endpoint
-  const token = searchParams.get('token') ?? ''
-  void token // referenced when endpoint is available
 
-  const [password, setPassword]         = useState('')
-  const [confirmPassword, setConfirm]   = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirm, setShowConfirm]   = useState(false)
-  const [errors, setErrors]             = useState<{ password?: string; confirm?: string; form?: string }>({})
-  const [loading, setLoading]           = useState(false)
+  const token     = searchParams.get('token') ?? ''
+  // ?newuser=true — team-invite flow: user was added by email only, no name on record
+  const isNewUser = searchParams.get('newuser') === 'true'
+
+  const [fullName, setFullName]           = useState('')
+  const [password, setPassword]           = useState('')
+  const [confirmPassword, setConfirm]     = useState('')
+  const [showPassword, setShowPassword]   = useState(false)
+  const [showConfirm, setShowConfirm]     = useState(false)
+  const [errors, setErrors]               = useState<{
+    fullName?: string
+    password?: string
+    confirm?: string
+    form?: string
+  }>({})
+  const [loading, setLoading] = useState(false)
 
   // Live password rule checks
   const rules = {
@@ -29,13 +36,22 @@ function ResetPasswordContent() {
   }
 
   function validate(): boolean {
-    const next: { password?: string; confirm?: string } = {}
-    if (!password)                          next.password = 'Password is required.'
-    else if (!rules.length)                 next.password = 'Password must be at least 8 characters.'
-    else if (!rules.uppercase)              next.password = 'Password must contain an uppercase letter.'
-    else if (!rules.special)                next.password = 'Password must contain a number or special character.'
-    if (!confirmPassword)                   next.confirm  = 'Please confirm your password.'
-    else if (password !== confirmPassword)  next.confirm  = 'Passwords do not match.'
+    const next: typeof errors = {}
+
+    if (isNewUser) {
+      if (!fullName.trim())             next.fullName = 'Full name is required.'
+      else if (fullName.trim().split(/\s+/).length < 2)
+                                        next.fullName = 'Please enter your first and last name.'
+    }
+
+    if (!password)                         next.password = 'Password is required.'
+    else if (!rules.length)                next.password = 'Password must be at least 8 characters.'
+    else if (!rules.uppercase)             next.password = 'Password must contain an uppercase letter.'
+    else if (!rules.special)               next.password = 'Password must contain a number or special character.'
+
+    if (!confirmPassword)                  next.confirm = 'Please confirm your password.'
+    else if (password !== confirmPassword) next.confirm = 'Passwords do not match.'
+
     setErrors(next)
     return Object.keys(next).length === 0
   }
@@ -47,10 +63,15 @@ function ResetPasswordContent() {
     setLoading(true)
     setErrors({})
     try {
+      // NOTE: when isNewUser is true, fullName will also need to be sent once
+      // the backend endpoint is updated to accept it. For now we send the
+      // password reset payload; the fullName field is ready to be wired in.
+      // TODO: include fullName in payload when API is confirmed:
+      //   ...(isNewUser && fullName.trim() ? { fullName: fullName.trim() } : {})
       await apiClient.post('/auth/reset-password', {
         token,
-        new_password: password,
-        confirm_password: confirmPassword,
+        new_password:      password,
+        confirm_password:  confirmPassword,
       })
       router.push('/login?reset=success')
     } catch (err) {
@@ -89,28 +110,63 @@ function ResetPasswordContent() {
           />
         </div>
 
-        {/* Heading */}
+        {/* Heading — context-aware for new vs existing user */}
         <h1 className="text-[28px] font-semibold text-[#111827] font-display text-center mb-1">
-          Set your new password
+          {isNewUser ? 'Set up your account' : 'Set your new password'}
         </h1>
         <p className="text-[14px] text-[#6B7280] font-body text-center leading-[1.6] mb-8 max-w-[360px] mx-auto">
-          Choose a strong password for your Brixgate account. You&apos;ll use
-          this each time you log in.
+          {isNewUser
+            ? "You've been added to a Brixgate team. Enter your name and create a password to get started."
+            : "Choose a strong password for your Brixgate account. You'll use this each time you log in."}
         </p>
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="flex flex-col gap-3" noValidate>
 
+          {/* Full name — only shown for new team-invite users */}
+          {isNewUser && (
+            <div>
+              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">
+                Full Name <span className="text-[#D51520]">*</span>
+              </label>
+              <div className="relative">
+                <UserCircleIcon
+                  size={16}
+                  color="#9CA3AF"
+                  strokeWidth={1.5}
+                  className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                />
+                <input
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => { setFullName(e.target.value); setErrors((prev) => ({ ...prev, fullName: undefined })) }}
+                  placeholder="e.g. Adunola Okafor"
+                  className={`w-full h-[42px] pl-9 pr-3.5 border rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#9CA3AF] outline-none transition-all bg-white ${
+                    errors.fullName
+                      ? 'border-[#D51520] focus:ring-2 focus:ring-[#D51520]/10'
+                      : 'border-[#E5E7EB] focus:border-[#D51520] focus:ring-2 focus:ring-[#D51520]/10'
+                  }`}
+                />
+              </div>
+              {errors.fullName && (
+                <p className="flex items-center gap-1 mt-1 text-[11px] text-[#D51520] font-body">
+                  <AlertCircleIcon size={11} color="#D51520" strokeWidth={1.5} />
+                  {errors.fullName}
+                </p>
+              )}
+            </div>
+          )}
+
           {/* New password */}
           <div>
             <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">
-              New password
+              {isNewUser ? 'Create a password' : 'New password'}
             </label>
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => { setPassword(e.target.value); setErrors((prev) => ({ ...prev, password: undefined })) }}
                 placeholder="Enter password"
                 className={`w-full h-[42px] pl-3.5 pr-10 border rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#9CA3AF] outline-none transition-all bg-white ${
                   errors.password
@@ -127,20 +183,23 @@ function ResetPasswordContent() {
               </button>
             </div>
             {errors.password && (
-              <p className="text-[11px] text-[#D51520] font-body mt-1">{errors.password}</p>
+              <p className="flex items-center gap-1 mt-1 text-[11px] text-[#D51520] font-body">
+                <AlertCircleIcon size={11} color="#D51520" strokeWidth={1.5} />
+                {errors.password}
+              </p>
             )}
           </div>
 
           {/* Confirm password */}
           <div>
             <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">
-              Confirm new password
+              Confirm password
             </label>
             <div className="relative">
               <input
                 type={showConfirm ? 'text' : 'password'}
                 value={confirmPassword}
-                onChange={(e) => setConfirm(e.target.value)}
+                onChange={(e) => { setConfirm(e.target.value); setErrors((prev) => ({ ...prev, confirm: undefined })) }}
                 placeholder="Enter password"
                 className={`w-full h-[42px] pl-3.5 pr-10 border rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#9CA3AF] outline-none transition-all bg-white ${
                   errors.confirm
@@ -157,11 +216,14 @@ function ResetPasswordContent() {
               </button>
             </div>
             {errors.confirm && (
-              <p className="text-[11px] text-[#D51520] font-body mt-1">{errors.confirm}</p>
+              <p className="flex items-center gap-1 mt-1 text-[11px] text-[#D51520] font-body">
+                <AlertCircleIcon size={11} color="#D51520" strokeWidth={1.5} />
+                {errors.confirm}
+              </p>
             )}
           </div>
 
-          {/* Password rules */}
+          {/* Password strength rules */}
           <div className="flex flex-col gap-2 py-1">
             <RuleItem met={rules.length}    label="At least 8 characters" />
             <RuleItem met={rules.uppercase} label="One uppercase letter" />
@@ -188,10 +250,10 @@ function ResetPasswordContent() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="white" strokeWidth="4" />
                   <path className="opacity-75" fill="white" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                Saving…
+                {isNewUser ? 'Setting up…' : 'Saving…'}
               </>
             ) : (
-              'Set New Password'
+              isNewUser ? 'Create Account' : 'Set New Password'
             )}
           </button>
         </form>
