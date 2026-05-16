@@ -264,6 +264,9 @@ export default function SettingsPage() {
   const [resume, setResume] = useState<{ name: string; size: string } | null>(null)
   const resumeInputRef = useRef<HTMLInputElement>(null)
 
+  // Avatar upload
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+
   // Avatar dropdown
   const [showAvatarMenu, setShowAvatarMenu] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -288,13 +291,16 @@ export default function SettingsPage() {
     setTimeout(() => setToast(null), 3500)
   }
 
-  // ── Avatar upload ──
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  // ── Avatar upload — POST /users/me/profile-picture ──
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    e.target.value = ''
 
-    if (!file.type.startsWith('image/')) {
-      showToast('Please select an image file.', 'error')
+    // Validate type — endpoint only accepts jpeg, png, webp
+    const allowed = ['image/jpeg', 'image/png', 'image/webp']
+    if (!allowed.includes(file.type)) {
+      showToast('Please select a JPG, PNG, or WebP image.', 'error')
       return
     }
     if (file.size > 5 * 1024 * 1024) {
@@ -302,15 +308,30 @@ export default function SettingsPage() {
       return
     }
 
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      const result = ev.target?.result as string
-      setAvatar(result)
-      setShowAvatarMenu(false)
+    setShowAvatarMenu(false)
+    setUploadingAvatar(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)   // field name: 'file' (standard convention)
+
+      const res = await apiClient.post('/users/me/profile-picture', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+
+      // Response uses snake_case — handle both for safety
+      const data = unwrap<{ user?: { profileImageUrl?: string; profile_image_url?: string } }>(res.data)
+      const url = data?.user?.profileImageUrl ?? data?.user?.profile_image_url ?? null
+
+      if (url) {
+        setAvatar(url)
+        updateUser({ profileImageUrl: url })
+      }
       showToast('Profile photo updated.', 'success')
+    } catch (err) {
+      showToast(getApiError(err), 'error')
+    } finally {
+      setUploadingAvatar(false)
     }
-    reader.readAsDataURL(file)
-    e.target.value = ''
   }
 
   // ── Resume upload ──
@@ -368,7 +389,7 @@ export default function SettingsPage() {
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept="image/jpeg,image/png,image/webp"
         className="hidden"
         onChange={handleFileChange}
       />
@@ -402,10 +423,12 @@ export default function SettingsPage() {
                 <div className="relative" ref={dropdownRef}>
                   <button
                     type="button"
-                    onClick={() => setShowAvatarMenu((v) => !v)}
+                    onClick={() => !uploadingAvatar && setShowAvatarMenu((v) => !v)}
                     className="relative block focus:outline-none group"
                     aria-label="Change profile photo"
+                    disabled={uploadingAvatar}
                   >
+                    {/* Avatar image or initials */}
                     {avatar ? (
                       <Image
                         src={avatar}
@@ -419,9 +442,22 @@ export default function SettingsPage() {
                         {initials}
                       </div>
                     )}
-                    <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-white border border-[#e5e7eb] shadow-sm flex items-center justify-center pointer-events-none">
-                      <Camera02Icon size={12} color="#374151" strokeWidth={1.5} />
-                    </div>
+
+                    {/* Uploading overlay */}
+                    {uploadingAvatar && (
+                      <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center">
+                        <svg className="animate-spin w-5 h-5 text-white" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="white" strokeWidth="4" />
+                          <path className="opacity-75" fill="white" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                      </div>
+                    )}
+
+                    {!uploadingAvatar && (
+                      <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-white border border-[#e5e7eb] shadow-sm flex items-center justify-center pointer-events-none">
+                        <Camera02Icon size={12} color="#374151" strokeWidth={1.5} />
+                      </div>
+                    )}
                   </button>
 
                   {/* Dropdown */}
@@ -433,10 +469,11 @@ export default function SettingsPage() {
                           setShowAvatarMenu(false)
                           setTimeout(() => fileInputRef.current?.click(), 50)
                         }}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] font-medium text-[#374151] font-body hover:bg-[#f9fafb] transition-colors text-left"
+                        disabled={uploadingAvatar}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] font-medium text-[#374151] font-body hover:bg-[#f9fafb] transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <Upload01Icon size={15} color="#374151" strokeWidth={1.5} />
-                        {avatar ? 'Change photo' : 'Upload photo'}
+                        {uploadingAvatar ? 'Uploading…' : avatar ? 'Change photo' : 'Upload photo'}
                       </button>
                       {avatar && (
                         <button
@@ -460,13 +497,14 @@ export default function SettingsPage() {
                   <p className="text-[12px] text-[#9ca3af] font-body mt-0.5">Student</p>
                   <button
                     type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="text-[12px] text-[#d51520] font-medium font-display mt-2 hover:underline"
+                    onClick={() => !uploadingAvatar && fileInputRef.current?.click()}
+                    disabled={uploadingAvatar}
+                    className="text-[12px] text-[#d51520] font-medium font-display mt-2 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Change photo
+                    {uploadingAvatar ? 'Uploading…' : 'Change photo'}
                   </button>
                   <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">
-                    JPG, PNG or GIF · Max 5MB
+                    JPG, PNG or WebP · Max 5MB
                   </p>
                 </div>
               </div>

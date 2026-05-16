@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useSidebar } from '@/lib/sidebar-context'
 import { useAvatar } from '@/lib/use-avatar'
 import { useAuth } from '@/lib/auth-context'
-import TeamFeature, { DUMMY_ACCOUNT_TYPE } from '@/components/teams/TeamFeature'
+import TeamFeature from '@/components/teams/TeamFeature'
 
 interface TopNavProps {
   title: string
@@ -139,25 +139,16 @@ export default function TopNav({ title, breadcrumbs = [] }: TopNavProps) {
                 </button>
               ))}
 
-              {/* Teams */}
+              {/* Teams — always clickable; TeamFeature resolves account type from API */}
               <button
                 onClick={() => {
                   setShowProfileMenu(false)
                   setShowTeams(true)
                 }}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 text-[13px] font-medium font-body transition-colors text-left ${
-                  DUMMY_ACCOUNT_TYPE === 'individual'
-                    ? 'text-[#9ca3af] cursor-not-allowed'
-                    : 'text-[#374151] hover:bg-[#f9fafb]'
-                }`}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] font-medium text-[#374151] font-body hover:bg-[#f9fafb] transition-colors text-left"
               >
-                <UserGroup02Icon size={15} color={DUMMY_ACCOUNT_TYPE === 'individual' ? '#d1d5db' : '#6b7280'} strokeWidth={1.5} />
+                <UserGroup02Icon size={15} color="#6b7280" strokeWidth={1.5} />
                 Teams
-                {DUMMY_ACCOUNT_TYPE !== 'individual' && (
-                  <span className="ml-auto text-[9px] font-semibold uppercase tracking-wide bg-[#fef2f2] text-[#d51520] px-1.5 py-0.5 rounded-[4px] font-display">
-                    {DUMMY_ACCOUNT_TYPE === 'team_lead' ? 'Lead' : 'Member'}
-                  </span>
-                )}
               </button>
             </div>
 
@@ -181,7 +172,7 @@ export default function TopNav({ title, breadcrumbs = [] }: TopNavProps) {
 
       {/* Teams modal */}
       {showTeams && (
-        <TeamFeature accountType={DUMMY_ACCOUNT_TYPE} onClose={() => setShowTeams(false)} />
+        <TeamFeature onClose={() => setShowTeams(false)} />
       )}
     </header>
   )
