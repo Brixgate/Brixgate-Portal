@@ -16,60 +16,206 @@ import {
   Loading01Icon,
   UserCircleIcon,
   Calendar01Icon,
+  ArrowRight01Icon,
+  Time01Icon,
 } from 'hugeicons-react'
 
-// ── API shapes ────────────────────────────────────────────────────────────────
+// ── API shapes — programs ─────────────────────────────────────────────────────
 interface ApiCohortSummary {
   cohortId: number
   cohortTitle: string
   role: string
   membershipStatus: string
 }
-
 interface ApiProgram {
   id: number
   title: string
-  subtitle?: string
   level?: string
   autoPercentCompletion?: number
   myCohorts?: ApiCohortSummary[]
 }
+interface ApiProgramsResponse { programs: ApiProgram[] }
 
-interface ApiProgramsResponse {
-  programs: ApiProgram[]
-}
-
+// ── API shapes — resources ────────────────────────────────────────────────────
 interface ApiResource {
   id: number
   title?: string
   type?: string
   link?: string
-  status?: string
   createdAt?: string
 }
+interface ApiResourcesResponse { cohortId: number; resources: ApiResource[] }
 
-interface ApiResourcesResponse {
-  cohortId: number
-  resources: ApiResource[]
-}
-
-interface ApiMember {
-  id: number
-  role: string
-  joinedAt?: string
-  user: {
-    id: number
-    name: string
-    title?: string
-    profileImageUrl?: string
-  }
-}
-
+// ── API shapes — members ──────────────────────────────────────────────────────
 interface ApiMembersResponse {
-  members: ApiMember[]
+  members: Array<{ id: number; role: string; user: { id: number; name: string; title?: string } }>
 }
 
-// ── File config ───────────────────────────────────────────────────────────────
+// ── API shapes — modules (Swagger: CohortModuleItemResponse) ─────────────────
+interface CohortLesson {
+  id: number
+  title: string
+  contentType: string   // VIDEO | ARTICLE | PDF | PRESENTATION | LECTURE | IMAGE
+  contentUrl?: string
+  duration: number      // minutes (int32 per Swagger)
+  orderIndex: number
+  visibilityStatus?: string
+  releaseDate?: string
+  expiresAt?: string
+}
+interface CohortModule {
+  id: number
+  title: string
+  description?: string
+  duration: string      // human-readable string per Swagger e.g. "1 Week"
+  orderIndex: number
+  moduleStatus?: string
+  visibilityStatus?: string
+  releaseDate?: string
+  createdBy?: string
+  lessons: CohortLesson[]
+}
+interface CohortModulesResponse {
+  cohortId: number
+  modules: CohortModule[]
+}
+
+// ── Content-type config ───────────────────────────────────────────────────────
+const CONTENT_ICONS: Record<string, React.ElementType> = {
+  VIDEO:        Video01Icon,
+  LECTURE:      Video01Icon,
+  PDF:          File01Icon,
+  PRESENTATION: PresentationBarChart01Icon,
+  ARTICLE:      FileEditIcon,
+  IMAGE:        File01Icon,
+}
+const CONTENT_COLOURS: Record<string, { bg: string; text: string }> = {
+  VIDEO:        { bg: '#F5F3FF', text: '#7C3AED' },
+  LECTURE:      { bg: '#F5F3FF', text: '#7C3AED' },
+  PDF:          { bg: '#FEF2F2', text: '#D51520' },
+  PRESENTATION: { bg: '#FFF7ED', text: '#EA580C' },
+  ARTICLE:      { bg: '#F0FDF4', text: '#16A34A' },
+  IMAGE:        { bg: '#F0F9FF', text: '#0EA5E9' },
+}
+
+function formatDuration(mins: number): string {
+  if (!mins) return ''
+  if (mins < 60) return `${mins} min`
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  return m > 0 ? `${h} hr ${m} min` : `${h} hr`
+}
+
+// ── Lesson row ────────────────────────────────────────────────────────────────
+function LessonRow({ lesson, index }: { lesson: CohortLesson; index: number }) {
+  const type    = (lesson.contentType ?? 'PDF').toUpperCase()
+  const Icon    = CONTENT_ICONS[type] ?? File01Icon
+  const colours = CONTENT_COLOURS[type] ?? { bg: '#F7F8FA', text: '#6b7280' }
+
+  return (
+    <div className="flex items-center gap-4 px-5 py-3.5 hover:bg-[#f9fafb] transition-colors group">
+      {/* Index */}
+      <span className="text-[12px] text-[#d1d5db] font-body w-5 flex-shrink-0 text-center">
+        {String(index).padStart(2, '0')}
+      </span>
+
+      {/* Type icon */}
+      <div
+        className="w-8 h-8 rounded-[7px] flex items-center justify-center flex-shrink-0"
+        style={{ background: colours.bg }}
+      >
+        <Icon size={14} color={colours.text} strokeWidth={1.5} />
+      </div>
+
+      {/* Title */}
+      <div className="flex-1 min-w-0">
+        <p className="text-[13px] font-medium text-[#111827] font-body leading-snug truncate">
+          {lesson.title}
+        </p>
+        <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">
+          {type.charAt(0) + type.slice(1).toLowerCase()}
+          {lesson.duration ? ` · ${formatDuration(lesson.duration)}` : ''}
+        </p>
+      </div>
+
+      {/* Duration badge */}
+      {lesson.duration > 0 && (
+        <div className="hidden sm:flex items-center gap-1 text-[11px] text-[#9ca3af] font-body flex-shrink-0">
+          <Time01Icon size={11} color="#9ca3af" strokeWidth={1.5} />
+          {formatDuration(lesson.duration)}
+        </div>
+      )}
+
+      {/* Open button */}
+      {lesson.contentUrl && (
+        <a
+          href={lesson.contentUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1.5 text-[12px] font-medium font-display text-[#374151] border border-[#e5e7eb] px-3 py-1.5 rounded-[6px] hover:bg-[#f3f4f6] transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100"
+        >
+          Open
+          <ArrowRight01Icon size={11} color="#374151" strokeWidth={2} />
+        </a>
+      )}
+    </div>
+  )
+}
+
+// ── Module card ───────────────────────────────────────────────────────────────
+function ModuleCard({ module, moduleIndex }: { module: CohortModule; moduleIndex: number }) {
+  const lessonCount = module.lessons?.length ?? 0
+
+  return (
+    <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] overflow-hidden">
+      {/* Module header */}
+      <div className="px-5 py-4 border-b border-[#f3f4f6]">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">
+                Module {moduleIndex}
+              </span>
+              {module.duration && (
+                <span className="text-[10px] font-medium text-[#6b7280] font-body bg-[#f3f4f6] px-2 py-0.5 rounded-full">
+                  {module.duration}
+                </span>
+              )}
+            </div>
+            <p className="text-[15px] font-semibold text-[#111827] font-display leading-snug">
+              {module.title}
+            </p>
+            {module.description && (
+              <p className="text-[12px] text-[#6b7280] font-body mt-1 leading-[1.6]">
+                {module.description}
+              </p>
+            )}
+          </div>
+          <span className="text-[11px] text-[#9ca3af] font-body flex-shrink-0 mt-1">
+            {lessonCount} lesson{lessonCount !== 1 ? 's' : ''}
+          </span>
+        </div>
+      </div>
+
+      {/* Lessons */}
+      {lessonCount === 0 ? (
+        <div className="px-5 py-6 text-center">
+          <p className="text-[12px] text-[#9ca3af] font-body">No lessons published yet.</p>
+        </div>
+      ) : (
+        <div className="divide-y divide-[#f9fafb]">
+          {[...module.lessons]
+            .sort((a, b) => a.orderIndex - b.orderIndex)
+            .map((lesson, i) => (
+              <LessonRow key={lesson.id} lesson={lesson} index={i + 1} />
+            ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Resource card (right panel) ───────────────────────────────────────────────
 const FILE_ICONS: Record<string, React.ElementType> = {
   PDF:          File01Icon,
   PRESENTATION: PresentationBarChart01Icon,
@@ -88,28 +234,21 @@ const FILE_COLOURS: Record<string, { bg: string; text: string }> = {
 }
 
 function ResourceCard({ resource }: { resource: ApiResource }) {
-  const type = (resource.type ?? 'PDF').toUpperCase()
-  const Icon = FILE_ICONS[type] ?? File01Icon
+  const type    = (resource.type ?? 'PDF').toUpperCase()
+  const Icon    = FILE_ICONS[type] ?? File01Icon
   const colours = FILE_COLOURS[type] ?? { bg: '#F7F8FA', text: '#6b7280' }
-  const date = resource.createdAt
+  const date    = resource.createdAt
     ? new Date(resource.createdAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })
     : ''
 
   return (
     <div className="flex items-center gap-4 p-4 border border-[#f3f4f6] rounded-[10px] hover:bg-[#f9fafb] transition-colors group">
-      <div
-        className="w-10 h-10 rounded-[8px] flex items-center justify-center flex-shrink-0"
-        style={{ background: colours.bg }}
-      >
+      <div className="w-10 h-10 rounded-[8px] flex items-center justify-center flex-shrink-0" style={{ background: colours.bg }}>
         <Icon size={18} color={colours.text} strokeWidth={1.5} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-[13px] font-semibold text-[#111827] font-display truncate">
-          {resource.title ?? 'Resource'}
-        </p>
-        <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">
-          {type}{date ? ` · ${date}` : ''}
-        </p>
+        <p className="text-[13px] font-semibold text-[#111827] font-display truncate">{resource.title ?? 'Resource'}</p>
+        <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">{type}{date ? ` · ${date}` : ''}</p>
       </div>
       {resource.link && (
         <a
@@ -140,24 +279,20 @@ export default function CourseDetailPage() {
   const [progress, setProgress]         = useState(0)
   const [instructor, setInstructor]     = useState<{ name: string; initials: string; title?: string } | null>(null)
   const [resources, setResources]       = useState<ApiResource[]>([])
+  const [modules, setModules]           = useState<CohortModule[]>([])
 
   useEffect(() => {
     async function load() {
       try {
-        // 1. Find the program that contains this cohortId
-        const programsRes = await apiClient.get('/users/me/programs')
+        // 1. Resolve program meta from enrolled programs
+        const programsRes  = await apiClient.get('/users/me/programs')
         const programsData = unwrap<ApiProgramsResponse>(programsRes.data)
-        const programs = programsData?.programs ?? []
+        const programs     = programsData?.programs ?? []
 
         const program = programs.find((p) =>
           p.myCohorts?.some((c) => String(c.cohortId) === String(cohortId))
         )
-
-        if (!program) {
-          setNotFound(true)
-          setLoading(false)
-          return
-        }
+        if (!program) { setNotFound(true); setLoading(false); return }
 
         const cohort = program.myCohorts?.find((c) => String(c.cohortId) === String(cohortId))
         setProgramTitle(program.title)
@@ -165,26 +300,33 @@ export default function CourseDetailPage() {
         setCohortTitle(cohort?.cohortTitle ?? '')
         setProgress(program.autoPercentCompletion ?? 0)
 
-        // 2. Fetch resources and instructor in parallel
-        const [resourcesRes, membersRes] = await Promise.allSettled([
+        // 2. Fetch resources, instructor, and modules in parallel
+        const [resourcesRes, membersRes, modulesRes] = await Promise.allSettled([
           apiClient.get(`/cohorts/${cohortId}/resources`),
           apiClient.get(`/cohorts/${cohortId}/members`, { params: { role: 'INSTRUCTOR', size: 5 } }),
+          apiClient.get(`/cohorts/${cohortId}/modules`),
         ])
 
         if (resourcesRes.status === 'fulfilled') {
-          const rData = unwrap<ApiResourcesResponse>(resourcesRes.value.data)
-          setResources(Array.isArray(rData?.resources) ? rData.resources : [])
+          const d = unwrap<ApiResourcesResponse>(resourcesRes.value.data)
+          setResources(Array.isArray(d?.resources) ? d.resources : [])
         }
 
         if (membersRes.status === 'fulfilled') {
-          const mData = unwrap<ApiMembersResponse>(membersRes.value.data)
-          const firstInstructor = mData?.members?.[0]
-          if (firstInstructor) {
-            const name = firstInstructor.user.name ?? ''
-            const parts = name.trim().split(/\s+/)
+          const d = unwrap<ApiMembersResponse>(membersRes.value.data)
+          const first = d?.members?.[0]
+          if (first) {
+            const name    = first.user.name ?? ''
+            const parts   = name.trim().split(/\s+/)
             const initials = parts.map((p) => p[0] ?? '').join('').slice(0, 2).toUpperCase()
-            setInstructor({ name, initials, title: firstInstructor.user.title })
+            setInstructor({ name, initials, title: first.user.title })
           }
+        }
+
+        if (modulesRes.status === 'fulfilled') {
+          const d = unwrap<CohortModulesResponse>(modulesRes.value.data)
+          const list = Array.isArray(d?.modules) ? d.modules : []
+          setModules([...list].sort((a, b) => a.orderIndex - b.orderIndex))
         }
       } catch {
         setNotFound(true)
@@ -217,10 +359,7 @@ export default function CourseDetailPage() {
           <BookOpen01Icon size={36} color="#d1d5db" strokeWidth={1.5} />
           <p className="text-[14px] font-semibold text-[#374151] font-display">Course not found</p>
           <p className="text-[13px] text-[#9ca3af] font-body">This course may not be linked to your account yet.</p>
-          <button
-            onClick={() => router.push('/student/programs')}
-            className="mt-2 text-[13px] text-[#d51520] font-medium hover:underline"
-          >
+          <button onClick={() => router.push('/student/programs')} className="mt-2 text-[13px] text-[#d51520] font-medium hover:underline">
             ← Back to My Programs
           </button>
         </div>
@@ -231,6 +370,8 @@ export default function CourseDetailPage() {
   const cohortLabel = cohortTitle
     .replace(`${programTitle} — `, '')
     .replace(`${programTitle} - `, '')
+
+  const totalLessons = modules.reduce((acc, m) => acc + (m.lessons?.length ?? 0), 0)
 
   return (
     <>
@@ -260,10 +401,10 @@ export default function CourseDetailPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
 
-          {/* ── Left: Course thumbnail + progress + content notice ── */}
+          {/* ── Left column ── */}
           <div className="flex flex-col gap-5">
 
-            {/* Thumbnail + meta */}
+            {/* Thumbnail + progress + meta */}
             <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] overflow-hidden">
               <div
                 className="h-[200px] bg-[#1a1d2e] bg-cover bg-center relative"
@@ -276,17 +417,14 @@ export default function CourseDetailPage() {
                 </div>
               </div>
 
-              {/* Progress bar */}
+              {/* Progress */}
               <div className="px-6 py-5 border-b border-[#f3f4f6]">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[13px] font-medium text-[#374151] font-body">Your Progress</span>
                   <span className="text-[13px] font-bold text-[#d51520] font-display">{progress}%</span>
                 </div>
                 <div className="h-2 bg-[#f3f4f6] rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-[#d51520] rounded-full transition-all duration-500"
-                    style={{ width: `${progress}%` }}
-                  />
+                  <div className="h-full bg-[#d51520] rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
                 </div>
               </div>
 
@@ -310,31 +448,52 @@ export default function CourseDetailPage() {
                     <p className="text-[13px] font-semibold text-[#374151] font-display">{cohortLabel || cohortTitle}</p>
                   </div>
                 </div>
+                {modules.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <BookOpen01Icon size={14} color="#9ca3af" strokeWidth={1.5} />
+                    <div>
+                      <p className="text-[11px] text-[#9ca3af] font-body">Content</p>
+                      <p className="text-[13px] font-semibold text-[#374151] font-display">
+                        {modules.length} module{modules.length !== 1 ? 's' : ''} · {totalLessons} lesson{totalLessons !== 1 ? 's' : ''}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Session content notice */}
-            <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] p-6">
-              <div className="flex flex-col items-center text-center py-8">
-                <div className="w-14 h-14 rounded-[12px] bg-[#fef2f2] flex items-center justify-center mb-4">
-                  <BookOpen01Icon size={24} color="#d51520" strokeWidth={1.5} />
+            {/* ── Modules ── */}
+            {modules.length === 0 ? (
+              <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] p-6">
+                <div className="flex flex-col items-center text-center py-8">
+                  <div className="w-14 h-14 rounded-[12px] bg-[#fef2f2] flex items-center justify-center mb-4">
+                    <BookOpen01Icon size={24} color="#d51520" strokeWidth={1.5} />
+                  </div>
+                  <p className="text-[15px] font-semibold text-[#111827] font-display mb-1">
+                    Session content is being set up
+                  </p>
+                  <p className="text-[13px] text-[#6b7280] font-body max-w-[380px]">
+                    Your instructor is preparing the course materials. Session topics, notes, and assignments will appear here once they&apos;re uploaded.
+                  </p>
                 </div>
-                <p className="text-[15px] font-semibold text-[#111827] font-display mb-1">
-                  Session content is being set up
-                </p>
-                <p className="text-[13px] text-[#6b7280] font-body max-w-[380px]">
-                  Your instructor is preparing the course materials. Session topics, notes, and assignments will appear here once they&apos;re uploaded.
-                </p>
               </div>
-            </div>
+            ) : (
+              <div className="flex flex-col gap-4">
+                {modules.map((mod, i) => (
+                  <ModuleCard key={mod.id} module={mod} moduleIndex={i + 1} />
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* ── Right: Resources ── */}
+          {/* ── Right column — Resources ── */}
           <div className="flex flex-col gap-5">
             <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] overflow-hidden">
               <div className="px-5 py-4 border-b border-[#f3f4f6] flex items-center justify-between">
                 <p className="text-[15px] font-semibold text-[#111827] font-display">Course Resources</p>
-                <span className="text-[11px] text-[#9ca3af] font-body">{resources.length} file{resources.length !== 1 ? 's' : ''}</span>
+                <span className="text-[11px] text-[#9ca3af] font-body">
+                  {resources.length} file{resources.length !== 1 ? 's' : ''}
+                </span>
               </div>
 
               {resources.length === 0 ? (
@@ -347,9 +506,7 @@ export default function CourseDetailPage() {
                 </div>
               ) : (
                 <div className="p-4 flex flex-col gap-3">
-                  {resources.map((r) => (
-                    <ResourceCard key={r.id} resource={r} />
-                  ))}
+                  {resources.map((r) => <ResourceCard key={r.id} resource={r} />)}
                 </div>
               )}
             </div>
