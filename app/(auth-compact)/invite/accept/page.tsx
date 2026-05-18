@@ -157,6 +157,8 @@ function InviteAcceptContent() {
   const [errors, setErrors]     = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess]   = useState(false)
+  const [declining, setDeclining] = useState(false)
+  const [declined, setDeclined]   = useState(false)
 
   // Password rules
   const rules = {
@@ -186,7 +188,21 @@ function InviteAcceptContent() {
     })()
   }, [token])
 
-  // 2 — Validate form
+  // 2 — Decline invite
+  async function handleDecline() {
+    setDeclining(true)
+    setErrors({})
+    try {
+      await apiClient.post(`/teams/invites/${token}/decline`, {})
+      setDeclined(true)
+    } catch (err) {
+      setErrors({ decline: getApiError(err) || 'Could not decline the invite. Please try again.' })
+    } finally {
+      setDeclining(false)
+    }
+  }
+
+  // 3 — Validate form
   function validate(): boolean {
     const next: Record<string, string> = {}
 
@@ -217,7 +233,7 @@ function InviteAcceptContent() {
     return Object.keys(next).length === 0
   }
 
-  // 3 — Submit
+  // 4 — Submit
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!validate()) return
@@ -316,6 +332,32 @@ function InviteAcceptContent() {
     )
   }
 
+  // ── Declined ──
+  if (declined) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center gap-4 px-10 py-10">
+        <div className="w-16 h-16 rounded-full bg-[#f9fafb] flex items-center justify-center">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="#9CA3AF" strokeWidth="1.5" />
+            <path d="M8 8l8 8M16 8l-8 8" stroke="#9CA3AF" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </div>
+        <h1 className="text-[22px] font-semibold text-[#111827] font-display text-center">
+          Invitation declined
+        </h1>
+        <p className="text-[13px] text-[#6b7280] font-body text-center max-w-[280px] leading-[1.6]">
+          You&apos;ve declined this invite. If this was a mistake, ask your team lead to send a new invitation.
+        </p>
+        <Link
+          href="/login"
+          className="mt-2 inline-flex items-center justify-center h-[44px] px-6 bg-[#D51520] hover:bg-[#B81119] text-white text-[14px] font-semibold font-display rounded-[8px] transition-colors"
+        >
+          Back to Log In
+        </Link>
+      </div>
+    )
+  }
+
   // ── Step 1: Invite card ──
   if (step === 'card') {
     return (
@@ -389,13 +431,41 @@ function InviteAcceptContent() {
                 </div>
               </div>
 
-              {/* Accept button */}
-              <button
-                onClick={() => setStep('form')}
-                className="w-full h-[48px] bg-[#D51520] hover:bg-[#B81119] text-white text-[15px] font-semibold font-display rounded-[8px] transition-colors"
-              >
-                Accept Invitation
-              </button>
+              {/* Decline error */}
+              {errors.decline && (
+                <div className="flex items-center gap-2 bg-[#fef2f2] border border-[#fecdca] rounded-[6px] px-3 py-2.5 mb-3">
+                  <AlertCircleIcon size={14} color="#D51520" strokeWidth={1.5} />
+                  <p className="text-[12px] text-[#D51520] font-body">{errors.decline}</p>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                <button
+                  onClick={handleDecline}
+                  disabled={declining}
+                  className="flex-1 h-[48px] bg-white border border-[#E5E7EB] hover:bg-[#f9fafb] disabled:opacity-60 disabled:cursor-not-allowed text-[#374151] text-[15px] font-semibold font-display rounded-[8px] transition-colors flex items-center justify-center gap-2"
+                >
+                  {declining ? (
+                    <>
+                      <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="#374151" strokeWidth="4" />
+                        <path className="opacity-75" fill="#374151" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Declining…
+                    </>
+                  ) : (
+                    'Decline'
+                  )}
+                </button>
+                <button
+                  onClick={() => setStep('form')}
+                  disabled={declining}
+                  className="flex-1 h-[48px] bg-[#D51520] hover:bg-[#B81119] disabled:opacity-60 disabled:cursor-not-allowed text-white text-[15px] font-semibold font-display rounded-[8px] transition-colors"
+                >
+                  Accept
+                </button>
+              </div>
             </div>
           </div>
 
