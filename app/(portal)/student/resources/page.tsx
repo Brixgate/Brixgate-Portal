@@ -11,19 +11,20 @@ import {
   Video01Icon,
   BookOpen01Icon,
   Loading01Icon,
+  ArrowDown01Icon,
+  CheckmarkCircle01Icon,
 } from 'hugeicons-react'
 import EmptyState from '@/components/shared/EmptyState'
 import { cn } from '@/lib/utils'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 
-// ── Filter chips → API type params ───────────────────────────────────────────
-// Swagger valid types: PDF | PRESENTATION | VIDEO | LECTURE | ARTICLE | IMAGE
+// ── Filter chips ──────────────────────────────────────────────────────────────
 const FILTER_CHIPS: { label: string; apiType: string | null }[] = [
-  { label: 'All',        apiType: null           },
-  { label: 'PDF',        apiType: 'PDF'          },
-  { label: 'Slides',     apiType: 'PRESENTATION' },
-  { label: 'Video',      apiType: 'VIDEO'        },
-  { label: 'Doc',        apiType: 'ARTICLE'      },
+  { label: 'All',    apiType: null           },
+  { label: 'PDF',    apiType: 'PDF'          },
+  { label: 'Slides', apiType: 'PRESENTATION' },
+  { label: 'Video',  apiType: 'VIDEO'        },
+  { label: 'Doc',    apiType: 'ARTICLE'      },
 ]
 
 const FILE_ICONS: Record<string, React.ElementType> = {
@@ -32,7 +33,6 @@ const FILE_ICONS: Record<string, React.ElementType> = {
   docx: FileEditIcon,
   mp4:  Video01Icon,
 }
-
 const FILE_COLOURS: Record<string, { bg: string; text: string }> = {
   pdf:  { bg: '#FEF2F2', text: '#D51520' },
   pptx: { bg: '#FFF7ED', text: '#EA580C' },
@@ -41,36 +41,41 @@ const FILE_COLOURS: Record<string, { bg: string; text: string }> = {
 }
 
 // ── API shapes ────────────────────────────────────────────────────────────────
-interface ApiCohortSummary {
-  cohortId: number
-  cohortTitle: string
-}
-
-interface ApiProgramsResponse {
-  programs: Array<{ id: number; myCohorts?: ApiCohortSummary[] }>
-}
-
 interface ApiResource {
   id: number
   title?: string
-  type?: string        // PDF | VIDEO | ARTICLE | PRESENTATION | LECTURE | IMAGE
+  type?: string
   link?: string
   status?: string
   createdAt?: string
   programModuleId?: number
 }
-
 interface ApiResourcesResponse {
-  cohortId: number
   resources: ApiResource[]
 }
 
+// ── Cohort option (built from /users/me/programs) ─────────────────────────────
+interface CohortOption {
+  cohortId: number
+  label: string        // e.g. "AI in Software Engineering"
+  cohortLabel: string  // e.g. "Cohort 3"
+}
+
+// ── Defensive field readers ───────────────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function readCohortId(c: any): number    { return c?.cohortId    ?? c?.cohort_id    ?? 0  }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function readCohortTitle(c: any): string { return c?.cohortTitle ?? c?.cohort_title ?? '' }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function readMyCohorts(p: any): any[]    { return p?.myCohorts   ?? p?.my_cohorts   ?? [] }
+
+// ── Normalise API resource → internal Resource shape ─────────────────────────
 function inferFileType(type: string): ResourceFileType {
   const t = type.toUpperCase()
-  if (t === 'PDF')                        return 'pdf'
-  if (t === 'PRESENTATION')               return 'pptx'
-  if (t === 'VIDEO' || t === 'LECTURE')   return 'mp4'
-  if (t === 'ARTICLE')                    return 'docx'
+  if (t === 'PDF')                       return 'pdf'
+  if (t === 'PRESENTATION')              return 'pptx'
+  if (t === 'VIDEO' || t === 'LECTURE')  return 'mp4'
+  if (t === 'ARTICLE')                   return 'docx'
   return 'pdf'
 }
 
@@ -90,11 +95,9 @@ function normaliseResource(raw: ApiResource): Resource {
   }
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 function isNew(uploadedAt: string): boolean {
   if (!uploadedAt) return false
-  const diffDays = (Date.now() - new Date(uploadedAt).getTime()) / (1000 * 60 * 60 * 24)
-  return diffDays <= 7
+  return (Date.now() - new Date(uploadedAt).getTime()) / (1000 * 60 * 60 * 24) <= 7
 }
 
 function groupByWeek(resources: Resource[]): Record<number, { title: string; items: Resource[] }> {
@@ -109,8 +112,8 @@ function groupByWeek(resources: Resource[]): Record<number, { title: string; ite
 
 // ── Resource row ──────────────────────────────────────────────────────────────
 function ResourceRow({ resource }: { resource: Resource }) {
-  const FileIcon   = FILE_ICONS[resource.fileType] ?? File01Icon
-  const colours    = FILE_COLOURS[resource.fileType] ?? { bg: '#F7F8FA', text: '#6b7280' }
+  const FileIcon     = FILE_ICONS[resource.fileType] ?? File01Icon
+  const colours      = FILE_COLOURS[resource.fileType] ?? { bg: '#F7F8FA', text: '#6b7280' }
   const uploadedDate = resource.uploadedAt
     ? new Date(resource.uploadedAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })
     : ''
@@ -137,9 +140,7 @@ function ResourceRow({ resource }: { resource: Resource }) {
         </div>
         <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">
           {resource.fileType.toUpperCase()}
-          {resource.fileSize ? ` · ${resource.fileSize}` : ''}
           {uploadedDate ? ` · Uploaded ${uploadedDate}` : ''}
-          {resource.uploadedBy ? ` by ${resource.uploadedBy}` : ''}
         </p>
       </div>
 
@@ -157,54 +158,146 @@ function ResourceRow({ resource }: { resource: Resource }) {
   )
 }
 
+// ── Cohort switcher dropdown ──────────────────────────────────────────────────
+function CohortSwitcher({
+  cohorts,
+  selected,
+  onChange,
+}: {
+  cohorts: CohortOption[]
+  selected: CohortOption
+  onChange: (c: CohortOption) => void
+}) {
+  const [open, setOpen] = useState(false)
+
+  if (cohorts.length <= 1) return null   // only show if enrolled in 2+ cohorts
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-2 h-[38px] pl-3.5 pr-3 bg-white border border-[#e5e7eb] rounded-[8px] hover:bg-[#f9fafb] transition-colors"
+      >
+        <div className="text-left">
+          <p className="text-[12px] font-semibold text-[#111827] font-display leading-none">
+            {selected.label}
+          </p>
+          {selected.cohortLabel && (
+            <p className="text-[10px] text-[#9ca3af] font-body mt-0.5 leading-none">
+              {selected.cohortLabel}
+            </p>
+          )}
+        </div>
+        <ArrowDown01Icon
+          size={13}
+          color="#6b7280"
+          strokeWidth={1.5}
+          className={`flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      {open && (
+        <>
+          {/* Backdrop */}
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          {/* Menu */}
+          <div className="absolute right-0 top-[calc(100%+6px)] z-50 bg-white rounded-[10px] shadow-[0px_8px_24px_rgba(16,24,40,0.12)] border border-[#f3f4f6] min-w-[240px] py-1.5 overflow-hidden">
+            {cohorts.map((c) => {
+              const isSelected = c.cohortId === selected.cohortId
+              return (
+                <button
+                  key={c.cohortId}
+                  onClick={() => { onChange(c); setOpen(false) }}
+                  className={`w-full text-left flex items-center justify-between gap-3 px-4 py-2.5 transition-colors ${
+                    isSelected ? 'bg-[#fef2f2]' : 'hover:bg-[#f9fafb]'
+                  }`}
+                >
+                  <div>
+                    <p className={`text-[13px] font-medium font-display leading-snug ${
+                      isSelected ? 'text-[#d51520]' : 'text-[#111827]'
+                    }`}>
+                      {c.label}
+                    </p>
+                    {c.cohortLabel && (
+                      <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">{c.cohortLabel}</p>
+                    )}
+                  </div>
+                  {isSelected && (
+                    <CheckmarkCircle01Icon size={15} color="#d51520" strokeWidth={1.5} className="flex-shrink-0" />
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function ResourcesPage() {
-  const [cohortId, setCohortId]         = useState<number | null>(null)
+  const [cohorts, setCohorts]           = useState<CohortOption[]>([])
+  const [selected, setSelected]         = useState<CohortOption | null>(null)
   const [resources, setResources]       = useState<Resource[]>([])
-  const [totalCount, setTotalCount]     = useState(0)   // unfiltered total for header
+  const [totalCount, setTotalCount]     = useState(0)
   const [loading, setLoading]           = useState(true)
   const [filtering, setFiltering]       = useState(false)
   const [error, setError]               = useState<string | null>(null)
   const [activeFilter, setActiveFilter] = useState<string>('All')
 
-  // Step 1 — resolve cohortId on mount
+  // Step 1 — resolve all enrolled cohorts on mount
   useEffect(() => {
-    async function resolveCohort() {
+    async function resolveCohorts() {
       try {
-        const res = await apiClient.get('/users/me/programs')
-        const data = unwrap<ApiProgramsResponse>(res.data)
-        const id = data?.programs?.[0]?.myCohorts?.[0]?.cohortId ?? null
-        setCohortId(id)
-        if (!id) setLoading(false)
+        const res  = await apiClient.get('/users/me/programs')
+        const data = unwrap<{ programs: unknown[] }>(res.data)
+        const programs = Array.isArray(data?.programs) ? data.programs : []
+
+        const options: CohortOption[] = []
+        for (const prog of programs) {
+          const title   = (prog as Record<string, unknown>)?.['title'] as string ?? 'Programme'
+          const cohorts = readMyCohorts(prog)
+          for (const c of cohorts) {
+            const cId = readCohortId(c)
+            if (!cId) continue
+            const rawTitle  = readCohortTitle(c)
+            const cohortLbl = rawTitle
+              .replace(`${title} — `, '')
+              .replace(`${title} - `, '')
+              || rawTitle
+            options.push({ cohortId: cId, label: title, cohortLabel: cohortLbl })
+          }
+        }
+
+        setCohorts(options)
+        if (options.length > 0) setSelected(options[0])
+        else setLoading(false)
       } catch (err) {
         setError(getApiError(err))
         setLoading(false)
       }
     }
-    resolveCohort()
+    resolveCohorts()
   }, [])
 
-  // Step 2 — fetch resources whenever cohortId or filter changes
-  const fetchResources = useCallback(async (cId: number, apiType: string | null) => {
-    try {
-      const params: Record<string, string> = {}
-      if (apiType) params.type = apiType
-
-      const res = await apiClient.get(`/cohorts/${cId}/resources`, { params })
-      const data = unwrap<ApiResourcesResponse>(res.data)
-      const rows = (Array.isArray(data?.resources) ? data.resources : []).map(normaliseResource)
-      return rows
-    } catch (err) {
-      throw err
-    }
+  // Step 2 — fetch resources whenever selected cohort or filter changes
+  const fetchResources = useCallback(async (cohortId: number, apiType: string | null) => {
+    const params: Record<string, string> = {}
+    if (apiType) params.type = apiType
+    const res  = await apiClient.get(`/cohorts/${cohortId}/resources`, { params })
+    const data = unwrap<ApiResourcesResponse>(res.data)
+    return (Array.isArray(data?.resources) ? data.resources : []).map(normaliseResource)
   }, [])
 
-  // Initial load
   useEffect(() => {
-    if (cohortId === null) return
+    if (!selected) return
+    setActiveFilter('All')
+    setLoading(true)
+    setError(null)
     ;(async () => {
       try {
-        const rows = await fetchResources(cohortId, null)
+        const rows = await fetchResources(selected.cohortId, null)
         setResources(rows)
         setTotalCount(rows.length)
       } catch (err) {
@@ -213,25 +306,24 @@ export default function ResourcesPage() {
         setLoading(false)
       }
     })()
-  }, [cohortId, fetchResources])
+  }, [selected, fetchResources])
 
-  // Filter change
   async function handleFilterChange(label: string, apiType: string | null) {
-    if (label === activeFilter || cohortId === null) return
+    if (label === activeFilter || !selected) return
     setActiveFilter(label)
     setFiltering(true)
     try {
-      const rows = await fetchResources(cohortId, apiType)
+      const rows = await fetchResources(selected.cohortId, apiType)
       setResources(rows)
     } catch {
-      // keep existing results on filter error
+      // keep existing on filter error
     } finally {
       setFiltering(false)
     }
   }
 
-  const byWeek       = groupByWeek(resources)
-  const weekNumbers  = Object.keys(byWeek).map(Number).sort((a, b) => a - b)
+  const byWeek      = groupByWeek(resources)
+  const weekNumbers = Object.keys(byWeek).map(Number).sort((a, b) => a - b)
 
   return (
     <>
@@ -239,7 +331,7 @@ export default function ResourcesPage() {
 
       <div className="px-4 md:px-8 pb-10">
         {/* Page header */}
-        <div className="pt-7 pb-6 flex items-start justify-between">
+        <div className="pt-7 pb-6 flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-[24px] font-bold text-[#111827] font-display leading-tight">
               Resources
@@ -248,14 +340,25 @@ export default function ResourcesPage() {
               Session slides, guides, and materials for your cohort.
             </p>
           </div>
-          {!loading && !error && (
-            <p className="text-[13px] text-[#9ca3af] font-body pt-1">
-              {totalCount} file{totalCount !== 1 ? 's' : ''}
-            </p>
-          )}
+
+          <div className="flex items-center gap-3 pt-1 flex-wrap">
+            {/* Cohort switcher — only visible when enrolled in 2+ cohorts */}
+            {selected && cohorts.length > 1 && (
+              <CohortSwitcher
+                cohorts={cohorts}
+                selected={selected}
+                onChange={(c) => setSelected(c)}
+              />
+            )}
+            {!loading && !error && (
+              <p className="text-[13px] text-[#9ca3af] font-body">
+                {totalCount} file{totalCount !== 1 ? 's' : ''}
+              </p>
+            )}
+          </div>
         </div>
 
-        {/* Loading — initial */}
+        {/* Loading */}
         {loading && (
           <div className="flex items-center justify-center py-16 gap-2 text-[#9ca3af]">
             <Loading01Icon size={18} className="animate-spin" strokeWidth={1.5} />
@@ -270,13 +373,13 @@ export default function ResourcesPage() {
           </div>
         )}
 
-        {/* Empty — no resources at all */}
+        {/* Empty */}
         {!loading && !error && totalCount === 0 && (
           <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)]">
             <EmptyState
               icon={BookOpen01Icon}
               title="No resources yet"
-              description="Your instructor hasn't uploaded any resources yet. Check back after your next session."
+              description="Your instructor hasn't uploaded any resources for this cohort yet. Check back after your next session."
             />
           </div>
         )}
@@ -285,7 +388,7 @@ export default function ResourcesPage() {
         {!loading && !error && totalCount > 0 && (
           <>
             {/* Filter chips */}
-            <div className="flex items-center gap-2 mb-6">
+            <div className="flex items-center gap-2 mb-6 flex-wrap">
               {FILTER_CHIPS.map(({ label, apiType }) => (
                 <button
                   key={label}
@@ -306,7 +409,7 @@ export default function ResourcesPage() {
               )}
             </div>
 
-            {/* Filter empty state */}
+            {/* Filter empty */}
             {weekNumbers.length === 0 ? (
               <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)]">
                 <EmptyState

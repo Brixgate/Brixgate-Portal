@@ -16,10 +16,11 @@ import axios from 'axios'
 
 // ── API shape (matches /users/me/programs Swagger spec) ──────────────────────
 interface ApiCohortSummary {
-  cohortId: number
-  cohortTitle: string
-  role: string
-  membershipStatus: string
+  // camelCase (Swagger) — also read snake_case fallbacks at runtime
+  cohortId?: number
+  cohortTitle?: string
+  role?: string
+  membershipStatus?: string
 }
 
 interface ApiProgram {
@@ -37,6 +38,14 @@ interface ApiProgram {
   enrolledStudentsCount?: number
   myCohorts?: ApiCohortSummary[]
 }
+
+// ── Defensive field readers (handles camelCase + snake_case from API) ─────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function readCohortId(c: any): number   { return c?.cohortId   ?? c?.cohort_id   ?? 0  }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function readCohortTitle(c: any): string { return c?.cohortTitle ?? c?.cohort_title ?? '' }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function readMyCohorts(p: any): ApiCohortSummary[] { return p?.myCohorts ?? p?.my_cohorts ?? [] }
 
 interface ApiProgramsResponse {
   programs: ApiProgram[]
@@ -67,9 +76,10 @@ interface ProgramRow {
 }
 
 function normalise(raw: ApiProgram): ProgramRow {
-  const cohort = raw.myCohorts?.[0] ?? null
-  const title = raw.title ?? 'Untitled Programme'
-  const cohortName = cohort?.cohortTitle ?? ''
+  const cohorts = readMyCohorts(raw)
+  const cohort  = cohorts[0] ?? null
+  const title   = raw.title ?? 'Untitled Programme'
+  const cohortName  = readCohortTitle(cohort)
   const cohortLabel = cohortName
     .replace(`${title} — `, '')
     .replace(`${title} - `, '')
@@ -77,19 +87,19 @@ function normalise(raw: ApiProgram): ProgramRow {
 
   return {
     programId: raw.id,
-    cohortId: cohort?.cohortId ?? 0,
+    cohortId:  readCohortId(cohort),
     title,
     subtitle: raw.subtitle ?? raw.description ?? '',
-    level: raw.level ?? 'INTERMEDIATE',
-    format: raw.format ?? '',
+    level:    raw.level ?? 'INTERMEDIATE',
+    format:   raw.format ?? '',
     progress: raw.autoPercentCompletion ?? 0,
     cohortName,
     cohortLabel,
-    enrolled: raw.enrolledStudentsCount ?? 0,
-    membershipStatus: cohort?.membershipStatus ?? '',
-    role: cohort?.role ?? '',
-    modulesCount: raw.modulesCount ?? 0,
-    lessonsCount: raw.lessonsCount ?? 0,
+    enrolled:         raw.enrolledStudentsCount ?? 0,
+    membershipStatus: (cohort as Record<string, unknown>)?.['membershipStatus'] as string ?? (cohort as Record<string, unknown>)?.['membership_status'] as string ?? '',
+    role:             (cohort as Record<string, unknown>)?.['role'] as string ?? '',
+    modulesCount:     raw.modulesCount ?? 0,
+    lessonsCount:     raw.lessonsCount ?? 0,
   }
 }
 

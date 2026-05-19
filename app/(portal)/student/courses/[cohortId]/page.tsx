@@ -22,10 +22,8 @@ import {
 
 // ── API shapes — programmes (secondary lookup for header) ─────────────────────
 interface ApiCohortSummary {
-  cohortId: number
-  cohortTitle: string
-  role: string
-  membershipStatus: string
+  cohortId?: number
+  cohortTitle?: string
 }
 interface ApiProgram {
   id: number
@@ -35,6 +33,14 @@ interface ApiProgram {
   myCohorts?: ApiCohortSummary[]
 }
 interface ApiProgramsResponse { programs: ApiProgram[] }
+
+// Defensive readers (camelCase per Swagger + snake_case fallback)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const rc = (c: any): number => c?.cohortId ?? c?.cohort_id ?? 0
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const rt = (c: any): string => c?.cohortTitle ?? c?.cohort_title ?? ''
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const rm = (p: any): any[]  => p?.myCohorts  ?? p?.my_cohorts  ?? []
 
 // ── API shapes — resources ────────────────────────────────────────────────────
 interface ApiResource {
@@ -538,13 +544,14 @@ export default function CourseDetailPage() {
         try {
           const programsRes  = await apiClient.get('/users/me/programs')
           const programsData = unwrap<ApiProgramsResponse>(programsRes.data)
-          const program = (programsData?.programs ?? []).find((p) =>
-            p.myCohorts?.some((c) => String(c.cohortId) === String(cohortId))
+          const programs = programsData?.programs ?? []
+          const program  = programs.find((p) =>
+            rm(p).some((c) => String(rc(c)) === String(cohortId))
           )
           if (program) {
-            const cohort = program.myCohorts?.find((c) => String(c.cohortId) === String(cohortId))
+            const cohort = rm(program).find((c: unknown) => String(rc(c)) === String(cohortId))
             setProgramTitle(program.title)
-            const cn = cohort?.cohortTitle ?? ''
+            const cn = rt(cohort)
             setCohortLabel(
               cn.replace(`${program.title} — `, '').replace(`${program.title} - `, '') || cn
             )
