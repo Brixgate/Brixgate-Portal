@@ -25,8 +25,12 @@ interface ApiCohortSummary {
 interface ApiProgram {
   id: number
   title: string
+  subtitle?: string
+  description?: string
   slug?: string
   level?: string
+  category?: string
+  format?: string
   autoPercentCompletion?: number
   modulesCount?: number
   lessonsCount?: number
@@ -49,7 +53,9 @@ interface ProgramRow {
   programId: number
   cohortId: number
   title: string
+  subtitle: string
   level: string
+  format: string
   progress: number
   cohortName: string
   cohortLabel: string
@@ -73,7 +79,9 @@ function normalise(raw: ApiProgram): ProgramRow {
     programId: raw.id,
     cohortId: cohort?.cohortId ?? 0,
     title,
+    subtitle: raw.subtitle ?? raw.description ?? '',
     level: raw.level ?? 'INTERMEDIATE',
+    format: raw.format ?? '',
     progress: raw.autoPercentCompletion ?? 0,
     cohortName,
     cohortLabel,
@@ -107,6 +115,20 @@ function roleLabel(role: string): string | null {
     TEAM_LEAD: 'Team Lead', INSTRUCTOR: 'Instructor', ADMIN: 'Admin',
   }
   return map[role.toUpperCase()] ?? null
+}
+
+function levelLabel(level: string): string {
+  const map: Record<string, string> = {
+    BEGINNER: 'Beginner', INTERMEDIATE: 'Intermediate', ADVANCED: 'Advanced',
+  }
+  return map[level.toUpperCase()] ?? level
+}
+
+function formatDisplay(format: string): string {
+  const map: Record<string, string> = {
+    ONLINE: 'Online', IN_PERSON: 'In Person', HYBRID: 'Hybrid',
+  }
+  return map[format.toUpperCase()] ?? ''
 }
 
 // ── Progress ring ─────────────────────────────────────────────────────────────
@@ -232,8 +254,16 @@ export default function ProgramsPage() {
                     style={{ backgroundImage: `url(${getProgramImage(p.title)})` }}
                   >
                     <div className="absolute inset-0 bg-black/40" />
-                    <div className="absolute top-3 left-3 bg-[#d51520] text-white text-[9px] font-semibold px-2 py-0.5 rounded-full font-display">
-                      {p.level === 'BEGINNER' ? 'Beginner' : 'Intermediate'}
+                    {/* Level + format badges */}
+                    <div className="absolute top-3 left-3 flex items-center gap-1.5">
+                      <span className="bg-[#d51520] text-white text-[9px] font-semibold px-2 py-0.5 rounded-full font-display">
+                        {levelLabel(p.level)}
+                      </span>
+                      {formatDisplay(p.format) && (
+                        <span className="bg-white/20 backdrop-blur-sm text-white text-[9px] font-semibold px-2 py-0.5 rounded-full font-display">
+                          {formatDisplay(p.format)}
+                        </span>
+                      )}
                     </div>
                     <div className="absolute bottom-3 right-3">
                       <ProgressRing value={p.progress} />
@@ -243,7 +273,7 @@ export default function ProgramsPage() {
                   {/* Card body */}
                   <div className="flex flex-col flex-1 p-5">
 
-                    {/* Title + status badges */}
+                    {/* Title + enrollment status */}
                     <div className="flex items-start justify-between gap-2 mb-1">
                       <p className="text-[15px] font-semibold text-[#111827] font-display leading-snug flex-1">
                         {p.title}
@@ -255,9 +285,16 @@ export default function ProgramsPage() {
                       )}
                     </div>
 
+                    {/* Subtitle / description */}
+                    {p.subtitle && (
+                      <p className="text-[12px] text-[#6b7280] font-body leading-[1.5] mb-2 line-clamp-2">
+                        {p.subtitle}
+                      </p>
+                    )}
+
                     {/* Cohort name + role badge */}
                     <div className="flex items-center gap-2 mb-4">
-                      <p className="text-[12px] text-[#6b7280] font-body truncate">
+                      <p className="text-[11px] text-[#9ca3af] font-body truncate">
                         {p.cohortLabel || p.cohortName || '—'}
                       </p>
                       {roleLabel(p.role) && (

@@ -17,6 +17,7 @@ import {
   ArrowUp01Icon,
   ArrowDown01Icon,
   Link01Icon,
+  Download01Icon,
 } from 'hugeicons-react'
 
 // ── API shapes — programmes (secondary lookup for header) ─────────────────────
@@ -34,6 +35,22 @@ interface ApiProgram {
   myCohorts?: ApiCohortSummary[]
 }
 interface ApiProgramsResponse { programs: ApiProgram[] }
+
+// ── API shapes — resources ────────────────────────────────────────────────────
+interface ApiResource {
+  id: number
+  title?: string
+  type?: string
+  link?: string
+  createdAt?: string
+  // module association — present if backend links resources to a specific module
+  moduleId?: number
+  cohortModuleId?: number
+}
+interface ApiResourcesResponse {
+  cohortId?: number
+  resources: ApiResource[]
+}
 
 // ── API shapes — modules (primary, camelCase per Swagger) ─────────────────────
 interface CohortLesson {
@@ -194,8 +211,61 @@ function ModuleAccordion({
   )
 }
 
+// ── Resource row (used inside detail panel) ───────────────────────────────────
+const RES_ICONS: Record<string, React.ElementType> = {
+  PDF:          File01Icon,
+  PRESENTATION: PresentationBarChart01Icon,
+  VIDEO:        Video01Icon,
+  LECTURE:      Video01Icon,
+  ARTICLE:      FileEditIcon,
+  IMAGE:        File01Icon,
+}
+const RES_COLOURS: Record<string, { bg: string; text: string }> = {
+  PDF:          { bg: '#FEF2F2', text: '#D51520' },
+  PRESENTATION: { bg: '#FFF7ED', text: '#EA580C' },
+  VIDEO:        { bg: '#F5F3FF', text: '#7C3AED' },
+  LECTURE:      { bg: '#F5F3FF', text: '#7C3AED' },
+  ARTICLE:      { bg: '#F0FDF4', text: '#16A34A' },
+  IMAGE:        { bg: '#F0F9FF', text: '#0EA5E9' },
+}
+
+function ResourceRow({ resource }: { resource: ApiResource }) {
+  const type    = (resource.type ?? 'PDF').toUpperCase()
+  const Icon    = RES_ICONS[type] ?? File01Icon
+  const colours = RES_COLOURS[type] ?? { bg: '#F7F8FA', text: '#6b7280' }
+  return (
+    <div className="flex items-center gap-3 p-3 rounded-[8px] bg-[#f9fafb] border border-[#f3f4f6] group">
+      <div
+        className="w-8 h-8 rounded-[7px] flex items-center justify-center flex-shrink-0"
+        style={{ background: colours.bg }}
+      >
+        <Icon size={14} color={colours.text} strokeWidth={1.5} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[13px] font-medium text-[#111827] font-body truncate">
+          {resource.title ?? 'Resource'}
+        </p>
+        <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">
+          {type.charAt(0) + type.slice(1).toLowerCase()}
+        </p>
+      </div>
+      {resource.link && (
+        <a
+          href={resource.link}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1.5 text-[11px] font-medium text-[#374151] font-body border border-[#e5e7eb] px-2.5 py-1.5 rounded-[6px] hover:bg-white transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100"
+        >
+          <Download01Icon size={11} color="#374151" strokeWidth={1.5} />
+          Download
+        </a>
+      )}
+    </div>
+  )
+}
+
 // ── Detail panel (right) ──────────────────────────────────────────────────────
-function DetailPanel({ item }: { item: SelectedItem | null }) {
+function DetailPanel({ item, resources }: { item: SelectedItem | null; resources: ApiResource[] }) {
   if (!item) {
     return (
       <div className="flex flex-col items-center justify-center h-full py-20 text-center px-8">
@@ -216,6 +286,17 @@ function DetailPanel({ item }: { item: SelectedItem | null }) {
   if (item.kind === 'module') {
     const { data: mod, index } = item
     const lessonCount = mod.lessons?.length ?? 0
+    // Resources associated with this module (by moduleId / cohortModuleId),
+    // falling back to all resources if none are module-scoped
+    const moduleResources = resources.filter(
+      (r) => r.moduleId === mod.id || r.cohortModuleId === mod.id
+    )
+    const hasModuleScoping = resources.some((r) => r.moduleId !== undefined || r.cohortModuleId !== undefined)
+    const visibleResources = moduleResources.length > 0
+      ? moduleResources
+      : hasModuleScoping
+        ? []                 // other modules have resources, this one just has none
+        : resources          // flat list — show all under every module
 
     return (
       <div className="p-8">
@@ -306,6 +387,20 @@ function DetailPanel({ item }: { item: SelectedItem | null }) {
                 })}
             </div>
           </>
+        )}
+
+        {/* Module resources */}
+        {visibleResources.length > 0 && (
+          <div className="mt-8">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display mb-3">
+              Resources
+            </p>
+            <div className="flex flex-col gap-2">
+              {visibleResources.map((r) => (
+                <ResourceRow key={r.id} resource={r} />
+              ))}
+            </div>
+          </div>
         )}
       </div>
     )
@@ -401,6 +496,7 @@ export default function CourseDetailPage() {
   const [programTitle, setProgramTitle] = useState('')
   const [cohortLabel, setCohortLabel]   = useState('')
   const [modules, setModules]           = useState<CohortModule[]>([])
+  const [resources, setResources]       = useState<ApiResource[]>([])
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null)
   const [expandedModules, setExpandedModules] = useState<Set<number>>(new Set())
 
@@ -421,11 +517,22 @@ export default function CourseDetailPage() {
   useEffect(() => {
     async function load() {
       try {
-        // Primary: modules
-        const modulesRes = await apiClient.get(`/cohorts/${cohortId}/modules`)
-        const modulesData = unwrap<CohortModulesResponse>(modulesRes.data)
-        const list = Array.isArray(modulesData?.modules) ? modulesData.modules : []
-        setModules([...list].sort((a, b) => a.orderIndex - b.orderIndex))
+        // Primary: modules + resources in parallel
+        const [modulesRes, resourcesRes] = await Promise.allSettled([
+          apiClient.get(`/cohorts/${cohortId}/modules`),
+          apiClient.get(`/cohorts/${cohortId}/resources`),
+        ])
+
+        if (modulesRes.status === 'fulfilled') {
+          const modulesData = unwrap<CohortModulesResponse>(modulesRes.value.data)
+          const list = Array.isArray(modulesData?.modules) ? modulesData.modules : []
+          setModules([...list].sort((a, b) => a.orderIndex - b.orderIndex))
+        }
+
+        if (resourcesRes.status === 'fulfilled') {
+          const d = unwrap<ApiResourcesResponse>(resourcesRes.value.data)
+          setResources(Array.isArray(d?.resources) ? d.resources : [])
+        }
 
         // Secondary: programme/cohort header info
         try {
@@ -446,7 +553,7 @@ export default function CourseDetailPage() {
           // Non-fatal — header just shows generic title
         }
 
-        if (list.length === 0) setNotFound(true)
+        if (modulesRes.status === 'rejected') setNotFound(true)
       } catch {
         setNotFound(true)
       } finally {
@@ -561,8 +668,8 @@ export default function CourseDetailPage() {
           </div>
 
           {/* Right: Detail panel */}
-          <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] overflow-hidden">
-            <DetailPanel item={selectedItem} />
+          <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] overflow-hidden overflow-y-auto">
+            <DetailPanel item={selectedItem} resources={resources} />
           </div>
 
         </div>
