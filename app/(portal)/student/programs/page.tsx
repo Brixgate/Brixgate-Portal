@@ -7,7 +7,6 @@ import Link from 'next/link'
 import {
   BookOpen01Icon,
   UserGroupIcon,
-  Clock01Icon,
   ArrowRight01Icon,
   Loading01Icon,
 } from 'hugeicons-react'
@@ -56,6 +55,7 @@ interface ProgramRow {
   cohortLabel: string
   enrolled: number
   membershipStatus: string
+  role: string
   modulesCount: number
   lessonsCount: number
 }
@@ -79,9 +79,34 @@ function normalise(raw: ApiProgram): ProgramRow {
     cohortLabel,
     enrolled: raw.enrolledStudentsCount ?? 0,
     membershipStatus: cohort?.membershipStatus ?? '',
+    role: cohort?.role ?? '',
     modulesCount: raw.modulesCount ?? 0,
     lessonsCount: raw.lessonsCount ?? 0,
   }
+}
+
+// ── Status / role badge helpers ───────────────────────────────────────────────
+function statusStyle(status: string): string {
+  switch (status.toUpperCase()) {
+    case 'ACTIVE':   return 'bg-[#ECFDF3] text-[#027A48] border border-[#A6F4C5]'
+    case 'PENDING':  return 'bg-[#FFFAEB] text-[#B54708] border border-[#FEDF89]'
+    case 'INACTIVE': return 'bg-[#F2F4F7] text-[#344054] border border-[#EAECF0]'
+    default:         return 'bg-[#F2F4F7] text-[#344054] border border-[#EAECF0]'
+  }
+}
+
+function statusLabel(status: string): string {
+  const map: Record<string, string> = {
+    ACTIVE: 'Active', PENDING: 'Pending', INACTIVE: 'Inactive',
+  }
+  return map[status.toUpperCase()] ?? status
+}
+
+function roleLabel(role: string): string | null {
+  const map: Record<string, string> = {
+    TEAM_LEAD: 'Team Lead', INSTRUCTOR: 'Instructor', ADMIN: 'Admin',
+  }
+  return map[role.toUpperCase()] ?? null
 }
 
 // ── Progress ring ─────────────────────────────────────────────────────────────
@@ -217,46 +242,63 @@ export default function ProgramsPage() {
 
                   {/* Card body */}
                   <div className="flex flex-col flex-1 p-5">
-                    <p className="text-[15px] font-semibold text-[#111827] font-display leading-snug mb-0.5">
-                      {p.title}
-                    </p>
-                    <p className="text-[12px] text-[#6b7280] font-body mb-4">
-                      {p.cohortLabel || p.cohortName || '—'}
-                    </p>
 
-                    {/* Meta */}
-                    <div className="flex flex-col gap-1.5 mb-4">
-                      {p.modulesCount > 0 && (
+                    {/* Title + status badges */}
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <p className="text-[15px] font-semibold text-[#111827] font-display leading-snug flex-1">
+                        {p.title}
+                      </p>
+                      {p.membershipStatus && (
+                        <span className={`text-[10px] font-semibold font-display px-2 py-0.5 rounded-full flex-shrink-0 mt-0.5 ${statusStyle(p.membershipStatus)}`}>
+                          {statusLabel(p.membershipStatus)}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Cohort name + role badge */}
+                    <div className="flex items-center gap-2 mb-4">
+                      <p className="text-[12px] text-[#6b7280] font-body truncate">
+                        {p.cohortLabel || p.cohortName || '—'}
+                      </p>
+                      {roleLabel(p.role) && (
+                        <span className="text-[10px] font-semibold font-display text-[#1a1d2e] bg-[#eaebf0] px-2 py-0.5 rounded-full flex-shrink-0">
+                          {roleLabel(p.role)}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Meta row */}
+                    <div className="flex items-center gap-3 flex-wrap mb-4">
+                      {(p.modulesCount > 0 || p.lessonsCount > 0) && (
                         <div className="flex items-center gap-1.5 text-[12px] text-[#6b7280] font-body">
-                          <Clock01Icon size={12} color="#9ca3af" strokeWidth={1.5} />
-                          <span>{p.modulesCount} module{p.modulesCount !== 1 ? 's' : ''}</span>
+                          <BookOpen01Icon size={12} color="#9ca3af" strokeWidth={1.5} />
+                          <span>
+                            {p.modulesCount > 0 && `${p.modulesCount} module${p.modulesCount !== 1 ? 's' : ''}`}
+                            {p.modulesCount > 0 && p.lessonsCount > 0 && ' · '}
+                            {p.lessonsCount > 0 && `${p.lessonsCount} lesson${p.lessonsCount !== 1 ? 's' : ''}`}
+                          </span>
                         </div>
                       )}
                       {p.enrolled > 0 && (
                         <div className="flex items-center gap-1.5 text-[12px] text-[#6b7280] font-body">
                           <UserGroupIcon size={12} color="#9ca3af" strokeWidth={1.5} />
-                          <span>{p.enrolled} students enrolled</span>
-                        </div>
-                      )}
-                      {p.lessonsCount > 0 && (
-                        <div className="flex items-center gap-1.5 text-[12px] text-[#6b7280] font-body">
-                          <BookOpen01Icon size={12} color="#9ca3af" strokeWidth={1.5} />
-                          <span>{p.lessonsCount} lesson{p.lessonsCount !== 1 ? 's' : ''}</span>
+                          <span>{p.enrolled} enrolled</span>
                         </div>
                       )}
                     </div>
 
                     {/* Progress bar */}
                     <div className="mb-5">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[11px] text-[#9ca3af] font-body">Progress</span>
+                        <span className="text-[11px] font-semibold text-[#d51520] font-display">{p.progress}%</span>
+                      </div>
                       <div className="h-1.5 bg-[#f3f4f6] rounded-full overflow-hidden w-full">
                         <div
                           className="h-full bg-[#d51520] rounded-full transition-all duration-500"
                           style={{ width: `${p.progress}%` }}
                         />
                       </div>
-                      <p className="text-[11px] text-[#9ca3af] font-body mt-1">
-                        {p.progress}% complete
-                      </p>
                     </div>
 
                     {/* CTAs */}
@@ -265,7 +307,7 @@ export default function ProgramsPage() {
                         href={`/student/courses/${p.cohortId}`}
                         className="flex-1 inline-flex items-center justify-center gap-1.5 bg-[#d51520] text-white text-[12px] font-medium font-display px-4 py-2.5 rounded-[8px] hover:bg-[#b81119] transition-colors"
                       >
-                        Continue
+                        View Course
                         <ArrowRight01Icon size={13} color="white" strokeWidth={2} />
                       </Link>
                       <Link
