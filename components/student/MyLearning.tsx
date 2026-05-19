@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import {
-  StarIcon,
   BookOpen01Icon,
   File01Icon,
   PresentationBarChart01Icon,
@@ -13,27 +12,45 @@ import {
   ArrowRight01Icon,
   Download01Icon,
   Loading01Icon,
+  UserGroupIcon,
 } from 'hugeicons-react'
 import { apiClient, unwrap } from '@/lib/api-client'
 import { getProgramImage } from '@/lib/program-images'
 import { cn } from '@/lib/utils'
 
-// ── API shapes (matches Swagger spec) ────────────────────────────────────────
+// ── API shapes (matches Swagger spec, camelCase) ──────────────────────────────
 interface ApiCohortSummary {
-  cohortId: number
-  cohortTitle: string
-  role: string
-  membershipStatus: string
+  cohortId?: number
+  cohortTitle?: string
+  role?: string
+  membershipStatus?: string
 }
 
 interface ApiProgram {
   id: number
   title?: string
+  subtitle?: string
+  description?: string
   level?: string
+  format?: string
   autoPercentCompletion?: number
   enrolledStudentsCount?: number
+  modulesCount?: number
+  lessonsCount?: number
   myCohorts?: ApiCohortSummary[]
 }
+
+// ── Defensive field readers (camelCase + snake_case fallback) ─────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const rId    = (c: unknown) => (c as Record<string, unknown>)?.['cohortId']    as number ?? (c as Record<string, unknown>)?.['cohort_id']    as number ?? 0
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const rTitle = (c: unknown) => (c as Record<string, unknown>)?.['cohortTitle'] as string ?? (c as Record<string, unknown>)?.['cohort_title'] as string ?? ''
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const rRole  = (c: unknown) => (c as Record<string, unknown>)?.['role']        as string ?? ''
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const rStatus = (c: unknown) => (c as Record<string, unknown>)?.['membershipStatus'] as string ?? (c as Record<string, unknown>)?.['membership_status'] as string ?? ''
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const rCohorts = (p: unknown) => ((p as Record<string, unknown>)?.['myCohorts'] ?? (p as Record<string, unknown>)?.['my_cohorts'] ?? []) as unknown[]
 
 interface ApiProgramsResponse {
   programs: ApiProgram[]
@@ -120,68 +137,155 @@ function ResourceRow({ resource }: { resource: ApiResource }) {
   )
 }
 
-// ── Course card ──────────────────────────────────────────────────────────────
+// ── Badge helpers ─────────────────────────────────────────────────────────────
+function statusStyle(s: string) {
+  switch (s.toUpperCase()) {
+    case 'ACTIVE':   return 'bg-[#ECFDF3] text-[#027A48] border border-[#A6F4C5]'
+    case 'PENDING':  return 'bg-[#FFFAEB] text-[#B54708] border border-[#FEDF89]'
+    default:         return 'bg-[#F2F4F7] text-[#344054] border border-[#EAECF0]'
+  }
+}
+function statusLabel(s: string) {
+  return { ACTIVE: 'Active', PENDING: 'Pending', INACTIVE: 'Inactive' }[s.toUpperCase()] ?? s
+}
+function roleLabel(r: string): string | null {
+  return { TEAM_LEAD: 'Team Lead', INSTRUCTOR: 'Instructor' }[r.toUpperCase()] ?? null
+}
+function levelLabel(l: string) {
+  return { BEGINNER: 'Beginner', INTERMEDIATE: 'Intermediate', ADVANCED: 'Advanced' }[l.toUpperCase()] ?? l
+}
+function formatDisplay(f: string) {
+  return { ONLINE: 'Online', IN_PERSON: 'In Person', HYBRID: 'Hybrid' }[f.toUpperCase()] ?? ''
+}
+
+// ── Progress ring ─────────────────────────────────────────────────────────────
+function ProgressRing({ value }: { value: number }) {
+  const r = 20, circ = 2 * Math.PI * r
+  return (
+    <div className="relative w-[48px] h-[48px] flex items-center justify-center flex-shrink-0">
+      <svg className="w-full h-full -rotate-90" viewBox="0 0 48 48">
+        <circle cx="24" cy="24" r={r} fill="none" stroke="#f3f4f6" strokeWidth="4" />
+        <circle cx="24" cy="24" r={r} fill="none" stroke="#d51520" strokeWidth="4"
+          strokeLinecap="round" strokeDasharray={circ}
+          strokeDashoffset={circ - (value / 100) * circ}
+          className="transition-all duration-500"
+        />
+      </svg>
+      <span className="absolute text-[10px] font-bold text-white font-display">{value}%</span>
+    </div>
+  )
+}
+
+// ── Course card (mirrors the programmes page card) ────────────────────────────
 function CourseCard({ program }: { program: ApiProgram }) {
-  const title    = program.title ?? 'Untitled Programme'
-  const progress = program.autoPercentCompletion ?? 0
-  const cohort   = program.myCohorts?.[0]
-  const cohortId = cohort?.cohortId ?? program.id
-  const cohortLabel = cohort?.cohortTitle
-    ? cohort.cohortTitle.replace(`${title} — `, '').replace(`${title} - `, '')
-    : ''
+  const title        = program.title ?? 'Untitled Programme'
+  const progress     = program.autoPercentCompletion ?? 0
+  const subtitle     = program.subtitle ?? program.description ?? ''
+  const cohorts      = rCohorts(program)
+  const cohort       = cohorts[0] ?? null
+  const cohortId     = rId(cohort) || program.id
+  const cohortName   = rTitle(cohort)
+  const cohortLabel  = cohortName.replace(`${title} — `, '').replace(`${title} - `, '') || cohortName
+  const membership   = rStatus(cohort)
+  const role         = rRole(cohort)
+  const modulesCount = program.modulesCount ?? 0
+  const lessonsCount = program.lessonsCount ?? 0
+  const enrolled     = program.enrolledStudentsCount ?? 0
 
   return (
-    <div className="border border-[#eee] rounded-[12px] overflow-hidden w-[271px] shrink-0">
+    <div className="bg-white border border-[#e5e7eb] rounded-[10px] overflow-hidden flex flex-col w-[272px] shrink-0 hover:shadow-[0px_4px_12px_rgba(16,24,40,0.10)] transition-shadow">
+      {/* Thumbnail */}
       <div
-        className="h-[142px] flex items-end p-3 relative overflow-hidden bg-[#1a1d2e]"
-        style={{
-          backgroundImage: `url(${getProgramImage(title)})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
+        className="h-[136px] bg-[#1a1d2e] bg-cover bg-center relative flex-shrink-0"
+        style={{ backgroundImage: `url(${getProgramImage(title)})` }}
       >
         <div className="absolute inset-0 bg-black/40" />
-        <div className="absolute top-3 left-3 bg-[#d51520] text-white text-[8px] font-medium px-2 py-0.5 rounded-full font-display z-10">
-          {program.level ?? 'Intermediate'}
+        <div className="absolute top-3 left-3 flex items-center gap-1.5">
+          <span className="bg-[#d51520] text-white text-[9px] font-semibold px-2 py-0.5 rounded-full font-display">
+            {levelLabel(program.level ?? 'INTERMEDIATE')}
+          </span>
+          {formatDisplay(program.format ?? '') && (
+            <span className="bg-white/20 backdrop-blur-sm text-white text-[9px] font-semibold px-2 py-0.5 rounded-full font-display">
+              {formatDisplay(program.format ?? '')}
+            </span>
+          )}
         </div>
-        <p className="text-white text-[13px] font-semibold font-display leading-tight pr-4 relative z-10">
-          {title}
-        </p>
+        <div className="absolute bottom-3 right-3">
+          <ProgressRing value={progress} />
+        </div>
       </div>
 
-      <div className="bg-white p-4 flex flex-col gap-4">
-        <div className="flex flex-col gap-1">
-          <p className="text-[15px] font-semibold text-[#0f172a] font-display leading-snug">
+      {/* Body */}
+      <div className="flex flex-col flex-1 p-4">
+        {/* Title + status */}
+        <div className="flex items-start justify-between gap-2 mb-1">
+          <p className="text-[14px] font-semibold text-[#111827] font-display leading-snug flex-1">
             {title}
           </p>
-          {cohortLabel && (
-            <p className="text-[12px] text-[#6b7280] font-body">{cohortLabel}</p>
+          {membership && (
+            <span className={`text-[9px] font-semibold font-display px-1.5 py-0.5 rounded-full flex-shrink-0 mt-0.5 ${statusStyle(membership)}`}>
+              {statusLabel(membership)}
+            </span>
           )}
-          <div className="flex items-center gap-0.5 mt-0.5">
-            <StarIcon size={12} color="#f59e0b" strokeWidth={0} />
-            <span className="text-[12px] text-[#f59e0b] font-semibold font-body">—</span>
-          </div>
         </div>
 
-        {/* Progress */}
-        <div>
-          <div className="flex justify-between mb-1.5">
-            <span className="text-[11px] text-[#9ca3af] font-body">Progress</span>
-            <span className="text-[12px] font-semibold text-[#374151] font-body">{progress}%</span>
+        {/* Subtitle */}
+        {subtitle && (
+          <p className="text-[11px] text-[#6b7280] font-body leading-[1.5] mb-1.5 line-clamp-2">
+            {subtitle}
+          </p>
+        )}
+
+        {/* Cohort + role */}
+        <div className="flex items-center gap-1.5 mb-3">
+          <p className="text-[11px] text-[#9ca3af] font-body truncate flex-1">
+            {cohortLabel || cohortName || '—'}
+          </p>
+          {roleLabel(role) && (
+            <span className="text-[9px] font-semibold font-display text-[#1a1d2e] bg-[#eaebf0] px-1.5 py-0.5 rounded-full flex-shrink-0">
+              {roleLabel(role)}
+            </span>
+          )}
+        </div>
+
+        {/* Meta */}
+        <div className="flex items-center gap-3 flex-wrap mb-3">
+          {(modulesCount > 0 || lessonsCount > 0) && (
+            <div className="flex items-center gap-1 text-[11px] text-[#6b7280] font-body">
+              <BookOpen01Icon size={11} color="#9ca3af" strokeWidth={1.5} />
+              <span>
+                {modulesCount > 0 && `${modulesCount}m`}
+                {modulesCount > 0 && lessonsCount > 0 && ' · '}
+                {lessonsCount > 0 && `${lessonsCount}l`}
+              </span>
+            </div>
+          )}
+          {enrolled > 0 && (
+            <div className="flex items-center gap-1 text-[11px] text-[#6b7280] font-body">
+              <UserGroupIcon size={11} color="#9ca3af" strokeWidth={1.5} />
+              <span>{enrolled} enrolled</span>
+            </div>
+          )}
+        </div>
+
+        {/* Progress bar */}
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] text-[#9ca3af] font-body">Progress</span>
+            <span className="text-[10px] font-semibold text-[#d51520] font-display">{progress}%</span>
           </div>
           <div className="h-1.5 bg-[#f3f4f6] rounded-full overflow-hidden">
-            <div
-              className="h-full bg-[#d51520] rounded-full transition-all duration-500"
-              style={{ width: `${progress}%` }}
-            />
+            <div className="h-full bg-[#d51520] rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
           </div>
         </div>
 
+        {/* CTA */}
         <Link
           href={`/student/courses/${cohortId}`}
-          className="flex items-center justify-center bg-[#d51520] text-white text-[13px] font-medium font-body h-9 rounded-[7px] hover:bg-[#b81119] transition-colors"
+          className="mt-auto flex items-center justify-center gap-1.5 bg-[#d51520] text-white text-[12px] font-medium font-display h-8 rounded-[8px] hover:bg-[#b81119] transition-colors"
         >
-          Continue Learning
+          View Course
+          <ArrowRight01Icon size={12} color="white" strokeWidth={2} />
         </Link>
       </div>
     </div>
