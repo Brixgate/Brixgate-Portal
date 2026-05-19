@@ -134,7 +134,7 @@ function getPasswordStrength(pw: string): { level: number; label: string; color:
 function Toast({ message, type }: { message: string; type: 'success' | 'error' }) {
   return (
     <div
-      className={`fixed top-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-[10px] shadow-lg text-[13px] font-medium font-body max-w-[360px] ${
+      className={`fixed top-[80px] right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-[10px] shadow-lg text-[13px] font-medium font-body max-w-[360px] ${
         type === 'success'
           ? 'bg-[#ecfdf3] text-[#16a34a] border border-[#bbf7d0]'
           : 'bg-[#fef2f2] text-[#d51520] border border-[#fecdca]'

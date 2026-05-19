@@ -9,6 +9,7 @@ import {
   CheckmarkCircle01Icon,
   AlertCircleIcon,
   ArrowDown01Icon,
+  Tick01Icon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 
@@ -265,15 +266,221 @@ function InviteeRow({
   )
 }
 
-// ── Upgrade modal — individual accounts ───────────────────────────────────────
+// ── Pricing plan API shape ────────────────────────────────────────────────────
+interface PricingPlan {
+  id: number
+  name: string                 // INDIVIDUAL | TEAMS | CORPORATE
+  price?: number
+  originalPrice?: number
+  priceLabel?: string
+  description?: string
+  features?: string[]
+  isPopular?: boolean
+  ctaLabel?: string
+  ctaUrl?: string
+}
+
+function formatNaira(amount: number): string {
+  return `₦${amount.toLocaleString('en-NG')}`
+}
+
+// ── Pricing modal ─────────────────────────────────────────────────────────────
+function PricingModal({ onClose }: { onClose: () => void }) {
+  const [plans, setPlans]       = useState<PricingPlan[]>([])
+  const [loading, setLoading]   = useState(true)
+  const [error, setError]       = useState('')
+
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const res  = await apiClient.get('/pricing-plans')
+        const data = unwrap<{ plans?: PricingPlan[]; pricingPlans?: PricingPlan[] }>(res.data)
+        const list = data?.plans ?? data?.pricingPlans ?? []
+        setPlans(Array.isArray(list) ? list : [])
+      } catch (err) {
+        setError(getApiError(err) || 'Could not load pricing. Please try again.')
+      } finally {
+        setLoading(false)
+      }
+    })()
+  }, [])
+
+  const planOrder = ['INDIVIDUAL', 'TEAMS', 'CORPORATE']
+  const sorted = [...plans].sort(
+    (a, b) => planOrder.indexOf(a.name?.toUpperCase()) - planOrder.indexOf(b.name?.toUpperCase())
+  )
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-6"
+      onClick={onClose}
+    >
+      <div
+        className="bg-[#f5f5f7] rounded-[16px] shadow-2xl w-full max-w-[860px] overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-[#f3f4f6]">
+          <div>
+            <h2 className="text-[16px] font-bold text-[#111827] font-display">Choose a Plan</h2>
+            <p className="text-[12px] text-[#9ca3af] font-body mt-0.5">Upgrade your Brixgate experience</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[#f3f4f6] transition-colors"
+          >
+            <Cancel01Icon size={16} color="#6b7280" strokeWidth={1.5} />
+          </button>
+        </div>
+
+        {/* Currency chip */}
+        <div className="flex justify-center pt-5 pb-1">
+          <div className="flex items-center gap-1.5 bg-[#d51520] text-white text-[11px] font-semibold font-display px-3 py-1 rounded-full">
+            <span>₦</span>
+            <span>NGN</span>
+          </div>
+        </div>
+
+        {/* Plans */}
+        <div className="p-5">
+          {loading && (
+            <div className="flex items-center justify-center py-12 gap-2 text-[#9ca3af]">
+              <Loading01Icon size={18} className="animate-spin" strokeWidth={1.5} />
+              <span className="text-[13px] font-body">Loading plans…</span>
+            </div>
+          )}
+
+          {!loading && error && (
+            <div className="flex items-center justify-center py-12">
+              <p className="text-[13px] text-[#d51520] font-body">{error}</p>
+            </div>
+          )}
+
+          {!loading && !error && sorted.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {sorted.map((plan) => {
+                const isPopular  = plan.isPopular || plan.name?.toUpperCase() === 'TEAMS'
+                const isCorp     = plan.name?.toUpperCase() === 'CORPORATE'
+                const nameLabel  = plan.name
+                  ? plan.name.charAt(0).toUpperCase() + plan.name.slice(1).toLowerCase()
+                  : plan.name
+
+                return (
+                  <div
+                    key={plan.id}
+                    className={`relative bg-white rounded-[12px] p-5 flex flex-col ${
+                      isPopular
+                        ? 'border-2 border-[#d51520] shadow-md'
+                        : 'border border-[#e5e7eb] shadow-sm'
+                    }`}
+                  >
+                    {/* Most popular banner */}
+                    {isPopular && (
+                      <div className="absolute top-0 right-0 overflow-hidden w-[72px] h-[72px] rounded-tr-[10px]">
+                        <div className="absolute top-[14px] right-[-18px] bg-[#d51520] text-white text-[8px] font-bold font-display tracking-wider px-6 py-0.5 rotate-45 shadow-sm">
+                          MOST POPULAR
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Plan name */}
+                    <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#374151] font-display mb-3">
+                      {nameLabel}
+                    </p>
+
+                    {/* Price */}
+                    {isCorp ? (
+                      <div className="mb-3">
+                        <p className="text-[20px] font-bold text-[#d51520] font-display leading-none">
+                          Custom Pricing
+                        </p>
+                        <p className="text-[11px] text-[#6b7280] font-body mt-1">
+                          Tailored to your organisation
+                        </p>
+                      </div>
+                    ) : plan.price !== undefined ? (
+                      <div className="mb-3">
+                        <p className="text-[26px] font-bold text-[#111827] font-display leading-none">
+                          {formatNaira(plan.price)}
+                        </p>
+                        {plan.originalPrice && (
+                          <p className="text-[11px] text-[#9ca3af] font-body mt-0.5 line-through">
+                            was {formatNaira(plan.originalPrice)}
+                          </p>
+                        )}
+                        {plan.priceLabel && (
+                          <p className="text-[11px] text-[#6b7280] font-body mt-1">{plan.priceLabel}</p>
+                        )}
+                      </div>
+                    ) : null}
+
+                    {/* Description */}
+                    {plan.description && (
+                      <p className="text-[11px] text-[#6b7280] font-body leading-[1.6] mb-4">
+                        {plan.description}
+                      </p>
+                    )}
+
+                    {/* Features */}
+                    {Array.isArray(plan.features) && plan.features.length > 0 && (
+                      <ul className="flex flex-col gap-2 mb-5 flex-1">
+                        {plan.features.map((feat, i) => (
+                          <li key={i} className="flex items-start gap-2">
+                            <Tick01Icon size={13} color="#d51520" strokeWidth={2} className="flex-shrink-0 mt-0.5" />
+                            <span className="text-[11px] text-[#374151] font-body leading-snug">{feat}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
+                    {/* CTA */}
+                    <button
+                      onClick={onClose}
+                      className={`mt-auto w-full h-9 rounded-full text-[12px] font-semibold font-display transition-colors ${
+                        isPopular
+                          ? 'bg-[#d51520] text-white hover:bg-[#b81119]'
+                          : 'bg-white border border-[#d51520] text-[#d51520] hover:bg-[#fef2f2]'
+                      }`}
+                    >
+                      {plan.ctaLabel ?? (isCorp ? 'Consult Team' : 'Apply Now')}
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Fallback if API returns nothing */}
+          {!loading && !error && sorted.length === 0 && (
+            <p className="text-center text-[13px] text-[#9ca3af] font-body py-8">
+              No plans available at the moment.
+            </p>
+          )}
+        </div>
+
+        <p className="text-center text-[11px] text-[#9ca3af] font-body pb-4">
+          All prices exclude applicable local taxes.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// ── Upgrade teaser — shown to individual accounts ─────────────────────────────
 function TeamUpgradeModal({ onClose }: { onClose: () => void }) {
+  const [showPricing, setShowPricing] = useState(false)
+
+  if (showPricing) {
+    return <PricingModal onClose={onClose} />
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-[16px] shadow-xl w-full max-w-[420px] p-8 text-center"
+        className="bg-white rounded-[16px] shadow-xl w-full max-w-[400px] p-8 text-center"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="w-14 h-14 rounded-[12px] bg-[#fef2f2] flex items-center justify-center mx-auto mb-5">
@@ -282,14 +489,14 @@ function TeamUpgradeModal({ onClose }: { onClose: () => void }) {
         <h2 className="text-[20px] font-bold text-[#111827] font-display mb-2">
           Unlock Team Access
         </h2>
-        <p className="text-[13px] text-[#6b7280] font-body leading-[1.7] max-w-[320px] mx-auto mb-6">
-          Upgrade to a team plan to invite colleagues, manage seats, and collaborate on your Brixgate programme together.
+        <p className="text-[13px] text-[#6b7280] font-body leading-[1.7] max-w-[300px] mx-auto mb-6">
+          Invite colleagues, manage seats, and collaborate on your Brixgate programme together.
         </p>
         <button
-          onClick={onClose}
+          onClick={() => setShowPricing(true)}
           className="w-full h-10 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] transition-colors"
         >
-          Contact us to upgrade
+          Upgrade to Teams
         </button>
         <button
           onClick={onClose}
