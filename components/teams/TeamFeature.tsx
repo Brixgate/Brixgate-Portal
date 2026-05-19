@@ -266,36 +266,232 @@ function InviteeRow({
   )
 }
 
-// ── Pricing plan API shape ────────────────────────────────────────────────────
-interface PricingPlan {
-  id: number
-  name: string                 // INDIVIDUAL | TEAMS | CORPORATE
-  price?: number
-  originalPrice?: number
-  priceLabel?: string
-  description?: string
-  features?: string[]
-  isPopular?: boolean
-  ctaLabel?: string
-  ctaUrl?: string
+// ── Pricing plan API shape (actual response) ──────────────────────────────────
+interface RawBreakdown {
+  currency: string
+  base_price: number
+  final_price: number
 }
 
-function formatNaira(amount: number): string {
-  return `₦${amount.toLocaleString('en-NG')}`
+interface RawPricingPlan {
+  id: number
+  program_id: number
+  title: string
+  plan_type: string
+  minimum_seats: number
+  maximum_seats: number
+  included_seats: number
+  breakdowns: RawBreakdown[]
+}
+
+interface ProgramGroup {
+  programId: number
+  programName: string
+  plans: RawPricingPlan[]
+}
+
+// ── Tier content — descriptions + features are product copy, prices from API ──
+const TIER_CONTENT: Record<string, { label: string; description: string; features: string[] }> = {
+  INDIVIDUAL: {
+    label: 'Individual',
+    description: 'For self-directed professionals ready to transform their AI practice independently.',
+    features: [
+      'Full 4-week sprint access',
+      'Matched Expert Practitioner',
+      'Field Assessment & mapping',
+      'Peer cohort membership',
+      'Applied project support',
+      'Expert Practitioner Certificate',
+    ],
+  },
+  TEAM: {
+    label: 'Teams',
+    description: 'For organisations enrolling individuals. Team pricing, full programme quality.',
+    features: [
+      'Everything in Individual tier',
+      'Organisation-aligned cohort',
+      'Manager progress reporting',
+      'Post-sprint implementation guide',
+      'Priority expert matching',
+      'Invoice billing available',
+    ],
+  },
+  CORPORATE: {
+    label: 'Corporate',
+    description: 'Full-scale enterprise AI transformation. Custom curriculum, dedicated expert team.',
+    features: [
+      'Everything in Teams tier',
+      'Dedicated cohort manager',
+      'Custom curriculum design',
+      'Executive leadership track',
+      'Organisation-wide reporting',
+      'SLA & enterprise support',
+    ],
+  },
+}
+
+// ── Pricing helpers ───────────────────────────────────────────────────────────
+function extractProgramName(title: string): string {
+  const idx = title.lastIndexOf(' - ')
+  return idx !== -1 ? title.slice(0, idx) : title
+}
+
+function groupByProgram(plans: RawPricingPlan[]): ProgramGroup[] {
+  const map = new Map<number, ProgramGroup>()
+  const typeOrder = ['INDIVIDUAL', 'TEAM', 'CORPORATE']
+  for (const plan of plans) {
+    if (!map.has(plan.program_id)) {
+      map.set(plan.program_id, {
+        programId: plan.program_id,
+        programName: extractProgramName(plan.title),
+        plans: [],
+      })
+    }
+    map.get(plan.program_id)!.plans.push(plan)
+  }
+  Array.from(map.values()).forEach(g => {
+    g.plans.sort((a, b) => typeOrder.indexOf(a.plan_type) - typeOrder.indexOf(b.plan_type))
+  })
+  return Array.from(map.values()).sort((a, b) => a.programId - b.programId)
+}
+
+function getPrice(plan: RawPricingPlan, currency: 'NGN' | 'USD'): number | null {
+  const bd = plan.breakdowns?.find(b => b.currency === currency)
+  return bd ? bd.final_price : null
+}
+
+function formatPrice(amount: number, currency: 'NGN' | 'USD'): string {
+  if (currency === 'NGN') return `₦${amount.toLocaleString('en-NG')}`
+  return `$${amount.toLocaleString('en-US')}`
+}
+
+// ── Plan card ─────────────────────────────────────────────────────────────────
+function PlanCard({
+  planType,
+  plan,
+  currency,
+  isCurrentPlan,
+}: {
+  planType: 'INDIVIDUAL' | 'TEAM' | 'CORPORATE'
+  plan: RawPricingPlan | null
+  currency: 'NGN' | 'USD'
+  isCurrentPlan: boolean
+}) {
+  const content = TIER_CONTENT[planType]
+  const isTeam  = planType === 'TEAM'
+  const isCorp  = planType === 'CORPORATE'
+  const price   = plan ? getPrice(plan, currency) : null
+  const seats   = plan?.included_seats ?? null
+
+  return (
+    <div className={`relative bg-white rounded-[12px] flex flex-col overflow-hidden ${
+      isTeam ? 'border-2 border-[#d51520] shadow-md' : 'border border-[#e5e7eb] shadow-sm'
+    }`}>
+      {/* Most Popular corner banner */}
+      {isTeam && (
+        <div className="absolute top-0 right-0 overflow-hidden w-[80px] h-[80px] rounded-tr-[10px]">
+          <div className="absolute top-[16px] right-[-22px] bg-[#d51520] text-white text-[7px] font-bold font-display tracking-wider px-8 py-[3px] rotate-45">
+            MOST POPULAR
+          </div>
+        </div>
+      )}
+
+      <div className="p-5 flex flex-col flex-1">
+        {/* Tier label + current plan badge */}
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#374151] font-display">
+            {content.label}
+          </p>
+          {isCurrentPlan && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-[#ecfdf3] text-[#027a48] border border-[#a6f4c5] text-[9px] font-semibold font-display whitespace-nowrap">
+              Current Plan
+            </span>
+          )}
+        </div>
+
+        {/* Price */}
+        {isCorp ? (
+          <div className="mb-2">
+            <p className="text-[17px] font-bold text-[#d51520] font-display leading-tight">
+              Custom Pricing
+            </p>
+            <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">
+              Tailored to your organisation
+            </p>
+          </div>
+        ) : price !== null ? (
+          <div className="mb-2">
+            <p className="text-[22px] font-bold text-[#111827] font-display leading-none">
+              {formatPrice(price, currency)}
+            </p>
+            <p className="text-[11px] text-[#9ca3af] font-body mt-1">
+              {seats !== null && seats > 1
+                ? `per seat · ${seats} seats included`
+                : 'one-time payment'}
+            </p>
+          </div>
+        ) : (
+          <div className="mb-2">
+            <p className="text-[17px] font-bold text-[#9ca3af] font-display">—</p>
+          </div>
+        )}
+
+        {/* Description */}
+        <p className="text-[11px] text-[#6b7280] font-body leading-[1.6] mb-3 mt-1">
+          {content.description}
+        </p>
+
+        {/* Divider */}
+        <div className="h-px bg-[#f3f4f6] mb-3" />
+
+        {/* Features */}
+        <ul className="flex flex-col gap-2 flex-1 mb-4">
+          {content.features.map((feat, i) => (
+            <li key={i} className="flex items-start gap-2">
+              <Tick01Icon size={12} color="#d51520" strokeWidth={2} className="flex-shrink-0 mt-0.5" />
+              <span className="text-[11px] text-[#374151] font-body leading-snug">{feat}</span>
+            </li>
+          ))}
+        </ul>
+
+        {/* CTA */}
+        <button
+          disabled={isCurrentPlan}
+          className={`w-full h-8 rounded-full text-[11px] font-semibold font-display transition-colors ${
+            isCurrentPlan
+              ? 'bg-[#f3f4f6] text-[#9ca3af] cursor-default'
+              : isTeam
+              ? 'bg-[#d51520] text-white hover:bg-[#b81119]'
+              : isCorp
+              ? 'bg-white border border-[#e5e7eb] text-[#374151] hover:bg-[#f9fafb]'
+              : 'bg-white border border-[#d51520] text-[#d51520] hover:bg-[#fef2f2]'
+          }`}
+        >
+          {isCurrentPlan ? 'Current Plan' : isCorp ? 'Contact Us' : 'Upgrade Now'}
+        </button>
+      </div>
+    </div>
+  )
 }
 
 // ── Pricing modal ─────────────────────────────────────────────────────────────
 function PricingModal({ onClose }: { onClose: () => void }) {
-  const [plans, setPlans]       = useState<PricingPlan[]>([])
-  const [loading, setLoading]   = useState(true)
-  const [error, setError]       = useState('')
+  const [plans, setPlans]         = useState<RawPricingPlan[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [error, setError]         = useState('')
+  const [currency, setCurrency]   = useState<'NGN' | 'USD'>('NGN')
+  const [activeTab, setActiveTab] = useState(0)
 
   useEffect(() => {
     ;(async () => {
       try {
         const res  = await apiClient.get('/pricing-plans')
-        const data = unwrap<{ plans?: PricingPlan[]; pricingPlans?: PricingPlan[] }>(res.data)
-        const list = data?.plans ?? data?.pricingPlans ?? []
+        const data = unwrap<{
+          pricing_plans?: RawPricingPlan[]
+          pricingPlans?:  RawPricingPlan[]
+          plans?:         RawPricingPlan[]
+        }>(res.data)
+        const list = data?.pricing_plans ?? data?.pricingPlans ?? data?.plans ?? []
         setPlans(Array.isArray(list) ? list : [])
       } catch (err) {
         setError(getApiError(err) || 'Could not load pricing. Please try again.')
@@ -305,10 +501,10 @@ function PricingModal({ onClose }: { onClose: () => void }) {
     })()
   }, [])
 
-  const planOrder = ['INDIVIDUAL', 'TEAMS', 'CORPORATE']
-  const sorted = [...plans].sort(
-    (a, b) => planOrder.indexOf(a.name?.toUpperCase()) - planOrder.indexOf(b.name?.toUpperCase())
-  )
+  const groups   = groupByProgram(plans)
+  const active   = groups[activeTab] ?? null
+  const indPlan  = active?.plans.find(p => p.plan_type === 'INDIVIDUAL') ?? null
+  const teamPlan = active?.plans.find(p => p.plan_type === 'TEAM') ?? null
 
   return (
     <div
@@ -316,149 +512,89 @@ function PricingModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
-        className="bg-[#f5f5f7] rounded-[16px] shadow-2xl w-full max-w-[860px] overflow-hidden"
+        className="bg-[#f5f5f7] rounded-[16px] shadow-2xl w-full max-w-[780px] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-[#f3f4f6]">
+        <div className="flex items-center justify-between px-5 py-3.5 bg-white border-b border-[#f3f4f6]">
           <div>
-            <h2 className="text-[16px] font-bold text-[#111827] font-display">Choose a Plan</h2>
-            <p className="text-[12px] text-[#9ca3af] font-body mt-0.5">Upgrade your Brixgate experience</p>
+            <h2 className="text-[14px] font-bold text-[#111827] font-display">Choose a Plan</h2>
+            <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">
+              Upgrade your Brixgate experience
+            </p>
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[#f3f4f6] transition-colors"
-          >
-            <Cancel01Icon size={16} color="#6b7280" strokeWidth={1.5} />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* NGN / USD toggle */}
+            <div className="flex items-center bg-[#f3f4f6] rounded-full p-0.5">
+              {(['NGN', 'USD'] as const).map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setCurrency(c)}
+                  className={`px-3 py-1 rounded-full text-[10px] font-semibold font-display transition-all ${
+                    currency === c
+                      ? 'bg-white text-[#111827] shadow-sm'
+                      : 'text-[#9ca3af] hover:text-[#374151]'
+                  }`}
+                >
+                  {c === 'NGN' ? '₦ NGN' : '$ USD'}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={onClose}
+              className="w-7 h-7 rounded-full flex items-center justify-center hover:bg-[#f3f4f6] transition-colors"
+            >
+              <Cancel01Icon size={14} color="#6b7280" strokeWidth={1.5} />
+            </button>
+          </div>
         </div>
 
-        {/* Currency chip */}
-        <div className="flex justify-center pt-5 pb-1">
-          <div className="flex items-center gap-1.5 bg-[#d51520] text-white text-[11px] font-semibold font-display px-3 py-1 rounded-full">
-            <span>₦</span>
-            <span>NGN</span>
+        {/* Loading */}
+        {loading && (
+          <div className="flex items-center justify-center py-16 gap-2 text-[#9ca3af]">
+            <Loading01Icon size={18} className="animate-spin" strokeWidth={1.5} />
+            <span className="text-[13px] font-body">Loading plans…</span>
           </div>
-        </div>
+        )}
 
-        {/* Plans */}
-        <div className="p-5">
-          {loading && (
-            <div className="flex items-center justify-center py-12 gap-2 text-[#9ca3af]">
-              <Loading01Icon size={18} className="animate-spin" strokeWidth={1.5} />
-              <span className="text-[13px] font-body">Loading plans…</span>
-            </div>
-          )}
+        {/* Error */}
+        {!loading && error && (
+          <div className="flex items-center justify-center py-16">
+            <p className="text-[13px] text-[#d51520] font-body">{error}</p>
+          </div>
+        )}
 
-          {!loading && error && (
-            <div className="flex items-center justify-center py-12">
-              <p className="text-[13px] text-[#d51520] font-body">{error}</p>
-            </div>
-          )}
-
-          {!loading && !error && sorted.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {sorted.map((plan) => {
-                const isPopular  = plan.isPopular || plan.name?.toUpperCase() === 'TEAMS'
-                const isCorp     = plan.name?.toUpperCase() === 'CORPORATE'
-                const nameLabel  = plan.name
-                  ? plan.name.charAt(0).toUpperCase() + plan.name.slice(1).toLowerCase()
-                  : plan.name
-
-                return (
-                  <div
-                    key={plan.id}
-                    className={`relative bg-white rounded-[12px] p-5 flex flex-col ${
-                      isPopular
-                        ? 'border-2 border-[#d51520] shadow-md'
-                        : 'border border-[#e5e7eb] shadow-sm'
+        {!loading && !error && (
+          <>
+            {/* Programme tabs — shown only when multiple programmes */}
+            {groups.length > 1 && (
+              <div className="flex items-center gap-1.5 px-5 pt-4 pb-1 overflow-x-auto">
+                {groups.map((g, i) => (
+                  <button
+                    key={g.programId}
+                    onClick={() => setActiveTab(i)}
+                    className={`flex-shrink-0 px-3 h-6 rounded-full text-[10px] font-semibold font-display transition-all ${
+                      activeTab === i
+                        ? 'bg-[#d51520] text-white'
+                        : 'bg-white border border-[#e5e7eb] text-[#6b7280] hover:text-[#374151]'
                     }`}
                   >
-                    {/* Most popular banner */}
-                    {isPopular && (
-                      <div className="absolute top-0 right-0 overflow-hidden w-[72px] h-[72px] rounded-tr-[10px]">
-                        <div className="absolute top-[14px] right-[-18px] bg-[#d51520] text-white text-[8px] font-bold font-display tracking-wider px-6 py-0.5 rotate-45 shadow-sm">
-                          MOST POPULAR
-                        </div>
-                      </div>
-                    )}
+                    {g.programName}
+                  </button>
+                ))}
+              </div>
+            )}
 
-                    {/* Plan name */}
-                    <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#374151] font-display mb-3">
-                      {nameLabel}
-                    </p>
-
-                    {/* Price */}
-                    {isCorp ? (
-                      <div className="mb-3">
-                        <p className="text-[20px] font-bold text-[#d51520] font-display leading-none">
-                          Custom Pricing
-                        </p>
-                        <p className="text-[11px] text-[#6b7280] font-body mt-1">
-                          Tailored to your organisation
-                        </p>
-                      </div>
-                    ) : plan.price !== undefined ? (
-                      <div className="mb-3">
-                        <p className="text-[26px] font-bold text-[#111827] font-display leading-none">
-                          {formatNaira(plan.price)}
-                        </p>
-                        {plan.originalPrice && (
-                          <p className="text-[11px] text-[#9ca3af] font-body mt-0.5 line-through">
-                            was {formatNaira(plan.originalPrice)}
-                          </p>
-                        )}
-                        {plan.priceLabel && (
-                          <p className="text-[11px] text-[#6b7280] font-body mt-1">{plan.priceLabel}</p>
-                        )}
-                      </div>
-                    ) : null}
-
-                    {/* Description */}
-                    {plan.description && (
-                      <p className="text-[11px] text-[#6b7280] font-body leading-[1.6] mb-4">
-                        {plan.description}
-                      </p>
-                    )}
-
-                    {/* Features */}
-                    {Array.isArray(plan.features) && plan.features.length > 0 && (
-                      <ul className="flex flex-col gap-2 mb-5 flex-1">
-                        {plan.features.map((feat, i) => (
-                          <li key={i} className="flex items-start gap-2">
-                            <Tick01Icon size={13} color="#d51520" strokeWidth={2} className="flex-shrink-0 mt-0.5" />
-                            <span className="text-[11px] text-[#374151] font-body leading-snug">{feat}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-
-                    {/* CTA */}
-                    <button
-                      onClick={onClose}
-                      className={`mt-auto w-full h-9 rounded-full text-[12px] font-semibold font-display transition-colors ${
-                        isPopular
-                          ? 'bg-[#d51520] text-white hover:bg-[#b81119]'
-                          : 'bg-white border border-[#d51520] text-[#d51520] hover:bg-[#fef2f2]'
-                      }`}
-                    >
-                      {plan.ctaLabel ?? (isCorp ? 'Consult Team' : 'Apply Now')}
-                    </button>
-                  </div>
-                )
-              })}
+            {/* Plan cards */}
+            <div className="p-4 grid grid-cols-3 gap-3">
+              <PlanCard planType="INDIVIDUAL" plan={indPlan}  currency={currency} isCurrentPlan={true}  />
+              <PlanCard planType="TEAM"       plan={teamPlan} currency={currency} isCurrentPlan={false} />
+              <PlanCard planType="CORPORATE"  plan={null}     currency={currency} isCurrentPlan={false} />
             </div>
-          )}
+          </>
+        )}
 
-          {/* Fallback if API returns nothing */}
-          {!loading && !error && sorted.length === 0 && (
-            <p className="text-center text-[13px] text-[#9ca3af] font-body py-8">
-              No plans available at the moment.
-            </p>
-          )}
-        </div>
-
-        <p className="text-center text-[11px] text-[#9ca3af] font-body pb-4">
+        <p className="text-center text-[10px] text-[#9ca3af] font-body pb-3">
           All prices exclude applicable local taxes.
         </p>
       </div>
