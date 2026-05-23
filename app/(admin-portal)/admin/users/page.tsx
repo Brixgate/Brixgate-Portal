@@ -19,7 +19,7 @@ interface ApiUser {
   created_at?: string; createdAt?: string
 }
 
-interface Pagination { page: number; size: number; totalElements: number; totalPages: number; hasNext?: boolean }
+interface Pagination { page?: number; size?: number; totalElements?: number; total?: number; totalPages?: number; total_pages?: number; hasNext?: boolean; has_next?: boolean }
 
 const ROLES = ['', 'STUDENT', 'INSTRUCTOR', 'ADMIN', 'PROSPECT', 'APPLICANT', 'EMPLOYER']
 const ROLE_LABELS: Record<string, string> = {
@@ -170,7 +170,7 @@ export default function AdminUsersPage() {
         <div>
           <h1 className="text-[24px] font-bold text-[#111827] font-display">Users</h1>
           <p className="text-[14px] text-[#6b7280] font-body mt-0.5">
-            {pagination ? `${pagination.totalElements.toLocaleString()} total users` : 'Manage all users'}
+            {pagination ? `${(pagination.totalElements ?? pagination.total ?? 0).toLocaleString()} total users` : 'Manage all users'}
           </p>
         </div>
         <button onClick={() => setShowCreate(true)}
@@ -265,10 +265,13 @@ export default function AdminUsersPage() {
         </div>
 
         {/* Pagination */}
-        {pagination && pagination.totalPages > 1 && (
+        {pagination && (pagination.totalPages ?? pagination.total_pages ?? 1) > 1 && (
           <div className="px-4 py-3 flex items-center justify-between border-t border-[#f3f4f6]">
             <p className="text-[12px] text-[#6b7280] font-body">
-              Showing {((page - 1) * 20) + 1}–{Math.min(page * 20, pagination.totalElements)} of {pagination.totalElements.toLocaleString()}
+              {(() => {
+                const total = pagination.totalElements ?? pagination.total ?? 0
+                return `Showing ${((page - 1) * 20) + 1}–${Math.min(page * 20, total)} of ${total.toLocaleString()}`
+              })()}
             </p>
             <div className="flex items-center gap-1">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
@@ -276,9 +279,9 @@ export default function AdminUsersPage() {
                 Prev
               </button>
               <span className="h-7 px-3 flex items-center text-[12px] font-body text-[#374151]">
-                {page} / {pagination.totalPages}
+                {page} / {pagination.totalPages ?? pagination.total_pages ?? 1}
               </span>
-              <button onClick={() => setPage(p => Math.min(pagination.totalPages, p + 1))} disabled={!pagination.hasNext}
+              <button onClick={() => setPage(p => p + 1)} disabled={!(pagination.hasNext ?? pagination.has_next ?? false)}
                 className="h-7 px-3 rounded-[6px] border border-[#e5e7eb] text-[12px] font-body text-[#374151] disabled:opacity-40 hover:bg-[#f9fafb] transition-colors">
                 Next
               </button>

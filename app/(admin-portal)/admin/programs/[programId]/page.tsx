@@ -120,27 +120,50 @@ function ModuleItem({
 function DetailPanel({
   mod, programId, onRefresh,
 }: { mod: Module | null; programId: string; onRefresh: () => void }) {
-  const [showAddLesson, setShowAddLesson]     = useState(false)
-  const [showAddResource, setShowAddResource] = useState(false)
-  const [lessonForm, setLessonForm]           = useState({ title: '', content_type: 'VIDEO', duration: '' })
-  const [resourceForm, setResourceForm]       = useState({ title: '', type: 'PDF', link: '' })
-  const [saving, setSaving]                   = useState(false)
-  const [error, setError]                     = useState('')
+  const [showAddLesson, setShowAddLesson]       = useState(false)
+  const [showAddResource, setShowAddResource]   = useState(false)
+  const [editLesson, setEditLesson]             = useState<Lesson | null>(null)
+  const [editResource, setEditResource]         = useState<Resource | null>(null)
+  const [lessonForm, setLessonForm]             = useState({ title: '', content_type: 'VIDEO', duration: '' })
+  const [resourceForm, setResourceForm]         = useState({ title: '', type: 'PDF', link: '' })
+  const [saving, setSaving]                     = useState(false)
+  const [error, setError]                       = useState('')
+  const [deletingLessonId, setDeletingLessonId] = useState<number | null>(null)
+  const [deletingResourceId, setDeletingResourceId] = useState<number | null>(null)
+
+  const base = `/admin/programs/${programId}/modules/${mod?.id}`
 
   async function addLesson(e: React.FormEvent) {
     e.preventDefault(); setError('')
     if (!lessonForm.title.trim()) { setError('Title required.'); return }
     setSaving(true)
     try {
-      await apiClient.post(`/admin/programs/${programId}/modules/${mod!.id}/lessons`, {
-        title: lessonForm.title.trim(),
-        content_type: lessonForm.content_type,
+      await apiClient.post(`${base}/lessons`, {
+        title: lessonForm.title.trim(), content_type: lessonForm.content_type,
         duration: lessonForm.duration ? parseInt(lessonForm.duration) : undefined,
       })
-      setShowAddLesson(false)
-      setLessonForm({ title: '', content_type: 'VIDEO', duration: '' })
-      onRefresh()
+      setShowAddLesson(false); setLessonForm({ title: '', content_type: 'VIDEO', duration: '' }); onRefresh()
     } catch (err) { setError(getApiError(err)) } finally { setSaving(false) }
+  }
+
+  async function saveEditLesson(e: React.FormEvent) {
+    e.preventDefault(); setError('')
+    if (!lessonForm.title.trim()) { setError('Title required.'); return }
+    setSaving(true)
+    try {
+      await apiClient.patch(`${base}/lessons/${editLesson!.id}`, {
+        title: lessonForm.title.trim(), content_type: lessonForm.content_type,
+        duration: lessonForm.duration ? parseInt(lessonForm.duration) : undefined,
+      })
+      setEditLesson(null); onRefresh()
+    } catch (err) { setError(getApiError(err)) } finally { setSaving(false) }
+  }
+
+  async function deleteLesson(l: Lesson) {
+    if (!confirm(`Delete lesson "${l.title}"?`)) return
+    setDeletingLessonId(l.id)
+    try { await apiClient.delete(`${base}/lessons/${l.id}`); onRefresh() }
+    catch { /* silent */ } finally { setDeletingLessonId(null) }
   }
 
   async function addResource(e: React.FormEvent) {
@@ -148,13 +171,40 @@ function DetailPanel({
     if (!resourceForm.title.trim() || !resourceForm.link.trim()) { setError('Title and link required.'); return }
     setSaving(true)
     try {
-      await apiClient.post(`/admin/programs/${programId}/modules/${mod!.id}/resources`, {
+      await apiClient.post(`${base}/resources`, {
         title: resourceForm.title.trim(), type: resourceForm.type, link: resourceForm.link.trim(),
       })
-      setShowAddResource(false)
-      setResourceForm({ title: '', type: 'PDF', link: '' })
-      onRefresh()
+      setShowAddResource(false); setResourceForm({ title: '', type: 'PDF', link: '' }); onRefresh()
     } catch (err) { setError(getApiError(err)) } finally { setSaving(false) }
+  }
+
+  async function saveEditResource(e: React.FormEvent) {
+    e.preventDefault(); setError('')
+    if (!resourceForm.title.trim() || !resourceForm.link.trim()) { setError('Title and link required.'); return }
+    setSaving(true)
+    try {
+      await apiClient.patch(`${base}/resources/${editResource!.id}`, {
+        title: resourceForm.title.trim(), type: resourceForm.type, link: resourceForm.link.trim(),
+      })
+      setEditResource(null); onRefresh()
+    } catch (err) { setError(getApiError(err)) } finally { setSaving(false) }
+  }
+
+  async function deleteResource(r: Resource) {
+    if (!confirm(`Delete resource "${r.title}"?`)) return
+    setDeletingResourceId(r.id)
+    try { await apiClient.delete(`${base}/resources/${r.id}`); onRefresh() }
+    catch { /* silent */ } finally { setDeletingResourceId(null) }
+  }
+
+  function openEditLesson(l: Lesson) {
+    setLessonForm({ title: l.title, content_type: l.content_type, duration: l.duration ? String(l.duration) : '' })
+    setEditLesson(l); setError('')
+  }
+
+  function openEditResource(r: Resource) {
+    setResourceForm({ title: r.title, type: r.type, link: r.link })
+    setEditResource(r); setError('')
   }
 
   if (!mod) {
@@ -187,7 +237,7 @@ function DetailPanel({
       <div className="mb-6">
         <div className="flex items-center justify-between mb-3">
           <h4 className="text-[12px] font-bold uppercase tracking-[0.06em] text-[#374151] font-display">Lessons</h4>
-          <button onClick={() => setShowAddLesson(true)}
+          <button onClick={() => { setLessonForm({ title: '', content_type: 'VIDEO', duration: '' }); setError(''); setShowAddLesson(true) }}
             className="flex items-center gap-1 text-[11px] text-[#d51520] font-medium font-display hover:underline">
             <Add01Icon size={11} strokeWidth={2} /> Add Lesson
           </button>
@@ -195,11 +245,23 @@ function DetailPanel({
         {mod.lessons.length === 0
           ? <p className="text-[12px] text-[#9ca3af] font-body py-3 text-center border border-dashed border-[#e5e7eb] rounded-[8px]">No lessons yet</p>
           : mod.lessons.map(l => (
-            <div key={l.id} className="flex items-center gap-3 py-2.5 border-b border-[#f3f4f6] last:border-0">
-              <VideoReplayIcon size={14} color="#9ca3af" strokeWidth={1.5} />
+            <div key={l.id} className="flex items-center gap-3 py-2.5 border-b border-[#f3f4f6] last:border-0 group">
+              <VideoReplayIcon size={14} color="#9ca3af" strokeWidth={1.5} className="flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-[13px] font-medium text-[#111827] font-body truncate">{l.title}</p>
                 <p className="text-[11px] text-[#9ca3af] font-body">{l.content_type}{l.duration ? ` · ${l.duration} min` : ''}</p>
+              </div>
+              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button onClick={() => openEditLesson(l)}
+                  className="w-6 h-6 flex items-center justify-center rounded-[4px] hover:bg-[#eff6ff] transition-colors">
+                  <Add01Icon size={11} color="#1d4ed8" strokeWidth={2} />
+                </button>
+                <button onClick={() => deleteLesson(l)} disabled={deletingLessonId === l.id}
+                  className="w-6 h-6 flex items-center justify-center rounded-[4px] hover:bg-[#fef2f2] transition-colors">
+                  {deletingLessonId === l.id
+                    ? <Loading01Icon size={11} className="animate-spin text-[#d51520]" strokeWidth={2} />
+                    : <Delete01Icon size={11} color="#d51520" strokeWidth={1.5} />}
+                </button>
               </div>
             </div>
           ))
@@ -210,7 +272,7 @@ function DetailPanel({
       <div>
         <div className="flex items-center justify-between mb-3">
           <h4 className="text-[12px] font-bold uppercase tracking-[0.06em] text-[#374151] font-display">Resources</h4>
-          <button onClick={() => setShowAddResource(true)}
+          <button onClick={() => { setResourceForm({ title: '', type: 'PDF', link: '' }); setError(''); setShowAddResource(true) }}
             className="flex items-center gap-1 text-[11px] text-[#d51520] font-medium font-display hover:underline">
             <Add01Icon size={11} strokeWidth={2} /> Add Resource
           </button>
@@ -218,21 +280,34 @@ function DetailPanel({
         {mod.resources.length === 0
           ? <p className="text-[12px] text-[#9ca3af] font-body py-3 text-center border border-dashed border-[#e5e7eb] rounded-[8px]">No resources yet</p>
           : mod.resources.map(r => (
-            <div key={r.id} className="flex items-center gap-3 py-2.5 border-b border-[#f3f4f6] last:border-0">
-              <File01Icon size={14} color="#9ca3af" strokeWidth={1.5} />
+            <div key={r.id} className="flex items-center gap-3 py-2.5 border-b border-[#f3f4f6] last:border-0 group">
+              <File01Icon size={14} color="#9ca3af" strokeWidth={1.5} className="flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-[13px] font-medium text-[#111827] font-body truncate">{r.title}</p>
+                <p className="text-[11px] text-[#9ca3af] font-body truncate">{r.link}</p>
               </div>
               <ResourceTypeIcon type={r.type} />
+              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button onClick={() => openEditResource(r)}
+                  className="w-6 h-6 flex items-center justify-center rounded-[4px] hover:bg-[#eff6ff] transition-colors">
+                  <Add01Icon size={11} color="#1d4ed8" strokeWidth={2} />
+                </button>
+                <button onClick={() => deleteResource(r)} disabled={deletingResourceId === r.id}
+                  className="w-6 h-6 flex items-center justify-center rounded-[4px] hover:bg-[#fef2f2] transition-colors">
+                  {deletingResourceId === r.id
+                    ? <Loading01Icon size={11} className="animate-spin text-[#d51520]" strokeWidth={2} />
+                    : <Delete01Icon size={11} color="#d51520" strokeWidth={1.5} />}
+                </button>
+              </div>
             </div>
           ))
         }
       </div>
 
-      {/* Add lesson modal */}
-      {showAddLesson && (
-        <Modal title="Add Lesson" onClose={() => setShowAddLesson(false)}>
-          <form onSubmit={addLesson} className="flex flex-col gap-4">
+      {/* Add / Edit lesson modal */}
+      {(showAddLesson || editLesson) && (
+        <Modal title={editLesson ? 'Edit Lesson' : 'Add Lesson'} onClose={() => { setShowAddLesson(false); setEditLesson(null) }}>
+          <form onSubmit={editLesson ? saveEditLesson : addLesson} className="flex flex-col gap-4">
             <Field label="Title"><input value={lessonForm.title} onChange={e => setLessonForm(p => ({ ...p, title: e.target.value }))} placeholder="Week 1: Introduction" className={inputCls} /></Field>
             <Field label="Content Type">
               <select value={lessonForm.content_type} onChange={e => setLessonForm(p => ({ ...p, content_type: e.target.value }))} className={selectCls}>
@@ -242,19 +317,19 @@ function DetailPanel({
             <Field label="Duration (minutes)"><input type="number" value={lessonForm.duration} onChange={e => setLessonForm(p => ({ ...p, duration: e.target.value }))} placeholder="60" className={inputCls} /></Field>
             {error && <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body"><AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} /> {error}</p>}
             <div className="flex gap-2">
-              <button type="button" onClick={() => setShowAddLesson(false)} className="flex-1 h-10 rounded-[8px] border border-[#e5e7eb] text-[13px] font-body hover:bg-[#f9fafb]">Cancel</button>
+              <button type="button" onClick={() => { setShowAddLesson(false); setEditLesson(null) }} className="flex-1 h-10 rounded-[8px] border border-[#e5e7eb] text-[13px] font-body hover:bg-[#f9fafb]">Cancel</button>
               <button type="submit" disabled={saving} className="flex-1 h-10 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-60 flex items-center justify-center gap-2">
-                {saving && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />} Add Lesson
+                {saving && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />} {editLesson ? 'Save Changes' : 'Add Lesson'}
               </button>
             </div>
           </form>
         </Modal>
       )}
 
-      {/* Add resource modal */}
-      {showAddResource && (
-        <Modal title="Add Resource" onClose={() => setShowAddResource(false)}>
-          <form onSubmit={addResource} className="flex flex-col gap-4">
+      {/* Add / Edit resource modal */}
+      {(showAddResource || editResource) && (
+        <Modal title={editResource ? 'Edit Resource' : 'Add Resource'} onClose={() => { setShowAddResource(false); setEditResource(null) }}>
+          <form onSubmit={editResource ? saveEditResource : addResource} className="flex flex-col gap-4">
             <Field label="Title"><input value={resourceForm.title} onChange={e => setResourceForm(p => ({ ...p, title: e.target.value }))} placeholder="Week 1 Slides" className={inputCls} /></Field>
             <Field label="Type">
               <select value={resourceForm.type} onChange={e => setResourceForm(p => ({ ...p, type: e.target.value }))} className={selectCls}>
@@ -264,9 +339,9 @@ function DetailPanel({
             <Field label="Link / URL"><input value={resourceForm.link} onChange={e => setResourceForm(p => ({ ...p, link: e.target.value }))} placeholder="https://…" className={inputCls} /></Field>
             {error && <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body"><AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} /> {error}</p>}
             <div className="flex gap-2">
-              <button type="button" onClick={() => setShowAddResource(false)} className="flex-1 h-10 rounded-[8px] border border-[#e5e7eb] text-[13px] font-body hover:bg-[#f9fafb]">Cancel</button>
+              <button type="button" onClick={() => { setShowAddResource(false); setEditResource(null) }} className="flex-1 h-10 rounded-[8px] border border-[#e5e7eb] text-[13px] font-body hover:bg-[#f9fafb]">Cancel</button>
               <button type="submit" disabled={saving} className="flex-1 h-10 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-60 flex items-center justify-center gap-2">
-                {saving && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />} Add Resource
+                {saving && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />} {editResource ? 'Save Changes' : 'Add Resource'}
               </button>
             </div>
           </form>

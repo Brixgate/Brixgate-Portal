@@ -14,7 +14,7 @@ interface Coupon {
   valid_to?: string; validTo?: string
   description?: string
 }
-interface Pagination { totalElements: number; totalPages: number; hasNext?: boolean }
+interface Pagination { totalElements?: number; total?: number; totalPages: number; hasNext?: boolean }
 
 const inputCls = 'w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10'
 
@@ -169,7 +169,7 @@ export default function AdminCouponsPage() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-[24px] font-bold text-[#111827] font-display">Coupons</h1>
-          <p className="text-[14px] text-[#6b7280] font-body mt-0.5">{pagination ? `${pagination.totalElements} coupons` : 'Discount codes'}</p>
+          <p className="text-[14px] text-[#6b7280] font-body mt-0.5">{pagination ? `${(pagination.totalElements ?? pagination.total ?? 0)} coupons` : 'Discount codes'}</p>
         </div>
         <button onClick={() => setModal({ open: true })}
           className="flex items-center gap-2 h-10 px-4 bg-[#d51520] text-white rounded-[8px] text-[13px] font-semibold font-display hover:bg-[#b81119]">

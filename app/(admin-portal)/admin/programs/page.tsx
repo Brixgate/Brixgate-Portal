@@ -24,7 +24,7 @@ interface ApiProgram {
   deleted_at?: string
 }
 
-interface Pagination { totalElements: number; totalPages: number; hasNext?: boolean }
+interface Pagination { totalElements?: number; total?: number; totalPages: number; hasNext?: boolean }
 
 const LEVELS  = ['BEGINNER', 'INTERMEDIATE', 'ADVANCED']
 const TYPES   = ['ONLINE', 'IN_PERSON', 'HYBRID']
@@ -186,7 +186,7 @@ export default function AdminProgramsPage() {
         <div>
           <h1 className="text-[24px] font-bold text-[#111827] font-display">Programmes</h1>
           <p className="text-[14px] text-[#6b7280] font-body mt-0.5">
-            {pagination ? `${pagination.totalElements} programmes` : 'Master curriculum bank'}
+            {pagination ? `${(pagination.totalElements ?? pagination.total ?? 0)} programmes` : 'Master curriculum bank'}
           </p>
         </div>
         <button onClick={() => setShowCreate(true)}

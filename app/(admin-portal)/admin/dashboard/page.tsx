@@ -12,7 +12,7 @@ import {
 } from 'recharts'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-interface Pagination { totalElements: number }
+interface Pagination { totalElements?: number; total?: number }
 interface PaginatedResponse { pagination: Pagination }
 
 interface DashboardMetrics {
@@ -114,8 +114,14 @@ export default function AdminDashboardPage() {
 
         const read = (res: PromiseSettledResult<{ data: unknown }>) => {
           if (res.status === 'rejected') return 0
-          const d = unwrap<PaginatedResponse>(res.value.data)
-          return d?.pagination?.totalElements ?? 0
+          const d = unwrap<PaginatedResponse & { total?: number; count?: number }>(res.value.data)
+          return (
+            d?.pagination?.totalElements ??
+            d?.pagination?.total ??
+            (d as { total?: number })?.total ??
+            (d as { count?: number })?.count ??
+            0
+          )
         }
 
         setMetrics({

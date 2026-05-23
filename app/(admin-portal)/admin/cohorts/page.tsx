@@ -16,7 +16,7 @@ interface ApiCohort {
   max_students?: number; enrolled_count?: number
   program?: ApiProgram; program_id?: number
 }
-interface Pagination { totalElements: number; totalPages: number; hasNext?: boolean }
+interface Pagination { totalElements?: number; total?: number; totalPages: number; hasNext?: boolean }
 
 const COHORT_STATUS_STYLE: Record<string, string> = {
   OPEN:     'bg-[#ecfdf3] text-[#027a48]',

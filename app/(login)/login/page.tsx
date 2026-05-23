@@ -8,6 +8,12 @@ import { EyeIcon, ViewOffIcon, AlertCircleIcon } from 'hugeicons-react'
 import { useAuth } from '@/lib/auth-context'
 import { apiClient, extractToken, getApiError } from '@/lib/api-client'
 
+function defaultDashboard(role?: string): string {
+  if (role?.toUpperCase() === 'ADMIN') return '/admin/dashboard'
+  if (role?.toUpperCase() === 'INSTRUCTOR') return '/instructor/dashboard'
+  return '/student/dashboard'
+}
+
 interface FormErrors {
   email?: string
   password?: string
@@ -28,10 +34,10 @@ function LoginPageContent() {
 
   const passwordReset = searchParams.get('reset') === 'success'
 
-  // Already authenticated — go straight to the portal
+  // Already authenticated — go straight to the right portal
   useEffect(() => {
     if (!isLoading && user) {
-      const redirect = searchParams.get('redirect') ?? '/student/dashboard'
+      const redirect = searchParams.get('redirect') ?? defaultDashboard(user.role)
       router.replace(redirect)
     }
   }, [isLoading, user]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -57,9 +63,8 @@ function LoginPageContent() {
       const token = extractToken(res.data)
       if (!token) throw new Error('No token returned from server.')
 
-      await login(token)
-
-      const redirect = searchParams.get('redirect') ?? '/student/dashboard'
+      const loggedInUser = await login(token)
+      const redirect = searchParams.get('redirect') ?? defaultDashboard(loggedInUser?.role)
       router.push(redirect)
     } catch (err) {
       setErrors({ form: getApiError(err) })

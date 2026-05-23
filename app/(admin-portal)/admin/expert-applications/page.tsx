@@ -15,7 +15,7 @@ interface Application {
   expertise?: string
   years_of_experience?: number; yearsOfExperience?: number
 }
-interface Pagination { totalElements: number; totalPages: number; hasNext?: boolean }
+interface Pagination { totalElements?: number; total?: number; totalPages: number; hasNext?: boolean }
 
 const STATUSES = ['', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED', 'ONBOARDED', 'ACTIVE', 'SUSPENDED']
 const STATUS_STYLE: Record<string, string> = {
@@ -76,7 +76,7 @@ export default function AdminExpertApplicationsPage() {
         <div>
           <h1 className="text-[24px] font-bold text-[#111827] font-display">Expert Applications</h1>
           <p className="text-[14px] text-[#6b7280] font-body mt-0.5">
-            {pagination ? `${pagination.totalElements.toLocaleString()} applications` : 'Practitioner applications'}
+            {pagination ? `${(pagination.totalElements ?? pagination.total ?? 0).toLocaleString()} applications` : 'Practitioner applications'}
           </p>
         </div>
       </div>

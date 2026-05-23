@@ -13,7 +13,7 @@ interface Certificate {
   program?: { id?: number; title?: string; slug?: string }
   cohort?: { id?: number; title?: string }
 }
-interface Pagination { totalElements: number; totalPages: number; hasNext?: boolean }
+interface Pagination { totalElements?: number; total?: number; totalPages: number; hasNext?: boolean }
 
 const STATUSES = ['', 'PENDING', 'ISSUED', 'REVOKED']
 const STATUS_STYLE: Record<string, string> = {
@@ -59,7 +59,7 @@ export default function AdminCertificatesPage() {
         <div>
           <h1 className="text-[24px] font-bold text-[#111827] font-display">Certificates</h1>
           <p className="text-[14px] text-[#6b7280] font-body mt-0.5">
-            {pagination ? `${pagination.totalElements.toLocaleString()} certificates` : 'All user certificates'}
+            {pagination ? `${(pagination.totalElements ?? pagination.total ?? 0).toLocaleString()} certificates` : 'All user certificates'}
           </p>
         </div>
       </div>

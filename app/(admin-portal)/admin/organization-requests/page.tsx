@@ -14,7 +14,7 @@ interface OrgRequest {
   team_size?: number; teamSize?: number
   created_at?: string; createdAt?: string
 }
-interface Pagination { totalElements: number; totalPages: number; hasNext?: boolean }
+interface Pagination { totalElements?: number; total?: number; totalPages: number; hasNext?: boolean }
 
 const STATUSES = ['', 'SUBMITTED', 'CONTACTED', 'IN_DISCUSSION', 'PROPOSAL_SENT', 'NEGOTIATING', 'APPROVED', 'REJECTED', 'ONBOARDED', 'CLOSED']
 const STATUS_STYLE: Record<string, string> = {
@@ -59,7 +59,7 @@ export default function AdminOrgRequestsPage() {
         <div>
           <h1 className="text-[24px] font-bold text-[#111827] font-display">Organisation Requests</h1>
           <p className="text-[14px] text-[#6b7280] font-body mt-0.5">
-            {pagination ? `${pagination.totalElements.toLocaleString()} requests` : 'Enterprise enquiries'}
+            {pagination ? `${(pagination.totalElements ?? pagination.total ?? 0).toLocaleString()} requests` : 'Enterprise enquiries'}
           </p>
         </div>
       </div>

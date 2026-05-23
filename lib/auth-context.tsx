@@ -56,7 +56,7 @@ interface AuthContextType {
   user: AuthUser | null
   token: string | null
   isLoading: boolean
-  login: (token: string) => Promise<void>
+  login: (token: string) => Promise<AuthUser | null>
   logout: () => Promise<void>
   updateUser: (patch: Partial<AuthUser>) => void
 }
@@ -97,13 +97,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  const fetchUser = useCallback(async () => {
+  const fetchUser = useCallback(async (): Promise<AuthUser | null> => {
     try {
       const res = await apiClient.get('/users/me')
       const outer = unwrap<{ user?: ApiUser } | ApiUser>(res.data)
       // API returns { data: { user: {...} } } — unwrap strips data, leaving { user: {...} }
       const data: ApiUser = (outer as { user?: ApiUser }).user ?? (outer as ApiUser)
-      setUser(mapUser(data))
+      const mapped = mapUser(data)
+      setUser(mapped)
+      return mapped
     } catch (err) {
       // Only clear token on 401 — keep it for network errors
       const status = (err as { response?: { status?: number } })?.response?.status
@@ -112,6 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setToken(null)
       }
       setUser(null)
+      return null
     }
   }, [])
 
@@ -127,10 +130,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [fetchUser])
 
   const login = useCallback(
-    async (newToken: string) => {
+    async (newToken: string): Promise<AuthUser | null> => {
       setTokenCookie(newToken)
       setToken(newToken)
-      await fetchUser()
+      return await fetchUser()
     },
     [fetchUser]
   )
