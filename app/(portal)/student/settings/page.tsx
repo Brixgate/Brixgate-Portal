@@ -380,7 +380,7 @@ export default function SettingsPage() {
       const fullPhone = phone.trim() ? `${countryCode}${phone.trim().replace(/^0/, '')}` : undefined
       await apiClient.put('/users/me', {
         name:            `${firstName.trim()} ${lastName.trim()}`.trim(),
-        fullPhoneNumber: fullPhone,
+        full_phone_number: fullPhone,
       })
       updateUser({
         firstName: firstName.trim(),
