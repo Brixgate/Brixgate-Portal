@@ -20,6 +20,10 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: 'Brixgate Portal',
   description: 'Student learning portal — Brixgate AI Training',
+  icons: {
+    icon: '/icon.png',
+    apple: '/icon.png',
+  },
 }
 
 export default function RootLayout({
