@@ -372,8 +372,7 @@ export default function SettingsPage() {
     }
     setSavingProfile(true)
     try {
-      const endpoint = user?.id ? `/users/${user.id}` : '/users/me'
-      await apiClient.put(endpoint, {
+      await apiClient.post('/users/me', {
         name:  `${firstName.trim()} ${lastName.trim()}`.trim(),
         phone: phone.trim() ? `${countryCode}${phone.trim().replace(/^0/, '')}` : undefined,
       })
