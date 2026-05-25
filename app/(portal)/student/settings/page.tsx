@@ -372,11 +372,18 @@ export default function SettingsPage() {
     }
     setSavingProfile(true)
     try {
+      const fullPhone = phone.trim() ? `${countryCode}${phone.trim().replace(/^0/, '')}` : undefined
       await apiClient.put('/users/me', {
-        name:  `${firstName.trim()} ${lastName.trim()}`.trim(),
-        phone: phone.trim() ? `${countryCode}${phone.trim().replace(/^0/, '')}` : undefined,
+        first_name:   firstName.trim(),
+        last_name:    lastName.trim(),
+        phone_number: fullPhone,
       })
-      updateUser({ firstName: firstName.trim(), lastName: lastName.trim(), name: `${firstName.trim()} ${lastName.trim()}` })
+      updateUser({
+        firstName: firstName.trim(),
+        lastName:  lastName.trim(),
+        name:      `${firstName.trim()} ${lastName.trim()}`,
+        phone:     fullPhone,
+      })
       showToast('Personal information saved.', 'success')
     } catch (err) {
       showToast(getApiError(err), 'error')
