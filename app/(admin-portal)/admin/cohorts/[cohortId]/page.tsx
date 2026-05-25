@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft01Icon, Loading01Icon, UserGroup02Icon,
-  File01Icon, StarIcon, BookOpen01Icon, CheckmarkCircle01Icon,
+  StarIcon, BookOpen01Icon, CheckmarkCircle01Icon,
   CircleIcon, AlertCircleIcon, DatabaseIcon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
@@ -105,7 +105,7 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
   useEffect(() => { load() }, [load])
 
   function toggle(id: number) {
-    setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+    setSelected(prev => { const n = new Set(prev); if (n.has(id)) { n.delete(id) } else { n.add(id) }; return n })
   }
 
   async function saveCurriculum() {

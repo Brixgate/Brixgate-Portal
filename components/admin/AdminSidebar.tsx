@@ -7,7 +7,6 @@ import {
   Home01Icon,
   UserGroup02Icon,
   BookOpen01Icon,
-  PresentationBarChart01Icon,
   File01Icon,
   Invoice01Icon,
   DiscountTag01Icon,
