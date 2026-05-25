@@ -24,6 +24,7 @@ export interface ApiUser {
   role?: string
   phone?: string
   phone_number?: string
+  fullPhoneNumber?: string
   title?: string
   biography?: string
   expertise?: string
@@ -81,7 +82,7 @@ function mapUser(u: ApiUser): AuthUser {
     lastName,
     email: u.email,
     role: u.role ?? 'student',
-    phone: u.phone ?? u.phone_number,
+    phone: u.fullPhoneNumber ?? u.phone ?? u.phone_number,
     title: u.title,
     biography: u.biography,
     expertise: u.expertise,
