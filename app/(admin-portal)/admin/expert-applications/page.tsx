@@ -15,7 +15,7 @@ interface Application {
   expertise?: string
   years_of_experience?: number; yearsOfExperience?: number
 }
-interface Pagination { totalElements?: number; total?: number; totalPages: number; hasNext?: boolean }
+interface Pagination { totalElements?: number; total_elements?: number; total?: number; totalPages?: number; total_pages?: number; hasNext?: boolean; has_next?: boolean }
 
 const STATUSES = ['', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED', 'ONBOARDED', 'ACTIVE', 'SUSPENDED']
 const STATUS_STYLE: Record<string, string> = {
@@ -64,33 +64,26 @@ export default function AdminExpertApplicationsPage() {
 
   useEffect(() => { fetch() }, [fetch])
 
-  // Counts by status for stat chips
-  const counts = STATUSES.filter(Boolean).reduce((acc, s) => {
-    acc[s] = apps.filter(a => a.status === s).length
-    return acc
-  }, {} as Record<string, number>)
-
   return (
     <div className="p-8">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-[24px] font-bold text-[#111827] font-display">Expert Applications</h1>
           <p className="text-[14px] text-[#6b7280] font-body mt-0.5">
-            {pagination ? `${(pagination.totalElements ?? pagination.total ?? 0).toLocaleString()} applications` : 'Practitioner applications'}
+            {pagination ? `${(pagination.totalElements ?? pagination.total_elements ?? pagination.total ?? 0).toLocaleString()} applications` : 'Practitioner applications'}
           </p>
         </div>
       </div>
 
-      {/* Status filter chips */}
-      <div className="flex items-center gap-2 mb-6 flex-wrap">
-        {[{ v: '', l: 'All' }, ...STATUSES.filter(Boolean).map(s => ({ v: s, l: s.replace('_', ' ') }))].map(({ v, l }) => (
-          <button key={v} onClick={() => { setStatus(v); setPage(1) }}
-            className={`px-3 h-7 rounded-full text-[11px] font-semibold font-display transition-all ${
-              status === v ? 'bg-[#d51520] text-white' : 'bg-white border border-[#e5e7eb] text-[#6b7280] hover:text-[#374151]'
-            }`}>
-            {l} {v && counts[v] !== undefined ? `(${counts[v]})` : ''}
-          </button>
-        ))}
+      {/* Status filter dropdown */}
+      <div className="flex items-center gap-2 mb-6">
+        <select value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}
+          className="h-9 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body text-[#374151] bg-white outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 min-w-[180px]">
+          <option value="">All Statuses</option>
+          {STATUSES.filter(Boolean).map(s => (
+            <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
+          ))}
+        </select>
       </div>
 
       <div className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] overflow-hidden">
@@ -135,12 +128,12 @@ export default function AdminExpertApplicationsPage() {
             </tbody>
           </table>
         </div>
-        {pagination && pagination.totalPages > 1 && (
+        {pagination && (pagination.totalPages ?? pagination.total_pages ?? 1) > 1 && (
           <div className="px-4 py-3 flex items-center justify-between border-t border-[#f3f4f6]">
-            <p className="text-[12px] text-[#6b7280] font-body">Page {page} of {pagination.totalPages}</p>
+            <p className="text-[12px] text-[#6b7280] font-body">Page {page} of {pagination.totalPages ?? pagination.total_pages ?? 1}</p>
             <div className="flex gap-1">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="h-7 px-3 rounded-[6px] border border-[#e5e7eb] text-[12px] font-body disabled:opacity-40 hover:bg-[#f9fafb]">Prev</button>
-              <button onClick={() => setPage(p => p + 1)} disabled={!pagination.hasNext} className="h-7 px-3 rounded-[6px] border border-[#e5e7eb] text-[12px] font-body disabled:opacity-40 hover:bg-[#f9fafb]">Next</button>
+              <button onClick={() => setPage(p => p + 1)} disabled={!(pagination.hasNext ?? pagination.has_next)} className="h-7 px-3 rounded-[6px] border border-[#e5e7eb] text-[12px] font-body disabled:opacity-40 hover:bg-[#f9fafb]">Next</button>
             </div>
           </div>
         )}

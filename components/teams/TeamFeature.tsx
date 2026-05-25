@@ -28,22 +28,13 @@ interface EnrollmentInfo {
   reference?: string
 }
 
-interface ApiCohortSummary {
-  cohortId: number
-  cohortTitle: string
-  role: string
-  membershipStatus: string
-  cohortEnrollment?: EnrollmentInfo
-}
-
-interface ApiProgram {
-  id: number
-  title: string
-  myCohorts?: ApiCohortSummary[]
-}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type RawCohort = Record<string, any>
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type RawProgram = Record<string, any>
 
 interface ApiProgramsResponse {
-  programs: ApiProgram[]
+  programs: RawProgram[]
 }
 
 // Invitee shape — camelCase per Swagger convention
@@ -63,11 +54,31 @@ interface TeamData {
   cohortTitle: string
 }
 
+// ── Defensive readers — handle both camelCase and snake_case from the API ──────
+function readEnrollmentRaw(cohort: RawCohort): EnrollmentInfo | null {
+  const e = cohort?.cohortEnrollment ?? cohort?.cohort_enrollment ?? null
+  if (!e) return null
+  return {
+    id:                 e.id as number,
+    enrollmentType:     (e.enrollmentType   ?? e.enrollment_type   ?? '') as string,
+    seatsPurchased:     (e.seatsPurchased   ?? e.seats_purchased   ?? 0)  as number,
+    seatsUsed:          (e.seatsUsed        ?? e.seats_used        ?? 0)  as number,
+    buyerIsParticipant: (e.buyerIsParticipant ?? e.buyer_is_participant ?? true) as boolean,
+    status:             (e.status ?? '') as string,
+  }
+}
+
+function readMyCohorts(program: RawProgram): RawCohort[] {
+  return program?.myCohorts ?? program?.my_cohorts ?? []
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function deriveAccountType(enrollment: EnrollmentInfo | null | undefined): TeamAccountType {
   if (!enrollment) return 'individual'
-  if (enrollment.enrollmentType === 'TEAM') {
-    // buyer has seatsPurchased > 0 and can manage invites
+  const type = enrollment.enrollmentType?.toUpperCase()
+  if (type === 'TEAM') {
+    // The buyer (team lead) is the one who has the cohort_enrollment payload
+    // with seatsPurchased > 0. Team members added by the lead won't have it.
     return enrollment.seatsPurchased > 0 ? 'team_lead' : 'team_member'
   }
   return 'individual'
@@ -933,14 +944,16 @@ export default function TeamFeature({ onClose }: { onClose: () => void }) {
         const programs = Array.isArray(data?.programs) ? data.programs : []
 
         // Walk programs → cohorts, find first TEAM enrollment
+        // Uses defensive readers to handle both camelCase and snake_case
         let foundEnrollment: EnrollmentInfo | null = null
-        let foundProgram:    ApiProgram | null     = null
-        let foundCohort:     ApiCohortSummary | null = null
+        let foundProgram:    RawProgram | null     = null
+        let foundCohort:     RawCohort | null      = null
 
         outer: for (const program of programs) {
-          for (const cohort of program.myCohorts ?? []) {
-            if (cohort.cohortEnrollment?.enrollmentType === 'TEAM') {
-              foundEnrollment = cohort.cohortEnrollment
+          for (const cohort of readMyCohorts(program)) {
+            const enrollment = readEnrollmentRaw(cohort)
+            if (enrollment?.enrollmentType?.toUpperCase() === 'TEAM') {
+              foundEnrollment = enrollment
               foundProgram    = program
               foundCohort     = cohort
               break outer
@@ -951,12 +964,13 @@ export default function TeamFeature({ onClose }: { onClose: () => void }) {
         setAccountType(deriveAccountType(foundEnrollment))
 
         if (foundEnrollment && foundProgram && foundCohort) {
+          const cohortTitle = foundCohort.cohortTitle ?? foundCohort.cohort_title ?? ''
           setTeam({
             enrollmentId:   foundEnrollment.id,
             seatsPurchased: foundEnrollment.seatsPurchased,
             seatsUsed:      foundEnrollment.seatsUsed,
-            programTitle:   foundProgram.title,
-            cohortTitle:    foundCohort.cohortTitle,
+            programTitle:   foundProgram.title ?? '',
+            cohortTitle,
           })
         }
       } catch {

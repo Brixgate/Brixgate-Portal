@@ -331,7 +331,7 @@ export default function ProgramsPage() {
                       </p>
                     )}
 
-                    {/* Cohort name + role badge + team badge */}
+                    {/* Cohort name + role badge + team pill (clickable) */}
                     <div className="flex items-center gap-2 mb-4 flex-wrap">
                       <p className="text-[11px] text-[#9ca3af] font-body truncate">
                         {p.cohortLabel || p.cohortName || '—'}
@@ -342,10 +342,13 @@ export default function ProgramsPage() {
                         </span>
                       )}
                       {p.enrollmentType === 'TEAM' && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold font-display text-[#b45309] bg-[#fffbeb] border border-[#fde68a] px-2 py-0.5 rounded-full flex-shrink-0">
+                        <button
+                          onClick={() => setTeamProgram(p)}
+                          className="inline-flex items-center gap-1 text-[10px] font-semibold font-display text-[#b45309] bg-[#fffbeb] border border-[#fde68a] px-2 py-0.5 rounded-full flex-shrink-0 hover:bg-[#fef9c3] transition-colors"
+                        >
                           <UserGroup02Icon size={10} color="#b45309" strokeWidth={2} />
                           Team {p.seatsUsed}/{p.seatsPurchased}
-                        </span>
+                        </button>
                       )}
                     </div>
 
@@ -384,7 +387,7 @@ export default function ProgramsPage() {
                     </div>
 
                     {/* CTAs */}
-                    <div className="flex gap-2 mt-auto flex-wrap">
+                    <div className="flex gap-2 mt-auto">
                       <Link
                         href={`/student/courses/${p.cohortId}`}
                         className="flex-1 inline-flex items-center justify-center gap-1.5 bg-[#d51520] text-white text-[12px] font-medium font-display px-4 py-2.5 rounded-[8px] hover:bg-[#b81119] transition-colors"
@@ -392,15 +395,6 @@ export default function ProgramsPage() {
                         View Course
                         <ArrowRight01Icon size={13} color="white" strokeWidth={2} />
                       </Link>
-                      {p.isTeamLead && (
-                        <button
-                          onClick={() => setTeamProgram(p)}
-                          className="inline-flex items-center justify-center gap-1.5 border border-[#fde68a] bg-[#fffbeb] text-[#b45309] text-[12px] font-medium font-display px-3 py-2.5 rounded-[8px] hover:bg-[#fef9c3] transition-colors flex-shrink-0"
-                        >
-                          <UserGroup02Icon size={13} color="#b45309" strokeWidth={2} />
-                          Teams
-                        </button>
-                      )}
                       <Link
                         href="/student/resources"
                         className="flex-1 inline-flex items-center justify-center border border-[#e5e7eb] text-[#374151] text-[12px] font-medium font-display px-4 py-2.5 rounded-[8px] hover:bg-[#f9fafb] transition-colors"

@@ -372,7 +372,7 @@ export default function SettingsPage() {
     }
     setSavingProfile(true)
     try {
-      await apiClient.post('/users/me', {
+      await apiClient.put('/users/me', {
         name:  `${firstName.trim()} ${lastName.trim()}`.trim(),
         phone: phone.trim() ? `${countryCode}${phone.trim().replace(/^0/, '')}` : undefined,
       })
@@ -550,7 +550,7 @@ export default function SettingsPage() {
                     <select
                       value={countryCode}
                       onChange={e => setCountryCode(e.target.value)}
-                      className="h-11 pl-2.5 pr-1 border border-r-0 border-[#e5e7eb] rounded-l-[6px] bg-[#f9fafb] text-[13px] text-[#374151] font-body outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 flex-shrink-0"
+                      className="h-11 border border-r-0 border-[#e5e7eb] rounded-l-[6px] bg-[#f9fafb] text-[13px] text-[#374151] font-body outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 flex-shrink-0"
                     >
                       {[
                         { code: '+234', label: '🇳🇬 NG +234' },

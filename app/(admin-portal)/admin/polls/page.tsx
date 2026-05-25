@@ -213,22 +213,17 @@ export default function PollsPage() {
             />
           </div>
 
-          {/* Level filter chips */}
-          <div className="flex items-center gap-2">
-            {['ALL', 'ADVANCED', 'INTERMEDIATE', 'BEGINNER'].map((lvl) => (
-              <button
-                key={lvl}
-                onClick={() => setLevel(lvl)}
-                className={`h-8 px-3.5 rounded-full text-[12px] font-medium font-body transition-colors ${
-                  levelFilter === lvl
-                    ? 'bg-[#d51520] text-white'
-                    : 'bg-white border border-[#e5e7eb] text-[#374151] hover:bg-[#f9fafb]'
-                }`}
-              >
-                {lvl === 'ALL' ? 'All Levels' : lvl.charAt(0) + lvl.slice(1).toLowerCase()}
-              </button>
-            ))}
-          </div>
+          {/* Level filter dropdown */}
+          <select
+            value={levelFilter}
+            onChange={(e) => setLevel(e.target.value)}
+            className="h-[38px] border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#374151] bg-white outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 min-w-[140px]"
+          >
+            <option value="ALL">All Levels</option>
+            <option value="ADVANCED">Advanced</option>
+            <option value="INTERMEDIATE">Intermediate</option>
+            <option value="BEGINNER">Beginner</option>
+          </select>
         </div>
 
         {/* Table */}

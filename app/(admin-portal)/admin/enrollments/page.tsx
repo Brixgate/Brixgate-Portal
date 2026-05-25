@@ -15,7 +15,7 @@ interface Enrollment {
   pricing_plan?: { title?: string }; pricingPlan?: { title?: string }
   cohort?: { title?: string }
 }
-interface Pagination { totalElements?: number; total?: number; totalPages: number; hasNext?: boolean }
+interface Pagination { totalElements?: number; total_elements?: number; total?: number; totalPages?: number; total_pages?: number; hasNext?: boolean; has_next?: boolean }
 
 const STATUSES = ['', 'APPLIED', 'ENROLLED', 'CANCELLED', 'DROPPED', 'REFUNDED']
 const COMP_STATUSES = ['', 'NOT_STARTED', 'IN_PROGRESS', 'COMPLETED']
@@ -70,7 +70,7 @@ export default function AdminEnrollmentsPage() {
         <div>
           <h1 className="text-[24px] font-bold text-[#111827] font-display">Enrollments</h1>
           <p className="text-[14px] text-[#6b7280] font-body mt-0.5">
-            {pagination ? `${(pagination.totalElements ?? pagination.total ?? 0).toLocaleString()} total enrollments` : 'All cohort enrollments'}
+            {pagination ? `${(pagination.totalElements ?? pagination.total_elements ?? pagination.total ?? 0).toLocaleString()} total enrollments` : 'All cohort enrollments'}
           </p>
         </div>
       </div>
@@ -136,14 +136,14 @@ export default function AdminEnrollmentsPage() {
             </tbody>
           </table>
         </div>
-        {pagination && pagination.totalPages > 1 && (
+        {pagination && (pagination.totalPages ?? pagination.total_pages ?? 1) > 1 && (
           <div className="px-4 py-3 flex items-center justify-between border-t border-[#f3f4f6]">
             <p className="text-[12px] text-[#6b7280] font-body">
-              Showing {((page - 1) * 20) + 1}–{Math.min(page * 20, pagination.totalElements ?? pagination.total ?? 0)} of {(pagination.totalElements ?? pagination.total ?? 0).toLocaleString()}
+              {(() => { const t = pagination.totalElements ?? pagination.total_elements ?? pagination.total ?? 0; return `Showing ${((page-1)*20)+1}–${Math.min(page*20, t)} of ${t.toLocaleString()}` })()}
             </p>
             <div className="flex items-center gap-1">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="h-7 px-3 rounded-[6px] border border-[#e5e7eb] text-[12px] font-body disabled:opacity-40 hover:bg-[#f9fafb]">Prev</button>
-              <button onClick={() => setPage(p => p + 1)} disabled={!pagination.hasNext} className="h-7 px-3 rounded-[6px] border border-[#e5e7eb] text-[12px] font-body disabled:opacity-40 hover:bg-[#f9fafb]">Next</button>
+              <button onClick={() => setPage(p => p + 1)} disabled={!(pagination.hasNext ?? pagination.has_next)} className="h-7 px-3 rounded-[6px] border border-[#e5e7eb] text-[12px] font-body disabled:opacity-40 hover:bg-[#f9fafb]">Next</button>
             </div>
           </div>
         )}
