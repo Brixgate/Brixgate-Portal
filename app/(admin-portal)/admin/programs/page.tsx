@@ -140,15 +140,15 @@ function EditProgramModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={onClose}>
-      <div className="bg-white rounded-[14px] shadow-xl w-full max-w-[520px] overflow-hidden" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[999] flex items-start justify-center bg-black/40 px-4 overflow-y-auto py-10" onClick={onClose}>
+      <div className="bg-white rounded-[14px] shadow-xl w-full max-w-[520px] my-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-[#f3f4f6]">
           <h2 className="text-[15px] font-bold text-[#111827] font-display">Edit Programme</h2>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f3f4f6]">
             <Cancel01Icon size={15} color="#6b7280" strokeWidth={1.5} />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="px-6 py-5 flex flex-col gap-4 max-h-[80vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="px-6 py-5 flex flex-col gap-4">
           <div>
             <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Programme Title</label>
             <input value={form.title} onChange={e => set('title', e.target.value)}
@@ -222,7 +222,7 @@ function DeleteConfirmModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/40 px-4" onClick={onClose}>
       <div className="bg-white rounded-[14px] shadow-xl w-full max-w-[400px] p-6" onClick={e => e.stopPropagation()}>
         <div className="w-10 h-10 rounded-full bg-[#fef2f2] flex items-center justify-center mb-4">
           <Delete01Icon size={18} color="#d51520" strokeWidth={1.5} />
@@ -284,15 +284,15 @@ function CreateProgramModal({ onClose, onCreated }: { onClose: () => void; onCre
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={onClose}>
-      <div className="bg-white rounded-[14px] shadow-xl w-full max-w-[520px] overflow-hidden" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[999] flex items-start justify-center bg-black/40 px-4 overflow-y-auto py-10" onClick={onClose}>
+      <div className="bg-white rounded-[14px] shadow-xl w-full max-w-[520px] my-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-[#f3f4f6]">
           <h2 className="text-[15px] font-bold text-[#111827] font-display">New Programme</h2>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f3f4f6]">
             <Cancel01Icon size={15} color="#6b7280" strokeWidth={1.5} />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="px-6 py-5 flex flex-col gap-4 max-h-[80vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="px-6 py-5 flex flex-col gap-4">
           <div>
             <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Programme Title</label>
             <input value={form.title} onChange={e => set('title', e.target.value)}
