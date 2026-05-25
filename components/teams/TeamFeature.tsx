@@ -758,9 +758,9 @@ function TeamLeadModal({ team, onClose }: { team: TeamData; onClose: () => void 
 
     setInviting(true)
     try {
-      // inviteeEmail is required per Swagger InviteTeamMemberRequest
+      // Backend DTO uses snake_case — send invitee_email not inviteeEmail
       await apiClient.post(`/cohort-enrollments/${team.enrollmentId}/invitees`, {
-        inviteeEmail: email,
+        invitee_email: email,
       })
       setEmailInput('')
       setInviteSuccess(true)
