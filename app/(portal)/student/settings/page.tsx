@@ -219,20 +219,19 @@ export default function SettingsPage() {
   // Phone country code
   const [countryCode, setCountryCode] = useState('+234')
 
-  // Sync personal info from auth context when user loads
+  // Sync personal info from auth context whenever user or phone changes
   useEffect(() => {
     if (user) {
       setFirstName(user.firstName)
       setLastName(user.lastName)
       setEmail(user.email)
-      if (user.phone) {
-        // Strip country code prefix so only the local part goes into the input
-        // e.g. "+2348012345678" → "8012345678"
-        const local = user.phone.replace(/^\+\d{1,4}/, '').replace(/^0+/, '')
-        setPhone(local)
-      }
+      // Strip country code so input shows local part only e.g. "+2348012345678" → "8012345678"
+      const local = user.phone
+        ? user.phone.replace(/^\+\d{1,4}/, '').replace(/^0+/, '')
+        : ''
+      setPhone(local)
     }
-  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.phone]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch programme / cohort details
   useEffect(() => {
