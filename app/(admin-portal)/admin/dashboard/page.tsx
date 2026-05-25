@@ -293,14 +293,14 @@ export default function AdminDashboardPage() {
           </div>
           <div className="px-6 pt-4 pb-2">
             {trendLoading ? (
-              <div className="h-[220px] bg-[#f9fafb] rounded-[8px] animate-pulse" />
+              <div className="h-[320px] bg-[#f9fafb] rounded-[8px] animate-pulse" />
             ) : trendEmpty ? (
-              <div className="h-[220px] flex flex-col items-center justify-center text-center">
+              <div className="h-[320px] flex flex-col items-center justify-center text-center">
                 <File01Icon size={28} color="#d1d5db" strokeWidth={1.5} />
                 <p className="text-[13px] text-[#6b7280] font-body mt-3">No enrollments in the last 6 months</p>
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={320}>
                 <AreaChart data={enrollmentTrend} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
                   <defs>
                     <linearGradient id="eGrad" x1="0" y1="0" x2="0" y2="1">
