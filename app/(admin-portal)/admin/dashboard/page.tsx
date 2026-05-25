@@ -29,23 +29,23 @@ interface RawEnrollment {
 
 interface RecentPayment {
   id: number
-  // User object — camelCase or snake_case
   user?: {
     name?: string
     first_name?: string; firstName?: string
     last_name?: string;  lastName?: string
     email?: string
   }
-  // Direct name fields (some APIs flatten user info)
   user_name?: string; userName?: string
   payer_name?: string; payerName?: string
   customer_name?: string; customerName?: string
-  // Amount — may be in kobo (divide by 100) or naira
+  // Amount — prefer payable_amount (actual paid), fall back to amount
+  payable_amount?: number; payableAmount?: number
   amount?: number; amount_in_kobo?: number; amountInKobo?: number
-  currency?: string
-  status?: string
+  currency?: string; payable_currency?: string; payableCurrency?: string
+  // Status — backend key is payment_status
+  payment_status?: string; paymentStatus?: string; status?: string
   payment_type?: string; paymentType?: string
-  reference?: string
+  payment_reference?: string; paymentReference?: string; brixgate_reference?: string
   createdAt?: string; created_at?: string
 }
 
@@ -75,17 +75,17 @@ function paymentDisplayName(p: RecentPayment): string {
   const flat = p.userName ?? p.user_name ?? p.payerName ?? p.payer_name ?? p.customerName ?? p.customer_name
   if (flat) return flat
   const u = p.user
-  if (!u) return p.reference ?? '—'
+  if (!u) return p.payment_reference ?? p.paymentReference ?? p.brixgate_reference ?? '—'
   if (u.name) return u.name
   return `${u.firstName ?? u.first_name ?? ''} ${u.lastName ?? u.last_name ?? ''}`.trim() || u.email || '—'
 }
 
 function formatAmount(p: RecentPayment): string {
-  // Amount may be in naira or kobo — if > 1,000,000 for a typical transaction it's likely kobo
-  const raw = p.amount ?? p.amountInKobo ?? p.amount_in_kobo
-  if (!raw && raw !== 0) return '—'
-  const naira = (p.amountInKobo ?? p.amount_in_kobo) ? raw / 100 : raw
-  const sym = p.currency === 'USD' ? '$' : '₦'
+  const raw = p.payable_amount ?? p.payableAmount ?? p.amount ?? p.amountInKobo ?? p.amount_in_kobo
+  if (raw == null) return '—'
+  const naira = (p.amountInKobo ?? p.amount_in_kobo) && !(p.payable_amount ?? p.payableAmount ?? p.amount) ? raw / 100 : raw
+  const cur = p.payable_currency ?? p.payableCurrency ?? p.currency ?? 'NGN'
+  const sym = cur === 'USD' ? '$' : '₦'
   return `${sym}${naira.toLocaleString('en-NG')}`
 }
 
@@ -239,7 +239,7 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     async function loadPayments() {
       try {
-        const res = await apiClient.get('/admin/payments?page=1&size=6')
+        const res = await apiClient.get('/admin/payments?page=1&size=4')
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const d   = unwrap<any>(res.data)
         const list: RecentPayment[] = (
@@ -291,16 +291,16 @@ export default function AdminDashboardPage() {
               <p className="text-[12px] text-[#6b7280] font-body mt-0.5">New enrollments — last 6 months</p>
             </div>
           </div>
-          <div className="p-6">
+          <div className="px-6 pt-4 pb-5">
             {trendLoading ? (
-              <div className="h-[200px] bg-[#f9fafb] rounded-[8px] animate-pulse" />
+              <div className="h-[160px] bg-[#f9fafb] rounded-[8px] animate-pulse" />
             ) : trendEmpty ? (
-              <div className="h-[200px] flex flex-col items-center justify-center text-center">
+              <div className="h-[160px] flex flex-col items-center justify-center text-center">
                 <File01Icon size={28} color="#d1d5db" strokeWidth={1.5} />
                 <p className="text-[13px] text-[#6b7280] font-body mt-3">No enrollments in the last 6 months</p>
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={200}>
+              <ResponsiveContainer width="100%" height={160}>
                 <AreaChart data={enrollmentTrend}>
                   <defs>
                     <linearGradient id="eGrad" x1="0" y1="0" x2="0" y2="1">
@@ -327,7 +327,7 @@ export default function AdminDashboardPage() {
         <div className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] flex flex-col">
           <div className="px-6 pt-5 pb-4 border-b border-[#f3f4f6]">
             <h3 className="text-[15px] font-semibold text-[#111827] font-display">Recent Payments</h3>
-            <p className="text-[12px] text-[#6b7280] font-body mt-0.5">Latest 6 transactions</p>
+            <p className="text-[12px] text-[#6b7280] font-body mt-0.5">Latest 4 transactions</p>
           </div>
 
           <div className="flex-1 px-6 py-3">
@@ -351,10 +351,10 @@ export default function AdminDashboardPage() {
             ) : (
               <div className="flex flex-col divide-y divide-[#f3f4f6]">
                 {recentPayments.map((p) => {
-                  const status = (p.status ?? '').toUpperCase()
+                  const status = (p.payment_status ?? p.paymentStatus ?? p.status ?? '').toUpperCase()
                   const style  = STATUS_STYLE[status] ?? { bg: '#f3f4f6', text: '#6b7280' }
                   return (
-                    <div key={p.id} className="flex items-center justify-between py-3">
+                    <div key={p.id} className="flex items-center justify-between py-2.5">
                       <div className="min-w-0 flex-1 pr-3">
                         <p className="text-[13px] font-medium text-[#111827] font-body truncate">
                           {paymentDisplayName(p)}

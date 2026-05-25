@@ -187,7 +187,7 @@ export default function AdminEnrollmentsPage() {
             <thead>
               <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
                 {['User', 'Cohort', 'Type', 'Seats', 'Plan', 'Status', 'Completion', 'Date'].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6b7280] font-display">{h}</th>
+                  <th key={h} className={`px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6b7280] font-display ${h === 'Seats' ? 'text-center' : 'text-left'}`}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -223,7 +223,7 @@ export default function AdminEnrollmentsPage() {
                     <td className="px-4 py-3.5">
                       <span className="text-[12px] text-[#374151] font-body">{type}</span>
                     </td>
-                    <td className="px-4 py-3.5 text-right">
+                    <td className="px-4 py-3.5 text-center">
                       <span className="text-[12px] font-medium text-[#111827] font-body">{seats}</span>
                     </td>
                     <td className="px-4 py-3.5">

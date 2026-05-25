@@ -7,12 +7,16 @@ import { apiClient, unwrap } from '@/lib/api-client'
 interface Payment {
   id: number
   user?: { name?: string; first_name?: string; firstName?: string; last_name?: string; lastName?: string; email: string }
-  amount?: number; currency?: string
+  // Amount — prefer payable_amount (what they actually paid), fall back to amount
+  payable_amount?: number; payableAmount?: number; amount?: number
+  currency?: string; payable_currency?: string; payableCurrency?: string
+  // Status — backend key is payment_status
+  payment_status?: string; paymentStatus?: string; status?: string
+  // Reference
+  payment_reference?: string; paymentReference?: string; brixgate_reference?: string
   payment_type?: string; paymentType?: string
-  status?: string
   coupon?: { code?: string }
   created_at?: string; createdAt?: string
-  entity_id?: number; entityId?: number
 }
 interface Pagination { totalElements?: number; total_elements?: number; total?: number; totalPages?: number; total_pages?: number; hasNext?: boolean; has_next?: boolean }
 
@@ -30,10 +34,20 @@ function formatDate(d?: string) {
   return new Date(d).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-function formatAmount(amount?: number, currency?: string) {
-  if (!amount) return '—'
-  const sym = currency === 'USD' ? '$' : '₦'
-  return `${sym}${amount.toLocaleString('en-NG')}`
+function resolveAmount(p: Payment): string {
+  const amt = p.payable_amount ?? p.payableAmount ?? p.amount
+  if (amt == null) return '—'
+  const cur = p.payable_currency ?? p.payableCurrency ?? p.currency ?? 'NGN'
+  const sym = cur === 'USD' ? '$' : '₦'
+  return `${sym}${amt.toLocaleString('en-NG')}`
+}
+
+function resolveStatus(p: Payment): string {
+  return p.payment_status ?? p.paymentStatus ?? p.status ?? ''
+}
+
+function resolveReference(p: Payment): string {
+  return p.payment_reference ?? p.paymentReference ?? p.brixgate_reference ?? '—'
 }
 
 const STATUS_STYLE: Record<string, string> = {
@@ -90,7 +104,7 @@ export default function AdminPaymentsPage() {
           <table className="w-full">
             <thead>
               <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
-                {['User', 'Amount', 'Type', 'Coupon', 'Status', 'Date'].map(h => (
+                {['User', 'Amount', 'Reference', 'Type', 'Coupon', 'Status', 'Date'].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6b7280] font-display">{h}</th>
                 ))}
               </tr>
@@ -98,32 +112,38 @@ export default function AdminPaymentsPage() {
             <tbody>
               {loading ? Array.from({ length: 8 }).map((_, i) => (
                 <tr key={i} className="border-b border-[#f3f4f6]">
-                  {[140, 80, 100, 80, 80, 100].map((w, j) => (
+                  {[140, 80, 150, 100, 80, 80, 100].map((w, j) => (
                     <td key={j} className="px-4 py-3.5"><div className="h-4 bg-[#f3f4f6] rounded animate-pulse" style={{ width: w }} /></td>
                   ))}
                 </tr>
               )) : payments.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-16 text-center">
+                <tr><td colSpan={7} className="px-4 py-16 text-center">
                   <Invoice01Icon size={32} color="#d1d5db" strokeWidth={1.5} className="mx-auto mb-3" />
                   <p className="text-[14px] font-semibold text-[#111827] font-display">No payments found</p>
                 </td></tr>
-              ) : payments.map(p => (
-                <tr key={p.id} className="border-b border-[#f3f4f6] hover:bg-[#fafafa]">
-                  <td className="px-4 py-3.5"><p className="text-[13px] font-medium text-[#111827] font-body">{userName(p.user)}</p></td>
-                  <td className="px-4 py-3.5"><span className="text-[13px] font-semibold text-[#111827] font-display">{formatAmount(p.amount, p.currency)}</span></td>
-                  <td className="px-4 py-3.5"><span className="text-[12px] text-[#6b7280] font-body">{p.paymentType ?? p.payment_type ?? '—'}</span></td>
-                  <td className="px-4 py-3.5">
-                    {p.coupon?.code
-                      ? <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] bg-[#f5f3ff] text-[#7c3aed] text-[11px] font-bold font-display">{p.coupon.code}</span>
-                      : <span className="text-[#d1d5db] text-[12px] font-body">—</span>
-                    }
-                  </td>
-                  <td className="px-4 py-3.5">
-                    {p.status && <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold font-display ${STATUS_STYLE[p.status] ?? 'bg-[#f3f4f6] text-[#374151]'}`}>{p.status}</span>}
-                  </td>
-                  <td className="px-4 py-3.5"><p className="text-[12px] text-[#9ca3af] font-body">{formatDate(p.createdAt ?? p.created_at)}</p></td>
-                </tr>
-              ))}
+              ) : payments.map(p => {
+                const status = resolveStatus(p)
+                return (
+                  <tr key={p.id} className="border-b border-[#f3f4f6] hover:bg-[#fafafa]">
+                    <td className="px-4 py-3.5"><p className="text-[13px] font-medium text-[#111827] font-body">{userName(p.user)}</p></td>
+                    <td className="px-4 py-3.5"><span className="text-[13px] font-semibold text-[#111827] font-display">{resolveAmount(p)}</span></td>
+                    <td className="px-4 py-3.5">
+                      <span className="text-[11px] font-mono text-[#6b7280] font-body tracking-wide">{resolveReference(p)}</span>
+                    </td>
+                    <td className="px-4 py-3.5"><span className="text-[12px] text-[#6b7280] font-body">{p.paymentType ?? p.payment_type ?? '—'}</span></td>
+                    <td className="px-4 py-3.5">
+                      {p.coupon?.code
+                        ? <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] bg-[#f5f3ff] text-[#7c3aed] text-[11px] font-bold font-display">{p.coupon.code}</span>
+                        : <span className="text-[#d1d5db] text-[12px] font-body">—</span>
+                      }
+                    </td>
+                    <td className="px-4 py-3.5">
+                      {status && <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold font-display ${STATUS_STYLE[status] ?? 'bg-[#f3f4f6] text-[#374151]'}`}>{status}</span>}
+                    </td>
+                    <td className="px-4 py-3.5"><p className="text-[12px] text-[#9ca3af] font-body">{formatDate(p.createdAt ?? p.created_at)}</p></td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
