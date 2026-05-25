@@ -7,11 +7,13 @@ import Link from 'next/link'
 import {
   BookOpen01Icon,
   UserGroupIcon,
+  UserGroup02Icon,
   ArrowRight01Icon,
   Loading01Icon,
 } from 'hugeicons-react'
 import EmptyState from '@/components/shared/EmptyState'
 import { apiClient, unwrap } from '@/lib/api-client'
+import TeamFeature from '@/components/teams/TeamFeature'
 import axios from 'axios'
 
 // ── API shape (matches /users/me/programs Swagger spec) ──────────────────────
@@ -46,6 +48,18 @@ function readCohortId(c: any): number   { return c?.cohortId   ?? c?.cohort_id  
 function readCohortTitle(c: any): string { return c?.cohortTitle ?? c?.cohort_title ?? '' }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function readMyCohorts(p: any): ApiCohortSummary[] { return p?.myCohorts ?? p?.my_cohorts ?? [] }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function readEnrollment(c: any) {
+  const e = c?.cohortEnrollment ?? c?.cohort_enrollment ?? null
+  if (!e) return null
+  return {
+    id:               e.id as number,
+    enrollmentType:   (e.enrollmentType ?? e.enrollment_type ?? 'INDIVIDUAL') as string,
+    seatsPurchased:   (e.seatsPurchased  ?? e.seats_purchased  ?? 1)  as number,
+    seatsUsed:        (e.seatsUsed       ?? e.seats_used        ?? 1)  as number,
+    buyerIsParticipant: (e.buyerIsParticipant ?? e.buyer_is_participant ?? true) as boolean,
+  }
+}
 
 interface ApiProgramsResponse {
   programs: ApiProgram[]
@@ -73,17 +87,25 @@ interface ProgramRow {
   role: string
   modulesCount: number
   lessonsCount: number
+  // enrollment plan
+  enrollmentId: number | null
+  enrollmentType: string        // 'INDIVIDUAL' | 'TEAM'
+  seatsPurchased: number
+  seatsUsed: number
+  isTeamLead: boolean           // has cohort_enrollment payload = is the buyer
+  buyerIsParticipant: boolean
 }
 
 function normalise(raw: ApiProgram): ProgramRow {
-  const cohorts = readMyCohorts(raw)
-  const cohort  = cohorts[0] ?? null
-  const title   = raw.title ?? 'Untitled Programme'
-  const cohortName  = readCohortTitle(cohort)
+  const cohorts    = readMyCohorts(raw)
+  const cohort     = cohorts[0] ?? null
+  const title      = raw.title ?? 'Untitled Programme'
+  const cohortName = readCohortTitle(cohort)
   const cohortLabel = cohortName
     .replace(`${title} — `, '')
     .replace(`${title} - `, '')
     || cohortName
+  const enrollment = readEnrollment(cohort)
 
   return {
     programId: raw.id,
@@ -100,6 +122,12 @@ function normalise(raw: ApiProgram): ProgramRow {
     role:             (cohort as Record<string, unknown>)?.['role'] as string ?? '',
     modulesCount:     raw.modulesCount ?? 0,
     lessonsCount:     raw.lessonsCount ?? 0,
+    enrollmentId:        enrollment?.id ?? null,
+    enrollmentType:      enrollment?.enrollmentType ?? 'INDIVIDUAL',
+    seatsPurchased:      enrollment?.seatsPurchased ?? 1,
+    seatsUsed:           enrollment?.seatsUsed ?? 1,
+    isTeamLead:          enrollment !== null && enrollment.enrollmentType === 'TEAM',
+    buyerIsParticipant:  enrollment?.buyerIsParticipant ?? true,
   }
 }
 
@@ -136,7 +164,7 @@ function levelLabel(level: string): string {
 
 function formatDisplay(format: string): string {
   const map: Record<string, string> = {
-    ONLINE: 'Online', IN_PERSON: 'In Person', HYBRID: 'Hybrid',
+    BOOTCAMP: 'Bootcamp', WORKSHOP: 'Workshop', COURSE: 'Course',
   }
   return map[format.toUpperCase()] ?? ''
 }
@@ -171,9 +199,10 @@ function ProgressRing({ value }: { value: number }) {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function ProgramsPage() {
-  const [programs, setPrograms] = useState<ProgramRow[]>([])
-  const [loading, setLoading]   = useState(true)
-  const [error, setError]       = useState<string | null>(null)
+  const [programs, setPrograms]   = useState<ProgramRow[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [error, setError]         = useState<string | null>(null)
+  const [teamProgram, setTeamProgram] = useState<ProgramRow | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -302,14 +331,20 @@ export default function ProgramsPage() {
                       </p>
                     )}
 
-                    {/* Cohort name + role badge */}
-                    <div className="flex items-center gap-2 mb-4">
+                    {/* Cohort name + role badge + team badge */}
+                    <div className="flex items-center gap-2 mb-4 flex-wrap">
                       <p className="text-[11px] text-[#9ca3af] font-body truncate">
                         {p.cohortLabel || p.cohortName || '—'}
                       </p>
                       {roleLabel(p.role) && (
                         <span className="text-[10px] font-semibold font-display text-[#1a1d2e] bg-[#eaebf0] px-2 py-0.5 rounded-full flex-shrink-0">
                           {roleLabel(p.role)}
+                        </span>
+                      )}
+                      {p.enrollmentType === 'TEAM' && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold font-display text-[#b45309] bg-[#fffbeb] border border-[#fde68a] px-2 py-0.5 rounded-full flex-shrink-0">
+                          <UserGroup02Icon size={10} color="#b45309" strokeWidth={2} />
+                          Team {p.seatsUsed}/{p.seatsPurchased}
                         </span>
                       )}
                     </div>
@@ -349,7 +384,7 @@ export default function ProgramsPage() {
                     </div>
 
                     {/* CTAs */}
-                    <div className="flex gap-2 mt-auto">
+                    <div className="flex gap-2 mt-auto flex-wrap">
                       <Link
                         href={`/student/courses/${p.cohortId}`}
                         className="flex-1 inline-flex items-center justify-center gap-1.5 bg-[#d51520] text-white text-[12px] font-medium font-display px-4 py-2.5 rounded-[8px] hover:bg-[#b81119] transition-colors"
@@ -357,6 +392,15 @@ export default function ProgramsPage() {
                         View Course
                         <ArrowRight01Icon size={13} color="white" strokeWidth={2} />
                       </Link>
+                      {p.isTeamLead && (
+                        <button
+                          onClick={() => setTeamProgram(p)}
+                          className="inline-flex items-center justify-center gap-1.5 border border-[#fde68a] bg-[#fffbeb] text-[#b45309] text-[12px] font-medium font-display px-3 py-2.5 rounded-[8px] hover:bg-[#fef9c3] transition-colors flex-shrink-0"
+                        >
+                          <UserGroup02Icon size={13} color="#b45309" strokeWidth={2} />
+                          Teams
+                        </button>
+                      )}
                       <Link
                         href="/student/resources"
                         className="flex-1 inline-flex items-center justify-center border border-[#e5e7eb] text-[#374151] text-[12px] font-medium font-display px-4 py-2.5 rounded-[8px] hover:bg-[#f9fafb] transition-colors"
@@ -371,6 +415,10 @@ export default function ProgramsPage() {
           )}
         </section>
       </div>
+
+      {teamProgram && (
+        <TeamFeature onClose={() => setTeamProgram(null)} />
+      )}
     </>
   )
 }

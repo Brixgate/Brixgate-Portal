@@ -18,7 +18,9 @@ import {
   ArrowDown01Icon,
   Link01Icon,
   Download01Icon,
+  UserGroup02Icon,
 } from 'hugeicons-react'
+import TeamFeature from '@/components/teams/TeamFeature'
 
 // ── API shapes — programmes (secondary lookup for header) ─────────────────────
 interface ApiCohortSummary {
@@ -39,6 +41,16 @@ interface ApiProgramsResponse { programs: ApiProgram[] }
 const rc = (c: any): number => c?.cohortId ?? c?.cohort_id ?? 0
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const rm = (p: any): any[]  => p?.myCohorts  ?? p?.my_cohorts  ?? []
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function readEnrollment(c: any) {
+  const e = c?.cohortEnrollment ?? c?.cohort_enrollment ?? null
+  if (!e) return null
+  return {
+    enrollmentType:  (e.enrollmentType ?? e.enrollment_type ?? 'INDIVIDUAL') as string,
+    seatsPurchased:  (e.seatsPurchased  ?? e.seats_purchased  ?? 1) as number,
+    seatsUsed:       (e.seatsUsed       ?? e.seats_used        ?? 1) as number,
+  }
+}
 
 // ── API shapes — resources ────────────────────────────────────────────────────
 interface ApiResource {
@@ -146,11 +158,13 @@ function ModuleAccordion({
           isModuleSelected ? 'bg-[#fef2f2]' : 'hover:bg-[#f9fafb]'
         }`}
       >
-        {/* Module number badge */}
+        {/* Module number badge — warm amber hierarchy */}
         <div className={`w-7 h-7 rounded-[6px] flex items-center justify-center flex-shrink-0 mt-0.5 ${
-          isModuleSelected ? 'bg-[#D51520]' : 'bg-[#f3f4f6]'
+          isModuleSelected ? 'bg-[#D51520]' : moduleIndex % 3 === 1 ? 'bg-[#fffbeb]' : moduleIndex % 3 === 2 ? 'bg-[#fff7ed]' : 'bg-[#fef3c7]'
         }`}>
-          <span className={`text-[10px] font-bold font-display ${isModuleSelected ? 'text-white' : 'text-[#6b7280]'}`}>
+          <span className={`text-[10px] font-bold font-display ${
+            isModuleSelected ? 'text-white' : moduleIndex % 3 === 1 ? 'text-[#b45309]' : moduleIndex % 3 === 2 ? 'text-[#c2410c]' : 'text-[#d97706]'
+          }`}>
             {String(moduleIndex).padStart(2, '0')}
           </span>
         </div>
@@ -506,6 +520,9 @@ export default function CourseDetailPage() {
   const [resources, setResources]       = useState<ApiResource[]>([])
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null)
   const [expandedModules, setExpandedModules] = useState<Set<number>>(new Set())
+  const [showTeams, setShowTeams]       = useState(false)
+  const [isTeamLead, setIsTeamLead]     = useState(false)
+  const [teamSeats, setTeamSeats]       = useState<{ used: number; total: number } | null>(null)
 
   // Set default selected item once modules load
   useEffect(() => {
@@ -541,7 +558,7 @@ export default function CourseDetailPage() {
           setResources(Array.isArray(d?.resources) ? d.resources : [])
         }
 
-        // Secondary: programme/cohort header info
+        // Secondary: programme/cohort header info + enrollment
         try {
           const programsRes  = await apiClient.get('/users/me/programs')
           const programsData = unwrap<ApiProgramsResponse>(programsRes.data)
@@ -551,6 +568,12 @@ export default function CourseDetailPage() {
           )
           if (program) {
             setProgramTitle(program.title)
+            const cohortRow = rm(program).find((c) => String(rc(c)) === String(cohortId))
+            const enrollment = readEnrollment(cohortRow)
+            if (enrollment?.enrollmentType === 'TEAM') {
+              setIsTeamLead(true)
+              setTeamSeats({ used: enrollment.seatsUsed, total: enrollment.seatsPurchased })
+            }
           }
         } catch {
           // Non-fatal — header just shows generic title
@@ -620,22 +643,40 @@ export default function CourseDetailPage() {
       <div className="px-4 lg:px-8 pb-10">
 
         {/* Header */}
-        <div className="pt-6 pb-5 flex items-center gap-3">
-          <button
-            onClick={() => router.push('/student/programs')}
-            className="w-8 h-8 flex items-center justify-center rounded-[6px] hover:bg-[#f3f4f6] transition-colors flex-shrink-0"
-            aria-label="Back to programs"
-          >
-            <ArrowLeft01Icon size={16} color="#6b7280" strokeWidth={1.5} />
-          </button>
-          <div>
-            <h1 className="text-[20px] lg:text-[24px] font-bold text-[#111827] font-display leading-tight">
-              {programTitle || 'Course Curriculum'}
-            </h1>
-            <p className="text-[13px] text-[#6b7280] font-body mt-0.5">
-              {modules.length} module{modules.length !== 1 ? 's' : ''} · {totalLessons} lesson{totalLessons !== 1 ? 's' : ''}
-            </p>
+        <div className="pt-6 pb-5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={() => router.push('/student/programs')}
+              className="w-8 h-8 flex items-center justify-center rounded-[6px] hover:bg-[#f3f4f6] transition-colors flex-shrink-0"
+              aria-label="Back to programs"
+            >
+              <ArrowLeft01Icon size={16} color="#6b7280" strokeWidth={1.5} />
+            </button>
+            <div className="min-w-0">
+              <h1 className="text-[20px] lg:text-[24px] font-bold text-[#111827] font-display leading-tight truncate">
+                {programTitle || 'Course Curriculum'}
+              </h1>
+              <p className="text-[13px] text-[#6b7280] font-body mt-0.5">
+                {modules.length} module{modules.length !== 1 ? 's' : ''} · {totalLessons} lesson{totalLessons !== 1 ? 's' : ''}
+              </p>
+            </div>
           </div>
+
+          {/* Teams button — team lead only */}
+          {isTeamLead && (
+            <button
+              onClick={() => setShowTeams(true)}
+              className="flex-shrink-0 inline-flex items-center gap-2 h-9 px-4 border border-[#fde68a] bg-[#fffbeb] text-[#b45309] text-[13px] font-semibold font-display rounded-[8px] hover:bg-[#fef9c3] transition-colors"
+            >
+              <UserGroup02Icon size={15} color="#b45309" strokeWidth={2} />
+              Teams
+              {teamSeats && (
+                <span className="text-[11px] font-medium text-[#b45309] bg-[#fef3c7] px-1.5 py-0.5 rounded-full">
+                  {teamSeats.used}/{teamSeats.total}
+                </span>
+              )}
+            </button>
+          )}
         </div>
 
         {/* Curriculum grid */}
@@ -676,6 +717,8 @@ export default function CourseDetailPage() {
 
         </div>
       </div>
+
+      {showTeams && <TeamFeature onClose={() => setShowTeams(false)} />}
     </>
   )
 }

@@ -21,6 +21,14 @@ export function clearTokenCookie() {
   document.cookie = 'brixgate_token=; path=/; max-age=0; SameSite=Strict'
 }
 
+export function setRoleCookie(role: string) {
+  document.cookie = `brixgate_role=${encodeURIComponent(role.toUpperCase())}; path=/; max-age=86400; SameSite=Strict`
+}
+
+export function clearRoleCookie() {
+  document.cookie = 'brixgate_role=; path=/; max-age=0; SameSite=Strict'
+}
+
 // ── Axios instance ─────────────────────────────────────────────────────────────
 export const apiClient = axios.create({
   baseURL: BASE_URL,

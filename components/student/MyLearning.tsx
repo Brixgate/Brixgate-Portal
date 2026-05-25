@@ -155,7 +155,7 @@ function levelLabel(l: string) {
   return { BEGINNER: 'Beginner', INTERMEDIATE: 'Intermediate', ADVANCED: 'Advanced' }[l.toUpperCase()] ?? l
 }
 function formatDisplay(f: string) {
-  return { ONLINE: 'Online', IN_PERSON: 'In Person', HYBRID: 'Hybrid' }[f.toUpperCase()] ?? ''
+  return { BOOTCAMP: 'Bootcamp', WORKSHOP: 'Workshop', COURSE: 'Course' }[f.toUpperCase()] ?? ''
 }
 
 // ── Progress ring ─────────────────────────────────────────────────────────────

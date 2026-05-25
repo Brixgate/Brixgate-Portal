@@ -32,7 +32,8 @@ function LoginPageContent() {
   const [errors, setErrors]             = useState<FormErrors>({})
   const [loading, setLoading]           = useState(false)
 
-  const passwordReset = searchParams.get('reset') === 'success'
+  const passwordReset    = searchParams.get('reset') === 'success'
+  const sessionExpired   = searchParams.get('reason') === 'session_expired'
 
   // Already authenticated — go straight to the right portal
   useEffect(() => {
@@ -100,6 +101,17 @@ function LoginPageContent() {
         <p className="text-[14px] text-[#6B7280] font-body text-center leading-[1.6] mb-8 max-w-[340px] mx-auto">
           Log in to access your Brixgate program and learning resources.
         </p>
+
+        {/* Session expired banner */}
+        {sessionExpired && (
+          <div className="flex items-center gap-2 bg-[#fffbeb] border border-[#fde68a] rounded-[6px] px-3 py-2.5 mb-2">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <circle cx="7" cy="7" r="7" fill="#d97706" />
+              <path d="M7 4v3.5M7 9.5v.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+            <p className="text-[12px] text-[#b45309] font-body">Your session expired due to inactivity. Please log in again.</p>
+          </div>
+        )}
 
         {/* Password reset success banner */}
         {passwordReset && (

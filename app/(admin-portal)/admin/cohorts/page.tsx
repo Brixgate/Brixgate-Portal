@@ -178,20 +178,18 @@ export default function AdminCohortsPage() {
         </button>
       </div>
 
-      {/* Programme filter tabs */}
+      {/* Programme filter dropdown */}
       {programs.length > 0 && (
-        <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-1">
-          {programs.map(p => (
-            <button key={p.id}
-              onClick={() => { setActiveProgram(p.id); setPage(1) }}
-              className={`flex-shrink-0 px-3 h-8 rounded-full text-[12px] font-semibold font-display transition-all ${
-                activeProgramId === p.id
-                  ? 'bg-[#d51520] text-white'
-                  : 'bg-white border border-[#e5e7eb] text-[#6b7280] hover:text-[#374151]'
-              }`}>
-              {p.title}
-            </button>
-          ))}
+        <div className="mb-6">
+          <select
+            value={activeProgramId ?? ''}
+            onChange={e => { setActiveProgram(Number(e.target.value)); setPage(1) }}
+            className="h-10 px-3 pr-8 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body text-[#374151] bg-white outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 min-w-[240px]"
+          >
+            {programs.map(p => (
+              <option key={p.id} value={p.id}>{p.title}</option>
+            ))}
+          </select>
         </div>
       )}
 

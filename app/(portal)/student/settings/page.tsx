@@ -188,22 +188,17 @@ function Toggle({
   )
 }
 
-// ── Account details shape from /users/me/programs (matches Swagger spec) ─────
-interface ApiSettingsCohort {
-  cohortId: number
-  cohortTitle: string
-  role: string
-  membershipStatus: string
-}
-
-interface ApiSettingsProgram {
-  id: number
-  title?: string
-  myCohorts?: ApiSettingsCohort[]
+// ── Account details shape from /users/me/programs ─────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function readMyCohorts(p: any): any[] { return p?.myCohorts ?? p?.my_cohorts ?? [] }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function readCohortField(c: any, camel: string, snake: string): string {
+  return c?.[camel] ?? c?.[snake] ?? ''
 }
 
 interface ApiSettingsProgramsResponse {
-  programs: ApiSettingsProgram[]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  programs: any[]
 }
 
 export default function SettingsPage() {
@@ -217,9 +212,12 @@ export default function SettingsPage() {
   const [phone, setPhone]         = useState('')
 
   // Account details — fetched from /users/me/programs
-  const [programme, setProgramme]       = useState('—')
-  const [cohortName, setCohortName]     = useState('—')
+  const [programme, setProgramme]             = useState('—')
+  const [programmeStatus, setProgrammeStatus] = useState('')
+  const [cohortName, setCohortName]           = useState('—')
   const [membershipStatus, setMembershipStatus] = useState('—')
+  // Phone country code
+  const [countryCode, setCountryCode] = useState('+234')
 
   // Sync personal info from auth context when user loads
   useEffect(() => {
@@ -240,14 +238,21 @@ export default function SettingsPage() {
         const first = Array.isArray(data?.programs) ? data.programs[0] : null
         if (!first) return
 
-        const cohort = first.myCohorts?.[0] ?? null
-        setProgramme(first.title ?? '—')
+        const cohorts = readMyCohorts(first)
+        const cohort  = cohorts[0] ?? null
+        const title   = first.title ?? first.name ?? '—'
+        setProgramme(title)
+        if (first.status) setProgrammeStatus(first.status)
 
-        const rawName = cohort?.cohortTitle ?? ''
-        // Strip programme title prefix e.g. "AI in Cyber Security — Cohort 1" → "Cohort 1"
-        setCohortName(rawName.includes('—') ? rawName.split('—')[1]?.trim() : rawName || '—')
+        const rawName = readCohortField(cohort, 'cohortTitle', 'cohort_title')
+        setCohortName(
+          rawName.includes('—') ? rawName.split('—')[1]?.trim() :
+          rawName.includes(' - ') ? rawName.split(' - ').pop()?.trim() ?? rawName :
+          rawName || '—'
+        )
 
-        if (cohort?.membershipStatus) setMembershipStatus(cohort.membershipStatus)
+        const ms = readCohortField(cohort, 'membershipStatus', 'membership_status')
+        if (ms) setMembershipStatus(ms)
       } catch {
         // Not enrolled or not authenticated — leave defaults as '—'
       }
@@ -367,8 +372,10 @@ export default function SettingsPage() {
     }
     setSavingProfile(true)
     try {
-      await apiClient.put('/users/me', {
-        name: `${firstName.trim()} ${lastName.trim()}`.trim(),
+      const endpoint = user?.id ? `/users/${user.id}` : '/users/me'
+      await apiClient.put(endpoint, {
+        name:  `${firstName.trim()} ${lastName.trim()}`.trim(),
+        phone: phone.trim() ? `${countryCode}${phone.trim().replace(/^0/, '')}` : undefined,
       })
       updateUser({ firstName: firstName.trim(), lastName: lastName.trim(), name: `${firstName.trim()} ${lastName.trim()}` })
       showToast('Personal information saved.', 'success')
@@ -537,13 +544,99 @@ export default function SettingsPage() {
                   readOnly
                   placeholder="email@example.com"
                 />
-                <FormField
-                  label="Phone Number"
-                  value={phone}
-                  onChange={setPhone}
-                  prefix="+234"
-                  placeholder="801 234 5678"
-                />
+                {/* Phone with country code selector */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[13px] font-medium text-[#374151] font-body">Phone Number</label>
+                  <div className="flex">
+                    <select
+                      value={countryCode}
+                      onChange={e => setCountryCode(e.target.value)}
+                      className="h-11 pl-2.5 pr-1 border border-r-0 border-[#e5e7eb] rounded-l-[6px] bg-[#f9fafb] text-[13px] text-[#374151] font-body outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 flex-shrink-0"
+                    >
+                      {[
+                        { code: '+234', label: '🇳🇬 NG +234' },
+                        { code: '+1',   label: '🇺🇸 US +1'   },
+                        { code: '+44',  label: '🇬🇧 GB +44'  },
+                        { code: '+93',  label: '🇦🇫 AF +93'  },
+                        { code: '+213', label: '🇩🇿 DZ +213' },
+                        { code: '+244', label: '🇦🇴 AO +244' },
+                        { code: '+54',  label: '🇦🇷 AR +54'  },
+                        { code: '+61',  label: '🇦🇺 AU +61'  },
+                        { code: '+43',  label: '🇦🇹 AT +43'  },
+                        { code: '+880', label: '🇧🇩 BD +880' },
+                        { code: '+32',  label: '🇧🇪 BE +32'  },
+                        { code: '+229', label: '🇧🇯 BJ +229' },
+                        { code: '+55',  label: '🇧🇷 BR +55'  },
+                        { code: '+1',   label: '🇨🇦 CA +1'   },
+                        { code: '+237', label: '🇨🇲 CM +237' },
+                        { code: '+86',  label: '🇨🇳 CN +86'  },
+                        { code: '+242', label: '🇨🇬 CG +242' },
+                        { code: '+243', label: '🇨🇩 CD +243' },
+                        { code: '+225', label: '🇨🇮 CI +225' },
+                        { code: '+45',  label: '🇩🇰 DK +45'  },
+                        { code: '+20',  label: '🇪🇬 EG +20'  },
+                        { code: '+251', label: '🇪🇹 ET +251' },
+                        { code: '+33',  label: '🇫🇷 FR +33'  },
+                        { code: '+241', label: '🇬🇦 GA +241' },
+                        { code: '+49',  label: '🇩🇪 DE +49'  },
+                        { code: '+233', label: '🇬🇭 GH +233' },
+                        { code: '+30',  label: '🇬🇷 GR +30'  },
+                        { code: '+91',  label: '🇮🇳 IN +91'  },
+                        { code: '+62',  label: '🇮🇩 ID +62'  },
+                        { code: '+353', label: '🇮🇪 IE +353' },
+                        { code: '+972', label: '🇮🇱 IL +972' },
+                        { code: '+39',  label: '🇮🇹 IT +39'  },
+                        { code: '+81',  label: '🇯🇵 JP +81'  },
+                        { code: '+254', label: '🇰🇪 KE +254' },
+                        { code: '+231', label: '🇱🇷 LR +231' },
+                        { code: '+218', label: '🇱🇾 LY +218' },
+                        { code: '+60',  label: '🇲🇾 MY +60'  },
+                        { code: '+223', label: '🇲🇱 ML +223' },
+                        { code: '+222', label: '🇲🇷 MR +222' },
+                        { code: '+212', label: '🇲🇦 MA +212' },
+                        { code: '+258', label: '🇲🇿 MZ +258' },
+                        { code: '+264', label: '🇳🇦 NA +264' },
+                        { code: '+227', label: '🇳🇪 NE +227' },
+                        { code: '+31',  label: '🇳🇱 NL +31'  },
+                        { code: '+64',  label: '🇳🇿 NZ +64'  },
+                        { code: '+47',  label: '🇳🇴 NO +47'  },
+                        { code: '+92',  label: '🇵🇰 PK +92'  },
+                        { code: '+507', label: '🇵🇦 PA +507' },
+                        { code: '+63',  label: '🇵🇭 PH +63'  },
+                        { code: '+48',  label: '🇵🇱 PL +48'  },
+                        { code: '+351', label: '🇵🇹 PT +351' },
+                        { code: '+7',   label: '🇷🇺 RU +7'   },
+                        { code: '+250', label: '🇷🇼 RW +250' },
+                        { code: '+221', label: '🇸🇳 SN +221' },
+                        { code: '+232', label: '🇸🇱 SL +232' },
+                        { code: '+252', label: '🇸🇴 SO +252' },
+                        { code: '+27',  label: '🇿🇦 ZA +27'  },
+                        { code: '+34',  label: '🇪🇸 ES +34'  },
+                        { code: '+249', label: '🇸🇩 SD +249' },
+                        { code: '+46',  label: '🇸🇪 SE +46'  },
+                        { code: '+41',  label: '🇨🇭 CH +41'  },
+                        { code: '+255', label: '🇹🇿 TZ +255' },
+                        { code: '+228', label: '🇹🇬 TG +228' },
+                        { code: '+216', label: '🇹🇳 TN +216' },
+                        { code: '+90',  label: '🇹🇷 TR +90'  },
+                        { code: '+256', label: '🇺🇬 UG +256' },
+                        { code: '+380', label: '🇺🇦 UA +380' },
+                        { code: '+971', label: '🇦🇪 AE +971' },
+                        { code: '+260', label: '🇿🇲 ZM +260' },
+                        { code: '+263', label: '🇿🇼 ZW +263' },
+                      ].map(c => (
+                        <option key={c.code + c.label} value={c.code}>{c.label}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={e => setPhone(e.target.value)}
+                      placeholder="801 234 5678"
+                      className="h-11 flex-1 px-3.5 border border-[#e5e7eb] rounded-r-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#9ca3af] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 bg-white"
+                    />
+                  </div>
+                </div>
               </div>
               <div className="mt-5 flex justify-end">
                 <button
@@ -622,6 +715,7 @@ export default function SettingsPage() {
                   { label: 'Role',      value: user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1).toLowerCase() : 'Student' },
                   { label: 'Programme', value: programme },
                   { label: 'Cohort',    value: cohortName },
+                  ...(programmeStatus ? [{ label: 'Programme Status', value: programmeStatus.charAt(0) + programmeStatus.slice(1).toLowerCase() }] : []),
                 ].map(({ label, value }) => (
                   <div key={label} className="flex flex-col gap-0.5">
                     <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">{label}</p>

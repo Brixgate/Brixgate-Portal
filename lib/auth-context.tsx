@@ -8,7 +8,7 @@ import {
   useCallback,
   type ReactNode,
 } from 'react'
-import { apiClient, unwrap, getTokenFromCookie, setTokenCookie, clearTokenCookie } from './api-client'
+import { apiClient, unwrap, getTokenFromCookie, setTokenCookie, clearTokenCookie, setRoleCookie, clearRoleCookie } from './api-client'
 
 // ── API shape coming from the backend ─────────────────────────────────────────
 // Handles snake_case, camelCase, and combined name formats
@@ -106,6 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data: ApiUser = (outer as { user?: ApiUser }).user ?? (outer as ApiUser)
       const mapped = mapUser(data)
       setUser(mapped)
+      setRoleCookie(mapped.role)
       return mapped
     } catch (err) {
       // Only clear token on 401 — keep it for network errors
@@ -140,6 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           const mapped = mapUser(rawUserFromLogin as unknown as ApiUser)
           setUser(mapped)
+          setRoleCookie(mapped.role)
           return mapped
         } catch {
           // Mapping failed (unexpected shape) — fall through to fetchUser
@@ -157,6 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Swallow — always clear locally
     }
     clearTokenCookie()
+    clearRoleCookie()
     setToken(null)
     setUser(null)
   }, [])

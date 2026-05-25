@@ -1,10 +1,24 @@
 'use client'
 
+import { useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { SidebarProvider } from '@/lib/sidebar-context'
+import { useAuth } from '@/lib/auth-context'
+import { useSessionTimeout } from '@/lib/use-session-timeout'
 import Sidebar from './Sidebar'
 import NavigationProgress from './NavigationProgress'
 
-export default function PortalShell({ children }: { children: React.ReactNode }) {
+function PortalShellInner({ children }: { children: React.ReactNode }) {
+  const { logout } = useAuth()
+  const router     = useRouter()
+
+  const handleTimeout = useCallback(async () => {
+    await logout()
+    router.replace('/login?reason=session_expired')
+  }, [logout, router])
+
+  useSessionTimeout(handleTimeout)
+
   return (
     <SidebarProvider>
       <NavigationProgress />
@@ -16,4 +30,8 @@ export default function PortalShell({ children }: { children: React.ReactNode })
       </div>
     </SidebarProvider>
   )
+}
+
+export default function PortalShell({ children }: { children: React.ReactNode }) {
+  return <PortalShellInner>{children}</PortalShellInner>
 }

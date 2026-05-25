@@ -2,13 +2,12 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search01Icon, Menu01Icon, BookOpen01Icon, Settings01Icon, HelpCircleIcon, Logout01Icon, UserGroup02Icon, Home01Icon } from 'hugeicons-react'
+import { Search01Icon, Menu01Icon, BookOpen01Icon, Settings01Icon, HelpCircleIcon, Logout01Icon, Home01Icon } from 'hugeicons-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 // FEATURE_OFF: notifications — import NotificationDropdown from '@/components/shared/NotificationDropdown'
 import { useSidebar } from '@/lib/sidebar-context'
 import { useAvatar } from '@/lib/use-avatar'
 import { useAuth } from '@/lib/auth-context'
-import TeamFeature from '@/components/teams/TeamFeature'
 
 interface TopNavProps {
   title: string
@@ -34,7 +33,6 @@ export default function TopNav({ title, breadcrumbs = [] }: TopNavProps) {
     : '?'
 
   const [showProfileMenu, setShowProfileMenu] = useState(false)
-  const [showTeams, setShowTeams] = useState(false)
   const profileRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -151,17 +149,6 @@ export default function TopNav({ title, breadcrumbs = [] }: TopNavProps) {
                 </button>
               ))}
 
-              {/* Teams — greyed out on individual plans (coming soon) */}
-              <div
-                title="Teams is available on team plans"
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] font-medium text-[#c4c9d4] font-body cursor-not-allowed select-none"
-              >
-                <UserGroup02Icon size={15} color="#c4c9d4" strokeWidth={1.5} />
-                <span>Teams</span>
-                <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide text-[#c4c9d4] bg-[#f3f4f6] px-1.5 py-0.5 rounded-[4px]">
-                  Team plan
-                </span>
-              </div>
             </div>
 
             {/* Logout */}
@@ -182,10 +169,6 @@ export default function TopNav({ title, breadcrumbs = [] }: TopNavProps) {
         )}
       </div>
 
-      {/* Teams modal */}
-      {showTeams && (
-        <TeamFeature onClose={() => setShowTeams(false)} />
-      )}
     </header>
   )
 }
