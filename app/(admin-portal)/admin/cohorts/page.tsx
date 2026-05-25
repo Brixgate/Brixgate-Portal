@@ -16,7 +16,7 @@ interface ApiCohort {
   max_students?: number; enrolled_count?: number
   program?: ApiProgram; program_id?: number
 }
-interface Pagination { totalElements?: number; total?: number; totalPages: number; hasNext?: boolean }
+interface Pagination { totalElements?: number; total_elements?: number; total?: number; totalPages?: number; total_pages?: number; hasNext?: boolean; has_next?: boolean }
 
 const COHORT_STATUS_STYLE: Record<string, string> = {
   OPEN:     'bg-[#ecfdf3] text-[#027a48]',
@@ -257,13 +257,13 @@ export default function AdminCohortsPage() {
             </tbody>
           </table>
         </div>
-        {pagination && pagination.totalPages > 1 && (
+        {pagination && (pagination.totalPages ?? pagination.total_pages ?? 1) > 1 && (
           <div className="px-4 py-3 flex items-center justify-between border-t border-[#f3f4f6]">
-            <p className="text-[12px] text-[#6b7280] font-body">Page {page} of {pagination.totalPages}</p>
+            <p className="text-[12px] text-[#6b7280] font-body">Page {page} of {pagination.totalPages ?? pagination.total_pages ?? 1}</p>
             <div className="flex items-center gap-1">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
                 className="h-7 px-3 rounded-[6px] border border-[#e5e7eb] text-[12px] font-body disabled:opacity-40 hover:bg-[#f9fafb]">Prev</button>
-              <button onClick={() => setPage(p => p + 1)} disabled={!pagination.hasNext}
+              <button onClick={() => setPage(p => p + 1)} disabled={!(pagination.hasNext ?? pagination.has_next)}
                 className="h-7 px-3 rounded-[6px] border border-[#e5e7eb] text-[12px] font-body disabled:opacity-40 hover:bg-[#f9fafb]">Next</button>
             </div>
           </div>

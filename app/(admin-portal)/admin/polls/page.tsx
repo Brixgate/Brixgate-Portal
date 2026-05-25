@@ -27,7 +27,7 @@ interface ApiResponse {
   data?: QuestionnaireSummary[]
   summaries?: QuestionnaireSummary[]
   results?: QuestionnaireSummary[]
-  pagination?: { total?: number; totalElements?: number; page?: number; size?: number }
+  pagination?: { total?: number; totalElements?: number; total_elements?: number; page?: number; size?: number }
   total?: number
 }
 
@@ -93,7 +93,7 @@ export default function PollsPage() {
         setRows(Array.isArray(list) ? list : [])
         setTotal(
           d?.pagination?.total ??
-          d?.pagination?.totalElements ??
+          d?.pagination?.total_elements ?? d?.pagination?.totalElements ??
           d?.total ??
           (Array.isArray(list) ? list.length : 0)
         )
