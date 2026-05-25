@@ -225,11 +225,14 @@ export default function SettingsPage() {
       setFirstName(user.firstName)
       setLastName(user.lastName)
       setEmail(user.email)
-      // Strip country code so input shows local part only e.g. "+2348012345678" → "8012345678"
-      const local = user.phone
-        ? user.phone.replace(/^\+\d{1,4}/, '').replace(/^0+/, '')
-        : ''
+      // Strip country code prefix precisely — e.g. "+2349022247010" → "9022247010"
+      // Use the known country codes list; fall back to stripping any +XXX prefix
+      const knownCodes = ['+234','+1','+44','+91','+27','+233','+254','+255','+256','+260','+263']
+      const raw = user.phone ?? ''
+      const matchedCode = knownCodes.find(c => raw.startsWith(c)) ?? ''
+      const local = matchedCode ? raw.slice(matchedCode.length) : raw.replace(/^\+\d{1,3}/, '')
       setPhone(local)
+      if (matchedCode) setCountryCode(matchedCode)
     }
   }, [user?.id, user?.phone]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -264,8 +267,9 @@ export default function SettingsPage() {
     loadProgram()
   }, [])
 
-  // Saving state
+  // Saving state + edit mode
   const [savingProfile, setSavingProfile] = useState(false)
+  const [isEditing, setIsEditing]         = useState(false)
 
   // FEATURE_OFF: notifications — const [prefs, setPrefs] = useState(MOCK_NOTIFICATION_PREFERENCES)
 
@@ -387,6 +391,7 @@ export default function SettingsPage() {
         name:      `${firstName.trim()} ${lastName.trim()}`,
         phone:     fullPhone,
       })
+      setIsEditing(false)
       showToast('Personal information saved.', 'success')
     } catch (err) {
       showToast(getApiError(err), 'error')
@@ -535,13 +540,13 @@ export default function SettingsPage() {
                 <FormField
                   label="First Name"
                   value={firstName}
-                  onChange={setFirstName}
+                  onChange={v => { setFirstName(v); setIsEditing(true) }}
                   placeholder="First name"
                 />
                 <FormField
                   label="Last Name"
                   value={lastName}
-                  onChange={setLastName}
+                  onChange={v => { setLastName(v); setIsEditing(true) }}
                   placeholder="Last name"
                 />
               </div>
@@ -559,7 +564,7 @@ export default function SettingsPage() {
                   <div className="flex">
                     <select
                       value={countryCode}
-                      onChange={e => setCountryCode(e.target.value)}
+                      onChange={e => { setCountryCode(e.target.value); setIsEditing(true) }}
                       className="h-11 border border-r-0 border-[#e5e7eb] rounded-l-[6px] bg-[#f9fafb] text-[13px] text-[#374151] font-body outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 flex-shrink-0"
                     >
                       {[
@@ -640,7 +645,7 @@ export default function SettingsPage() {
                     <input
                       type="tel"
                       value={phone}
-                      onChange={e => setPhone(e.target.value)}
+                      onChange={e => { setPhone(e.target.value); setIsEditing(true) }}
                       placeholder="801 234 5678"
                       className="h-11 flex-1 px-3.5 border border-[#e5e7eb] rounded-r-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#9ca3af] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 bg-white"
                     />
@@ -649,11 +654,15 @@ export default function SettingsPage() {
               </div>
               <div className="mt-5 flex justify-end">
                 <button
-                  onClick={handleSavePersonal}
+                  onClick={isEditing ? handleSavePersonal : () => setIsEditing(true)}
                   disabled={savingProfile}
-                  className="inline-flex items-center gap-2 bg-[#d51520] text-white text-[13px] font-medium font-display px-5 py-2.5 rounded-[8px] hover:bg-[#b81119] transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+                  className={`inline-flex items-center gap-2 text-[13px] font-medium font-display px-5 py-2.5 rounded-[8px] transition-colors disabled:opacity-70 disabled:cursor-not-allowed ${
+                    isEditing
+                      ? 'bg-[#d51520] text-white hover:bg-[#b81119]'
+                      : 'bg-white border border-[#e5e7eb] text-[#374151] hover:bg-[#f9fafb]'
+                  }`}
                 >
-                  {savingProfile ? 'Saving…' : 'Save Changes'}
+                  {savingProfile ? 'Saving…' : isEditing ? 'Save Changes' : 'Edit Profile'}
                 </button>
               </div>
             </SectionCard>
