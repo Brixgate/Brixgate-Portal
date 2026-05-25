@@ -291,17 +291,17 @@ export default function AdminDashboardPage() {
               <p className="text-[12px] text-[#6b7280] font-body mt-0.5">New enrollments — last 6 months</p>
             </div>
           </div>
-          <div className="px-6 pt-4 pb-5">
+          <div className="px-6 pt-4 pb-2">
             {trendLoading ? (
-              <div className="h-[160px] bg-[#f9fafb] rounded-[8px] animate-pulse" />
+              <div className="h-[220px] bg-[#f9fafb] rounded-[8px] animate-pulse" />
             ) : trendEmpty ? (
-              <div className="h-[160px] flex flex-col items-center justify-center text-center">
+              <div className="h-[220px] flex flex-col items-center justify-center text-center">
                 <File01Icon size={28} color="#d1d5db" strokeWidth={1.5} />
                 <p className="text-[13px] text-[#6b7280] font-body mt-3">No enrollments in the last 6 months</p>
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={160}>
-                <AreaChart data={enrollmentTrend}>
+              <ResponsiveContainer width="100%" height={220}>
+                <AreaChart data={enrollmentTrend} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
                   <defs>
                     <linearGradient id="eGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%"  stopColor="#d51520" stopOpacity={0.12} />
@@ -309,14 +309,14 @@ export default function AdminDashboardPage() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#374151', fontWeight: 600 }} axisLine={false} tickLine={false} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: '#374151', fontWeight: 600 }} axisLine={false} tickLine={false} />
                   <Tooltip
-                    contentStyle={{ border: '1px solid #f3f4f6', borderRadius: 8, fontSize: 12 }}
+                    contentStyle={{ border: '1px solid #f3f4f6', borderRadius: 8, fontSize: 13, fontWeight: 600 }}
                     cursor={{ stroke: '#d51520', strokeWidth: 1, strokeDasharray: '4 4' }}
                   />
-                  <Area type="monotone" dataKey="enrollments" stroke="#d51520" strokeWidth={2}
-                    fill="url(#eGrad)" dot={false} activeDot={{ r: 4, fill: '#d51520' }} />
+                  <Area type="monotone" dataKey="enrollments" stroke="#d51520" strokeWidth={2.5}
+                    fill="url(#eGrad)" dot={false} activeDot={{ r: 5, fill: '#d51520' }} />
                 </AreaChart>
               </ResponsiveContainer>
             )}
