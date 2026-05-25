@@ -53,31 +53,31 @@ type TrendView = 'year' | 'month'
 interface ProgramOption { id: number; title: string }
 interface CohortOption  { id: number; title: string }
 
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function buildMonthlyTrend(list: RawEnrollment[]) {
-  const now = new Date()
-  const buckets: { key: string; month: string; enrollments: number }[] = []
-  for (let i = 11; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-    const month = d.toLocaleDateString('en-NG', { month: 'short' })
-    buckets.push({ key, month, enrollments: 0 })
-  }
+  // Always Jan → Dec of the current year
+  const year = new Date().getFullYear()
+  const buckets = Array.from({ length: 12 }, (_, i) => ({
+    key: `${year}-${String(i + 1).padStart(2, '0')}`,
+    month: new Date(year, i, 1).toLocaleDateString('en-NG', { month: 'short' }),
+    enrollments: 0,
+  }))
   list.forEach((e) => {
     const raw = e.createdAt ?? e.created_at
     if (!raw) return
     const d = new Date(raw)
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    if (d.getFullYear() !== year) return
+    const key = `${year}-${String(d.getMonth() + 1).padStart(2, '0')}`
     const b = buckets.find((x) => x.key === key)
     if (b) b.enrollments++
   })
   return buckets.map(({ month, enrollments }) => ({ month, enrollments }))
 }
 
-function buildWeeklyTrend(list: RawEnrollment[]) {
-  const now   = new Date()
-  const year  = now.getFullYear()
-  const month = now.getMonth()
+function buildWeeklyTrend(list: RawEnrollment[], targetMonth: number) {
+  const year  = new Date().getFullYear()
   const WEEKS = [
     { label: 'Week 1', start: 1,  end: 7  },
     { label: 'Week 2', start: 8,  end: 14 },
@@ -89,7 +89,7 @@ function buildWeeklyTrend(list: RawEnrollment[]) {
     const raw = e.createdAt ?? e.created_at
     if (!raw) return
     const d = new Date(raw)
-    if (d.getFullYear() !== year || d.getMonth() !== month) return
+    if (d.getFullYear() !== year || d.getMonth() !== targetMonth) return
     const day = d.getDate()
     const b   = buckets.find(w => day >= w.start && day <= w.end)
     if (b) b.enrollments++
@@ -190,6 +190,7 @@ export default function AdminDashboardPage() {
 
   // Chart filters
   const [trendView, setTrendView]                 = useState<TrendView>('year')
+  const [trendMonth, setTrendMonth]               = useState(new Date().getMonth())
   const [trendProgramId, setTrendProgramId]       = useState('')
   const [trendCohortId, setTrendCohortId]         = useState('')
   const [trendPrograms, setTrendPrograms]         = useState<ProgramOption[]>([])
@@ -280,7 +281,7 @@ export default function AdminDashboardPage() {
           Array.isArray(d?.data)        ? d.data        :
           Array.isArray(d)              ? d             : []
         )
-        setEnrollmentTrend(trendView === 'month' ? buildWeeklyTrend(list) : buildMonthlyTrend(list))
+        setEnrollmentTrend(trendView === 'month' ? buildWeeklyTrend(list, trendMonth) : buildMonthlyTrend(list))
       } catch {
         setEnrollmentTrend([])
       } finally {
@@ -288,7 +289,7 @@ export default function AdminDashboardPage() {
       }
     }
     loadTrend()
-  }, [trendView, trendProgramId, trendCohortId])
+  }, [trendView, trendMonth, trendProgramId, trendCohortId])
 
   // ── Recent payments ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -340,15 +341,52 @@ export default function AdminDashboardPage() {
 
         {/* Enrollment Trend — real data grouped by month */}
         <div className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] flex flex-col">
-          <div className="px-6 pt-5 pb-4 border-b border-[#f3f4f6] flex-shrink-0">
-            {/* Title row + view toggle */}
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h3 className="text-[15px] font-semibold text-[#111827] font-display">Enrollment Trend</h3>
-                <p className="text-[12px] text-[#6b7280] font-body mt-0.5">
-                  {trendView === 'year' ? 'Monthly — last 12 months' : `Weekly — ${new Date().toLocaleDateString('en-NG', { month: 'long', year: 'numeric' })}`}
-                </p>
-              </div>
+          <div className="px-6 pt-5 pb-4 border-b border-[#f3f4f6] flex-shrink-0 flex items-center justify-between gap-4">
+            {/* Title */}
+            <div className="flex-shrink-0">
+              <h3 className="text-[15px] font-semibold text-[#111827] font-display">Enrollment Trend</h3>
+              <p className="text-[12px] text-[#6b7280] font-body mt-0.5">
+                {trendView === 'year'
+                  ? `Jan – Dec ${new Date().getFullYear()}`
+                  : `${MONTH_NAMES[trendMonth]} ${new Date().getFullYear()}`}
+              </p>
+            </div>
+
+            {/* All controls — right-aligned */}
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              {/* Programme filter */}
+              <select
+                value={trendProgramId}
+                onChange={e => setTrendProgramId(e.target.value)}
+                className="h-8 px-2.5 border border-[#e5e7eb] rounded-[6px] text-[12px] font-body text-[#374151] bg-white outline-none focus:border-[#d51520]"
+              >
+                <option value="">All Programmes</option>
+                {trendPrograms.map(p => <option key={p.id} value={String(p.id)}>{p.title}</option>)}
+              </select>
+
+              {/* Cohort filter — only when programme selected */}
+              {trendCohorts.length > 0 && (
+                <select
+                  value={trendCohortId}
+                  onChange={e => setTrendCohortId(e.target.value)}
+                  className="h-8 px-2.5 border border-[#e5e7eb] rounded-[6px] text-[12px] font-body text-[#374151] bg-white outline-none focus:border-[#d51520]"
+                >
+                  <option value="">All Cohorts</option>
+                  {trendCohorts.map(c => <option key={c.id} value={String(c.id)}>{c.title}</option>)}
+                </select>
+              )}
+
+              {/* Month picker — only in month view */}
+              {trendView === 'month' && (
+                <select
+                  value={trendMonth}
+                  onChange={e => setTrendMonth(Number(e.target.value))}
+                  className="h-8 px-2.5 border border-[#e5e7eb] rounded-[6px] text-[12px] font-body text-[#374151] bg-white outline-none focus:border-[#d51520]"
+                >
+                  {MONTH_NAMES.map((m, i) => <option key={i} value={i}>{m}</option>)}
+                </select>
+              )}
+
               {/* Year / Month toggle pill */}
               <div className="flex items-center bg-[#f3f4f6] rounded-[8px] p-0.5 gap-0.5">
                 {(['year', 'month'] as TrendView[]).map(v => (
@@ -365,27 +403,6 @@ export default function AdminDashboardPage() {
                   </button>
                 ))}
               </div>
-            </div>
-            {/* Filter dropdowns */}
-            <div className="flex items-center gap-2">
-              <select
-                value={trendProgramId}
-                onChange={e => { setTrendProgramId(e.target.value) }}
-                className="h-8 px-2.5 border border-[#e5e7eb] rounded-[6px] text-[12px] font-body text-[#374151] bg-white outline-none focus:border-[#d51520] min-w-[160px]"
-              >
-                <option value="">All Programmes</option>
-                {trendPrograms.map(p => <option key={p.id} value={String(p.id)}>{p.title}</option>)}
-              </select>
-              {trendCohorts.length > 0 && (
-                <select
-                  value={trendCohortId}
-                  onChange={e => setTrendCohortId(e.target.value)}
-                  className="h-8 px-2.5 border border-[#e5e7eb] rounded-[6px] text-[12px] font-body text-[#374151] bg-white outline-none focus:border-[#d51520] min-w-[160px]"
-                >
-                  <option value="">All Cohorts</option>
-                  {trendCohorts.map(c => <option key={c.id} value={String(c.id)}>{c.title}</option>)}
-                </select>
-              )}
             </div>
           </div>
           <div className="flex-1 min-h-0 px-6 pt-4 pb-4">
