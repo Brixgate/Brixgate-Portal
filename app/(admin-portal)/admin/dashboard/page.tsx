@@ -284,23 +284,23 @@ export default function AdminDashboardPage() {
       <div className="grid grid-cols-[3fr_2fr] gap-6 mb-8">
 
         {/* Enrollment Trend — real data grouped by month */}
-        <div className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)]">
-          <div className="px-6 pt-5 pb-4 flex items-center justify-between border-b border-[#f3f4f6]">
+        <div className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] flex flex-col">
+          <div className="px-6 pt-5 pb-4 flex items-center justify-between border-b border-[#f3f4f6] flex-shrink-0">
             <div>
               <h3 className="text-[15px] font-semibold text-[#111827] font-display">Enrollment Trend</h3>
               <p className="text-[12px] text-[#6b7280] font-body mt-0.5">New enrollments — last 6 months</p>
             </div>
           </div>
-          <div className="px-6 pt-4 pb-2">
+          <div className="flex-1 min-h-0 px-6 pt-4 pb-4">
             {trendLoading ? (
-              <div className="h-[320px] bg-[#f9fafb] rounded-[8px] animate-pulse" />
+              <div className="h-full min-h-[240px] bg-[#f9fafb] rounded-[8px] animate-pulse" />
             ) : trendEmpty ? (
-              <div className="h-[320px] flex flex-col items-center justify-center text-center">
+              <div className="h-full min-h-[240px] flex flex-col items-center justify-center text-center">
                 <File01Icon size={28} color="#d1d5db" strokeWidth={1.5} />
                 <p className="text-[13px] text-[#6b7280] font-body mt-3">No enrollments in the last 6 months</p>
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={320}>
+              <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={enrollmentTrend} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
                   <defs>
                     <linearGradient id="eGrad" x1="0" y1="0" x2="0" y2="1">
