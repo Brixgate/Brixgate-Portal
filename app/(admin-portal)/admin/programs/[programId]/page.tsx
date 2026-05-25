@@ -661,7 +661,187 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
   )
 }
 
+// ── Cohort types (for cohorts tab) ────────────────────────────────────────────
+interface ApiCohort { id: number; title: string; status?: string; start_date?: string; end_date?: string; max_students?: number; enrolled_count?: number }
+interface ApiCohortCreate { program_id: string; title: string; start_date: string; end_date: string; status: string; max_students: string }
+
+const COHORT_STATUS_STYLE: Record<string, string> = {
+  OPEN:     'bg-[#ecfdf3] text-[#027a48]',
+  UPCOMING: 'bg-[#eff6ff] text-[#1d4ed8]',
+  CLOSED:   'bg-[#f3f4f6] text-[#6b7280]',
+}
+function formatDate(d?: string) {
+  if (!d) return '—'
+  return new Date(d).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+// ── Cohorts tab ───────────────────────────────────────────────────────────────
+function CohortsTab({ programId }: { programId: string }) {
+  const router = useRouter()
+  const [cohorts, setCohorts]   = useState<ApiCohort[]>([])
+  const [loading, setLoading]   = useState(true)
+  const [showCreate, setShowCreate] = useState(false)
+  const [form, setForm]         = useState<ApiCohortCreate>({ program_id: programId, title: '', start_date: '', end_date: '', status: 'UPCOMING', max_students: '30' })
+  const [saving, setSaving]     = useState(false)
+  const [formError, setFormError] = useState('')
+
+  const clsInput = 'w-full h-10 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 bg-white'
+
+  function setF(k: string, v: string) { setForm(p => ({ ...p, [k]: v })) }
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res  = await apiClient.get(`/admin/programs/${programId}/cohorts?size=50`)
+      const data = unwrap<{ cohorts?: ApiCohort[] }>(res.data)
+      setCohorts(Array.isArray(data?.cohorts) ? data.cohorts : [])
+    } catch { setCohorts([]) } finally { setLoading(false) }
+  }, [programId])
+
+  useEffect(() => { load() }, [load])
+
+  async function createCohort(e: React.FormEvent) {
+    e.preventDefault(); setFormError('')
+    if (!form.title.trim()) { setFormError('Title is required.'); return }
+    if (!form.start_date || !form.end_date) { setFormError('Start and end dates required.'); return }
+    setSaving(true)
+    try {
+      await apiClient.post(`/admin/programs/${programId}/cohorts`, {
+        title: form.title.trim(), start_date: form.start_date, end_date: form.end_date,
+        status: form.status, max_students: parseInt(form.max_students) || 30,
+      })
+      setShowCreate(false)
+      setForm({ program_id: programId, title: '', start_date: '', end_date: '', status: 'UPCOMING', max_students: '30' })
+      load()
+    } catch (err) { setFormError(getApiError(err)) } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-5">
+        <p className="text-[13px] text-[#6b7280] font-body">
+          {loading ? 'Loading…' : `${cohorts.length} cohort${cohorts.length !== 1 ? 's' : ''}`}
+        </p>
+        <button onClick={() => setShowCreate(true)}
+          className="flex items-center gap-1.5 h-9 px-4 bg-[#d51520] text-white rounded-[8px] text-[12px] font-semibold font-display hover:bg-[#b81119] transition-colors">
+          <Add01Icon size={13} strokeWidth={2} /> New Cohort
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="flex flex-col gap-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="h-14 bg-[#f9fafb] rounded-[8px] animate-pulse" />
+          ))}
+        </div>
+      ) : cohorts.length === 0 ? (
+        <div className="text-center py-16">
+          <BookOpen01Icon size={28} color="#e5e7eb" strokeWidth={1.5} className="mx-auto mb-3" />
+          <p className="text-[14px] font-semibold text-[#111827] font-display">No cohorts yet</p>
+          <p className="text-[13px] text-[#6b7280] font-body mt-1">Create the first cohort for this programme</p>
+        </div>
+      ) : (
+        <div className="rounded-[10px] border border-[#eaecf0] overflow-hidden">
+          <table className="w-full">
+            <thead>
+              <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
+                {['Cohort', 'Status', 'Start Date', 'End Date', 'Students', ''].map(h => (
+                  <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6b7280] font-display">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {cohorts.map(c => (
+                <tr key={c.id} onClick={() => router.push(`/admin/cohorts/${c.id}`)}
+                  className="border-b border-[#f3f4f6] hover:bg-[#fafafa] cursor-pointer transition-colors">
+                  <td className="px-4 py-3.5">
+                    <p className="text-[13px] font-semibold text-[#111827] font-display">{c.title}</p>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    {c.status
+                      ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold font-display ${COHORT_STATUS_STYLE[c.status] ?? 'bg-[#f3f4f6] text-[#374151]'}`}>
+                          {c.status.charAt(0) + c.status.slice(1).toLowerCase()}
+                        </span>
+                      : '—'
+                    }
+                  </td>
+                  <td className="px-4 py-3.5 text-[13px] text-[#6b7280] font-body">{formatDate(c.start_date)}</td>
+                  <td className="px-4 py-3.5 text-[13px] text-[#6b7280] font-body">{formatDate(c.end_date)}</td>
+                  <td className="px-4 py-3.5 text-[13px] font-medium text-[#111827] font-body">
+                    {c.enrolled_count ?? 0} / {c.max_students ?? '—'}
+                  </td>
+                  <td className="px-4 py-3.5 text-right">
+                    <ArrowRight01Icon size={15} color="#9ca3af" strokeWidth={1.5} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Create cohort modal */}
+      {showCreate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={() => setShowCreate(false)}>
+          <div className="bg-white rounded-[14px] shadow-xl w-full max-w-[480px] overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-[#f3f4f6]">
+              <h2 className="text-[15px] font-bold text-[#111827] font-display">New Cohort</h2>
+              <button onClick={() => setShowCreate(false)} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f3f4f6]">
+                <Cancel01Icon size={15} color="#6b7280" strokeWidth={1.5} />
+              </button>
+            </div>
+            <form onSubmit={createCohort} className="px-6 py-5 flex flex-col gap-4">
+              <div>
+                <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Cohort Title</label>
+                <input value={form.title} onChange={e => setF('title', e.target.value)}
+                  placeholder="AI Prompt Engineering — Cohort 3" className={clsInput} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Start Date</label>
+                  <input type="date" value={form.start_date} onChange={e => setF('start_date', e.target.value)} className={clsInput} />
+                </div>
+                <div>
+                  <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">End Date</label>
+                  <input type="date" value={form.end_date} onChange={e => setF('end_date', e.target.value)} className={clsInput} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Status</label>
+                  <select value={form.status} onChange={e => setF('status', e.target.value)} className={`${clsInput}`}>
+                    {['UPCOMING', 'OPEN', 'CLOSED'].map(s => <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Max Students</label>
+                  <input type="number" value={form.max_students} onChange={e => setF('max_students', e.target.value)} placeholder="30" className={clsInput} />
+                </div>
+              </div>
+              {formError && (
+                <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body">
+                  <AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} /> {formError}
+                </p>
+              )}
+              <div className="flex gap-2 pt-1">
+                <button type="button" onClick={() => setShowCreate(false)}
+                  className="flex-1 h-10 rounded-[8px] border border-[#e5e7eb] text-[13px] font-body hover:bg-[#f9fafb]">Cancel</button>
+                <button type="submit" disabled={saving}
+                  className="flex-1 h-10 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-60 flex items-center justify-center gap-2">
+                  {saving && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />} Create Cohort
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
+type PageTab = 'Cohorts' | 'Curriculum'
+
 export default function ProgramDetailPage() {
   const params    = useParams()
   const router    = useRouter()
@@ -671,6 +851,7 @@ export default function ProgramDetailPage() {
   const [modules, setModules]       = useState<Module[]>([])
   const [selected, setSelected]     = useState<Module | null>(null)
   const [loading, setLoading]       = useState(true)
+  const [activeTab, setActiveTab]   = useState<PageTab>('Cohorts')
   const [showAddMod, setShowAddMod] = useState(false)
   const [modForm, setModForm]       = useState({ title: '', description: '', status: 'DRAFT' })
   const [modSaving, setModSaving]   = useState(false)
@@ -726,50 +907,76 @@ export default function ProgramDetailPage() {
             ? <div className="h-5 w-48 bg-[#f3f4f6] rounded animate-pulse" />
             : <h1 className="text-[16px] font-bold text-[#111827] font-display truncate">{program?.title ?? 'Programme'}</h1>
           }
-          <p className="text-[13px] text-[#6b7280] font-body mt-0.5">Curriculum bank — modules, lessons &amp; resources</p>
+          <p className="text-[13px] text-[#6b7280] font-body mt-0.5">
+            {activeTab === 'Cohorts' ? 'Cohorts running this programme' : 'Master curriculum — modules, lessons & resources'}
+          </p>
         </div>
-        <button onClick={() => setShowAddMod(true)}
-          className="flex items-center gap-2 h-9 px-4 bg-[#d51520] text-white rounded-[8px] text-[12px] font-semibold font-display hover:bg-[#b81119] transition-colors">
-          <Add01Icon size={14} strokeWidth={2} /> Add Module
-        </button>
+        {activeTab === 'Curriculum' && (
+          <button onClick={() => setShowAddMod(true)}
+            className="flex items-center gap-2 h-9 px-4 bg-[#d51520] text-white rounded-[8px] text-[12px] font-semibold font-display hover:bg-[#b81119] transition-colors">
+            <Add01Icon size={14} strokeWidth={2} /> Add Module
+          </button>
+        )}
       </div>
 
-      {/* Two-column layout */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left: module list */}
-        <div className="w-[300px] flex-shrink-0 bg-white border-r border-[#f3f4f6] overflow-y-auto flex flex-col">
-          <div className="px-4 py-3 border-b border-[#f3f4f6]">
-            <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#9ca3af] font-display">
-              {modules.length} Module{modules.length !== 1 ? 's' : ''}
-            </p>
+      {/* Tab bar */}
+      <div className="flex items-center gap-1 px-6 bg-white border-b border-[#f3f4f6] flex-shrink-0">
+        {(['Cohorts', 'Curriculum'] as PageTab[]).map(tab => (
+          <button key={tab} onClick={() => setActiveTab(tab)}
+            className={`flex items-center gap-1.5 px-4 py-3 text-[13px] font-semibold font-display border-b-2 transition-colors ${
+              activeTab === tab ? 'border-[#d51520] text-[#d51520]' : 'border-transparent text-[#6b7280] hover:text-[#374151]'
+            }`}>
+            {tab === 'Cohorts'    && <BookOpen01Icon size={14} strokeWidth={1.5} />}
+            {tab === 'Curriculum' && <File01Icon     size={14} strokeWidth={1.5} />}
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      {activeTab === 'Cohorts' && (
+        <div className="flex-1 overflow-y-auto bg-[#f9fafb]">
+          <CohortsTab programId={programId} />
+        </div>
+      )}
+
+      {activeTab === 'Curriculum' && (
+        <div className="flex flex-1 overflow-hidden">
+          {/* Left: module list */}
+          <div className="w-[300px] flex-shrink-0 bg-white border-r border-[#f3f4f6] overflow-y-auto flex flex-col">
+            <div className="px-4 py-3 border-b border-[#f3f4f6]">
+              <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#9ca3af] font-display">
+                {modules.length} Module{modules.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+            {loading ? (
+              <div className="flex flex-col">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="h-14 border-b border-[#f3f4f6] flex items-center px-4 gap-3">
+                    <div className="h-4 bg-[#f3f4f6] rounded animate-pulse flex-1" />
+                  </div>
+                ))}
+              </div>
+            ) : modules.length === 0 ? (
+              <div className="text-center py-12 px-4">
+                <BookOpen01Icon size={28} color="#e5e7eb" strokeWidth={1.5} className="mx-auto mb-2" />
+                <p className="text-[13px] text-[#6b7280] font-body">No modules yet</p>
+              </div>
+            ) : (
+              modules.map(m => (
+                <ModuleItem key={m.id} mod={m} programId={programId}
+                  isSelected={selected?.id === m.id}
+                  onSelect={setSelected} onRefresh={fetchModules} />
+              ))
+            )}
           </div>
-          {loading ? (
-            <div className="flex flex-col">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-14 border-b border-[#f3f4f6] flex items-center px-4 gap-3">
-                  <div className="h-4 bg-[#f3f4f6] rounded animate-pulse flex-1" />
-                </div>
-              ))}
-            </div>
-          ) : modules.length === 0 ? (
-            <div className="text-center py-12 px-4">
-              <BookOpen01Icon size={28} color="#e5e7eb" strokeWidth={1.5} className="mx-auto mb-2" />
-              <p className="text-[13px] text-[#6b7280] font-body">No modules yet</p>
-            </div>
-          ) : (
-            modules.map(m => (
-              <ModuleItem key={m.id} mod={m} programId={programId}
-                isSelected={selected?.id === m.id}
-                onSelect={setSelected} onRefresh={fetchModules} />
-            ))
-          )}
-        </div>
 
-        {/* Right: detail panel */}
-        <div className="flex-1 bg-white overflow-hidden">
-          <DetailPanel mod={selected} programId={programId} onRefresh={fetchModules} />
+          {/* Right: detail panel */}
+          <div className="flex-1 bg-white overflow-hidden">
+            <DetailPanel mod={selected} programId={programId} onRefresh={fetchModules} />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Add module modal */}
       {showAddMod && (

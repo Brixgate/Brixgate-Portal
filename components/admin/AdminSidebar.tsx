@@ -31,7 +31,6 @@ const NAV_GROUPS = [
       { label: 'Dashboard',    href: '/admin/dashboard',   icon: Home01Icon                 },
       { label: 'Users',        href: '/admin/users',        icon: UserGroup02Icon            },
       { label: 'Programmes',   href: '/admin/programs',     icon: BookOpen01Icon             },
-      { label: 'Cohorts',      href: '/admin/cohorts',      icon: PresentationBarChart01Icon },
     ],
   },
   {
