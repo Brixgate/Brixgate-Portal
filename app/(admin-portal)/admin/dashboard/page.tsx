@@ -12,8 +12,6 @@ import {
 } from 'recharts'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-interface Pagination { totalElements?: number; total?: number }
-interface PaginatedResponse { pagination: Pagination }
 
 interface DashboardMetrics {
   users: number
@@ -31,16 +29,23 @@ interface RawEnrollment {
 
 interface RecentPayment {
   id: number
+  // User object — camelCase or snake_case
   user?: {
     name?: string
     first_name?: string; firstName?: string
     last_name?: string;  lastName?: string
     email?: string
   }
-  amount?: number
+  // Direct name fields (some APIs flatten user info)
+  user_name?: string; userName?: string
+  payer_name?: string; payerName?: string
+  customer_name?: string; customerName?: string
+  // Amount — may be in kobo (divide by 100) or naira
+  amount?: number; amount_in_kobo?: number; amountInKobo?: number
   currency?: string
   status?: string
   payment_type?: string; paymentType?: string
+  reference?: string
   createdAt?: string; created_at?: string
 }
 
@@ -65,16 +70,23 @@ function buildMonthlyTrend(list: RawEnrollment[]) {
   return buckets.map(({ month, enrollments }) => ({ month, enrollments }))
 }
 
-function paymentName(u?: RecentPayment['user']): string {
-  if (!u) return '—'
+function paymentDisplayName(p: RecentPayment): string {
+  // Try flattened name fields first, then nested user object
+  const flat = p.userName ?? p.user_name ?? p.payerName ?? p.payer_name ?? p.customerName ?? p.customer_name
+  if (flat) return flat
+  const u = p.user
+  if (!u) return p.reference ?? '—'
   if (u.name) return u.name
   return `${u.firstName ?? u.first_name ?? ''} ${u.lastName ?? u.last_name ?? ''}`.trim() || u.email || '—'
 }
 
-function formatAmount(amount?: number, currency?: string) {
-  if (!amount) return '—'
-  const sym = currency === 'USD' ? '$' : '₦'
-  return `${sym}${amount.toLocaleString('en-NG')}`
+function formatAmount(p: RecentPayment): string {
+  // Amount may be in naira or kobo — if > 1,000,000 for a typical transaction it's likely kobo
+  const raw = p.amount ?? p.amountInKobo ?? p.amount_in_kobo
+  if (!raw && raw !== 0) return '—'
+  const naira = (p.amountInKobo ?? p.amount_in_kobo) ? raw / 100 : raw
+  const sym = p.currency === 'USD' ? '$' : '₦'
+  return `${sym}${naira.toLocaleString('en-NG')}`
 }
 
 function formatDate(d?: string) {
@@ -163,14 +175,24 @@ export default function AdminDashboardPage() {
             apiClient.get('/admin/organization-requests?page=1&size=1&status=SUBMITTED'),
           ])
 
-        const read = (res: PromiseSettledResult<{ data: unknown }>) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const read = (res: PromiseSettledResult<{ data: unknown }>): number => {
           if (res.status === 'rejected') return 0
-          const d = unwrap<PaginatedResponse & { total?: number; count?: number }>(res.value.data)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const d = unwrap<any>(res.value.data)
+          // Try every location the backend might put the total count
           return (
+            d?.pagination?.total_elements ??
             d?.pagination?.totalElements ??
             d?.pagination?.total ??
-            (d as { total?: number })?.total ??
-            (d as { count?: number })?.count ??
+            d?.pagination?.count ??
+            d?.meta?.total_elements ??
+            d?.meta?.totalElements ??
+            d?.meta?.total ??
+            d?.total_elements ??
+            d?.totalElements ??
+            d?.total ??
+            d?.count ??
             0
           )
         }
@@ -195,8 +217,14 @@ export default function AdminDashboardPage() {
     async function loadTrend() {
       try {
         const res = await apiClient.get('/admin/cohort-enrollments?page=1&size=500')
-        const d   = unwrap<{ enrollments?: RawEnrollment[] }>(res.data)
-        const list = Array.isArray(d?.enrollments) ? d.enrollments : []
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const d   = unwrap<any>(res.data)
+        const list: RawEnrollment[] = (
+          Array.isArray(d?.enrollments) ? d.enrollments :
+          Array.isArray(d?.content)     ? d.content     :
+          Array.isArray(d?.data)        ? d.data        :
+          Array.isArray(d)              ? d             : []
+        )
         setEnrollmentTrend(buildMonthlyTrend(list))
       } catch {
         setEnrollmentTrend([])
@@ -212,8 +240,15 @@ export default function AdminDashboardPage() {
     async function loadPayments() {
       try {
         const res = await apiClient.get('/admin/payments?page=1&size=6')
-        const d   = unwrap<{ payments?: RecentPayment[] }>(res.data)
-        setRecentPayments(Array.isArray(d?.payments) ? d.payments : [])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const d   = unwrap<any>(res.data)
+        const list: RecentPayment[] = (
+          Array.isArray(d?.payments) ? d.payments :
+          Array.isArray(d?.content)  ? d.content  :
+          Array.isArray(d?.data)     ? d.data     :
+          Array.isArray(d)           ? d          : []
+        )
+        setRecentPayments(list)
       } catch {
         setRecentPayments([])
       } finally {
@@ -322,7 +357,7 @@ export default function AdminDashboardPage() {
                     <div key={p.id} className="flex items-center justify-between py-3">
                       <div className="min-w-0 flex-1 pr-3">
                         <p className="text-[13px] font-medium text-[#111827] font-body truncate">
-                          {paymentName(p.user)}
+                          {paymentDisplayName(p)}
                         </p>
                         <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">
                           {formatDate(p.createdAt ?? p.created_at)}
@@ -330,7 +365,7 @@ export default function AdminDashboardPage() {
                       </div>
                       <div className="flex flex-col items-end gap-1 flex-shrink-0">
                         <span className="text-[13px] font-semibold text-[#111827] font-display">
-                          {formatAmount(p.amount, p.currency)}
+                          {formatAmount(p)}
                         </span>
                         <span
                           className="text-[10px] font-semibold font-display px-2 py-0.5 rounded-full"
