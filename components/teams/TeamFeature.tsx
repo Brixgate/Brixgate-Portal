@@ -37,13 +37,40 @@ interface ApiProgramsResponse {
   programs: RawProgram[]
 }
 
-// Invitee shape — camelCase per Swagger convention
+// Invitee shape — camelCase + snake_case fallbacks
 interface Invitee {
   id: number
   inviteeEmail: string
+  invitee_email?: string
   status: 'PENDING' | 'ACCEPTED' | 'EXPIRED' | 'CANCELLED'
+  // Name populated once the invitee accepts and sets up their account
+  name?: string
+  inviteeName?: string
+  invitee_name?: string
   expiresAt?: string
   createdAt?: string
+}
+
+function inviteeName(i: Invitee): string {
+  return (i.name ?? i.inviteeName ?? i.invitee_name ?? '').trim()
+}
+function inviteeEmail(i: Invitee): string {
+  return (i.inviteeEmail ?? i.invitee_email ?? '').trim()
+}
+function inviteeDisplay(i: Invitee): { primary: string; secondary: string | null } {
+  const name  = inviteeName(i)
+  const email = inviteeEmail(i)
+  return name
+    ? { primary: name, secondary: email }
+    : { primary: email, secondary: null }
+}
+function inviteeInitials(i: Invitee): string {
+  const name = inviteeName(i)
+  if (name) {
+    const parts = name.trim().split(/\s+/)
+    return (parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')
+  }
+  return (inviteeEmail(i)[0] ?? '?').toUpperCase()
 }
 
 interface TeamData {
@@ -210,17 +237,30 @@ function InviteeRow({
     }
   }
 
+  const display  = inviteeDisplay(invitee)
+  const initials = inviteeInitials(invitee)
+  const hasName  = !!inviteeName(invitee)
+
   return (
     <>
       <div className="flex items-center gap-3 py-2.5 px-1 group">
-        <div className="w-7 h-7 rounded-full bg-[#f3f4f6] flex items-center justify-center flex-shrink-0">
-          <Mail01Icon size={12} color="#9ca3af" strokeWidth={1.5} />
+        {/* Avatar — initials when accepted, mail icon when pending */}
+        <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold font-display ${
+          hasName ? 'bg-[#d51520] text-white' : 'bg-[#f3f4f6] text-[#9ca3af]'
+        }`}>
+          {hasName
+            ? initials.toUpperCase()
+            : <Mail01Icon size={12} color="#9ca3af" strokeWidth={1.5} />
+          }
         </div>
 
         <div className="flex-1 min-w-0">
           <p className="text-[13px] font-medium text-[#111827] font-body truncate">
-            {invitee.inviteeEmail}
+            {display.primary}
           </p>
+          {display.secondary && (
+            <p className="text-[11px] text-[#9ca3af] font-body truncate">{display.secondary}</p>
+          )}
           {resendSuccess && (
             <p className="text-[11px] text-[#16A34A] font-body flex items-center gap-1 mt-0.5">
               <CheckmarkCircle01Icon size={10} color="#16A34A" strokeWidth={2} />
@@ -267,7 +307,7 @@ function InviteeRow({
 
       {showConfirm && (
         <ConfirmDeleteModal
-          email={invitee.inviteeEmail}
+          email={display.primary}
           onConfirm={handleDelete}
           onCancel={() => setShowConfirm(false)}
           loading={actionLoading}
