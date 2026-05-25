@@ -131,7 +131,7 @@ export default function ExpertApplicationDetailPage() {
           </div>
         </div>
       ) : (
-        <p className="text-[14px] text-[#9ca3af] font-body">Application not found.</p>
+        <p className="text-[14px] text-[#6b7280] font-body">Application not found.</p>
       )}
     </div>
   )

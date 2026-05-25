@@ -35,7 +35,7 @@ function SectionCard({
       <div className="px-6 py-5 border-b border-[#f3f4f6] rounded-t-[10px]">
         <p className="text-[16px] font-semibold text-[#111827] font-display">{title}</p>
         {description && (
-          <p className="text-[13px] text-[#9ca3af] font-body mt-0.5">{description}</p>
+          <p className="text-[13px] text-[#6b7280] font-body mt-0.5">{description}</p>
         )}
       </div>
       <div className="p-6">{children}</div>
@@ -168,7 +168,7 @@ function Toggle({
       <div>
         <p className="text-[13px] font-medium text-[#374151] font-body">{label}</p>
         {description && (
-          <p className="text-[12px] text-[#9ca3af] font-body mt-0.5">{description}</p>
+          <p className="text-[12px] text-[#6b7280] font-body mt-0.5">{description}</p>
         )}
       </div>
       <button
@@ -666,7 +666,7 @@ export default function SettingsPage() {
               <div className="flex items-center justify-between py-1">
                 <div>
                   <p className="text-[13px] font-medium text-[#374151] font-body">Password</p>
-                  <p className="text-[12px] text-[#9ca3af] font-body mt-0.5">Change your account password at any time</p>
+                  <p className="text-[12px] text-[#6b7280] font-body mt-0.5">Change your account password at any time</p>
                 </div>
                 <Link
                   href="/update-password"

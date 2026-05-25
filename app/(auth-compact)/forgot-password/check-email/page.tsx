@@ -69,7 +69,7 @@ function CheckEmailContent() {
         </button>
       </div>
 
-      <p className="text-[12px] text-[#D1D5DB] font-body">Brixgate 2024</p>
+      <p className="text-[12px] text-[#D1D5DB] font-body">Brixgate 2026</p>
     </div>
   )
 }

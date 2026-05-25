@@ -224,7 +224,7 @@ export default function AdminCohortsPage() {
                   <td colSpan={6} className="px-4 py-16 text-center">
                     <PresentationBarChart01Icon size={32} color="#d1d5db" strokeWidth={1.5} className="mx-auto mb-3" />
                     <p className="text-[14px] font-semibold text-[#111827] font-display">No cohorts yet</p>
-                    <p className="text-[13px] text-[#9ca3af] font-body mt-1">Create the first cohort for this programme</p>
+                    <p className="text-[13px] text-[#6b7280] font-body mt-1">Create the first cohort for this programme</p>
                   </td>
                 </tr>
               ) : (

@@ -38,8 +38,6 @@ interface ApiProgramsResponse { programs: ApiProgram[] }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const rc = (c: any): number => c?.cohortId ?? c?.cohort_id ?? 0
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const rt = (c: any): string => c?.cohortTitle ?? c?.cohort_title ?? ''
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const rm = (p: any): any[]  => p?.myCohorts  ?? p?.my_cohorts  ?? []
 
 // ── API shapes — resources ────────────────────────────────────────────────────
@@ -62,10 +60,13 @@ interface ApiResourcesResponse {
 interface CohortLesson {
   id: number
   title: string
-  contentType: string
+  contentType?: string
+  content_type?: string   // snake_case fallback
   contentUrl?: string
+  content_url?: string    // snake_case fallback
   duration: number        // minutes
   orderIndex: number
+  order_index?: number    // snake_case fallback
   visibilityStatus?: string
   releaseDate?: string
   expiresAt?: string
@@ -75,6 +76,7 @@ interface CohortModule {
   id: number
   title: string
   description?: string
+  module_description?: string  // snake_case fallback
   duration: string        // e.g. "1 Week"
   orderIndex: number
   moduleStatus?: string
@@ -176,7 +178,7 @@ function ModuleAccordion({
           {[...module.lessons]
             .sort((a, b) => a.orderIndex - b.orderIndex)
             .map((lesson, i) => {
-              const type    = (lesson.contentType ?? 'PDF').toUpperCase()
+              const type    = ((lesson.contentType ?? lesson.content_type ?? 'PDF')).toUpperCase()
               const Icon    = CONTENT_ICONS[type] ?? File01Icon
               const colours = CONTENT_COLOURS[type] ?? { bg: '#F7F8FA', text: '#6b7280' }
               const isSelected =
@@ -324,9 +326,9 @@ function DetailPanel({ item, resources }: { item: SelectedItem | null; resources
         </h2>
 
         {/* Description */}
-        {mod.description ? (
+        {(mod.description ?? mod.module_description) ? (
           <p className="text-[15px] text-[#475467] font-body leading-[1.7] mb-6">
-            {mod.description}
+            {mod.description ?? mod.module_description}
           </p>
         ) : (
           <p className="text-[14px] text-[#9ca3af] font-body leading-[1.6] mb-6 italic">
@@ -365,7 +367,7 @@ function DetailPanel({ item, resources }: { item: SelectedItem | null; resources
               {[...mod.lessons]
                 .sort((a, b) => a.orderIndex - b.orderIndex)
                 .map((lesson, i) => {
-                  const type    = (lesson.contentType ?? 'PDF').toUpperCase()
+                  const type    = ((lesson.contentType ?? lesson.content_type ?? 'PDF')).toUpperCase()
                   const colours = CONTENT_COLOURS[type] ?? { bg: '#F7F8FA', text: '#6b7280' }
                   const Icon    = CONTENT_ICONS[type] ?? File01Icon
                   return (
@@ -414,7 +416,7 @@ function DetailPanel({ item, resources }: { item: SelectedItem | null; resources
 
   // Lesson detail
   const { data: lesson, moduleTitle, moduleIndex, lessonIndex } = item
-  const type    = (lesson.contentType ?? 'PDF').toUpperCase()
+  const type    = ((lesson.contentType ?? lesson.content_type ?? 'PDF')).toUpperCase()
   const Icon    = CONTENT_ICONS[type] ?? File01Icon
   const colours = CONTENT_COLOURS[type] ?? { bg: '#F7F8FA', text: '#6b7280' }
   const typeLabel = type.charAt(0) + type.slice(1).toLowerCase()
@@ -500,7 +502,6 @@ export default function CourseDetailPage() {
   const [loading, setLoading]           = useState(true)
   const [notFound, setNotFound]         = useState(false)
   const [programTitle, setProgramTitle] = useState('')
-  const [cohortLabel, setCohortLabel]   = useState('')
   const [modules, setModules]           = useState<CohortModule[]>([])
   const [resources, setResources]       = useState<ApiResource[]>([])
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null)
@@ -549,12 +550,7 @@ export default function CourseDetailPage() {
             rm(p).some((c) => String(rc(c)) === String(cohortId))
           )
           if (program) {
-            const cohort = rm(program).find((c: unknown) => String(rc(c)) === String(cohortId))
             setProgramTitle(program.title)
-            const cn = rt(cohort)
-            setCohortLabel(
-              cn.replace(`${program.title} — `, '').replace(`${program.title} - `, '') || cn
-            )
           }
         } catch {
           // Non-fatal — header just shows generic title
@@ -637,7 +633,6 @@ export default function CourseDetailPage() {
               {programTitle || 'Course Curriculum'}
             </h1>
             <p className="text-[13px] text-[#6b7280] font-body mt-0.5">
-              {cohortLabel && `${cohortLabel} · `}
               {modules.length} module{modules.length !== 1 ? 's' : ''} · {totalLessons} lesson{totalLessons !== 1 ? 's' : ''}
             </p>
           </div>

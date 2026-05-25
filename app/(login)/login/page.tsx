@@ -6,7 +6,7 @@ import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { EyeIcon, ViewOffIcon, AlertCircleIcon } from 'hugeicons-react'
 import { useAuth } from '@/lib/auth-context'
-import { apiClient, extractToken, getApiError } from '@/lib/api-client'
+import { apiClient, extractLoginData, getApiError } from '@/lib/api-client'
 
 function defaultDashboard(role?: string): string {
   if (role?.toUpperCase() === 'ADMIN') return '/admin/dashboard'
@@ -60,15 +60,17 @@ function LoginPageContent() {
 
     try {
       const res = await apiClient.post('/auth/login', { email, password })
-      const token = extractToken(res.data)
+      const { token, user: rawUser } = extractLoginData(res.data)
       if (!token) throw new Error('No token returned from server.')
 
-      const loggedInUser = await login(token)
+      // Pass rawUser so auth-context can skip GET /users/me if the
+      // login response already includes the user — saves ~1 second.
+      const loggedInUser = await login(token, rawUser ?? undefined)
       const redirect = searchParams.get('redirect') ?? defaultDashboard(loggedInUser?.role)
+      // Keep spinner going — stops only when the new page mounts
       router.push(redirect)
     } catch (err) {
       setErrors({ form: getApiError(err) })
-    } finally {
       setLoading(false)
     }
   }
@@ -223,7 +225,7 @@ function LoginPageContent() {
       </div>
 
       {/* Footer */}
-      <p className="text-[12px] text-[#D1D5DB] font-body mt-6">Brixgate 2024</p>
+      <p className="text-[12px] text-[#D1D5DB] font-body mt-6">Brixgate 2026</p>
     </div>
   )
 }

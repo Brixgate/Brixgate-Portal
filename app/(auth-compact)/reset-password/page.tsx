@@ -266,7 +266,7 @@ function ResetPasswordContent() {
         </p>
       </div>
 
-      <p className="text-[12px] text-[#D1D5DB] font-body mt-6">Brixgate 2024</p>
+      <p className="text-[12px] text-[#D1D5DB] font-body mt-6">Brixgate 2026</p>
     </div>
   )
 }

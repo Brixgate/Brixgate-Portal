@@ -124,7 +124,7 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
     <div className="p-6 text-center py-16">
       <BookOpen01Icon size={32} color="#e5e7eb" strokeWidth={1.5} className="mx-auto mb-3" />
       <p className="text-[14px] font-semibold text-[#111827] font-display">No programme linked</p>
-      <p className="text-[13px] text-[#9ca3af] font-body mt-1">This cohort has no programme associated</p>
+      <p className="text-[13px] text-[#6b7280] font-body mt-1">This cohort has no programme associated</p>
     </div>
   )
 
@@ -132,7 +132,7 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
     <div className="p-6 text-center py-16">
       <BookOpen01Icon size={32} color="#e5e7eb" strokeWidth={1.5} className="mx-auto mb-3" />
       <p className="text-[14px] font-semibold text-[#111827] font-display">No modules in programme</p>
-      <p className="text-[13px] text-[#9ca3af] font-body mt-1">Add modules to the programme first, then assign them here</p>
+      <p className="text-[13px] text-[#6b7280] font-body mt-1">Add modules to the programme first, then assign them here</p>
     </div>
   )
 
@@ -150,7 +150,7 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
           <p className="text-[13px] font-semibold text-[#111827] font-display">
             {selected.size} of {allModules.length} modules selected
           </p>
-          <p className="text-[12px] text-[#9ca3af] font-body mt-0.5">
+          <p className="text-[12px] text-[#6b7280] font-body mt-0.5">
             Tick the modules students in this cohort will see
           </p>
         </div>
@@ -202,7 +202,7 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
                   {m.order_index !== undefined ? `${m.order_index + 1}. ` : ''}{m.title}
                 </p>
                 {m.description && (
-                  <p className="text-[12px] text-[#9ca3af] font-body mt-0.5 truncate">{m.description}</p>
+                  <p className="text-[12px] text-[#6b7280] font-body mt-0.5 truncate">{m.description}</p>
                 )}
               </div>
               {checked

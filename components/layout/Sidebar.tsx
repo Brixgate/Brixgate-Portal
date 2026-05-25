@@ -11,6 +11,7 @@ import {
   Settings01Icon,
   Logout01Icon,
   Award01Icon,
+  ArrowLeft01Icon,
 } from 'hugeicons-react'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -127,9 +128,14 @@ export default function Sidebar() {
           forceCollapsed ? 'lg:w-16' : 'lg:w-[270px]',
         )}
       >
-        {/* Logo */}
+        {/* Logo — links to main website */}
         <div className="h-[64px] flex items-center justify-center lg:justify-start lg:px-6 max-lg:justify-start max-lg:px-5 border-b border-[#f3f4f6]">
-          <div className="flex items-center gap-3">
+          <a
+            href="https://brixgate.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+          >
             <Image
               src={LOGO_URL}
               alt="Brixgate"
@@ -153,7 +159,7 @@ export default function Sidebar() {
             )}>
               Brixgate
             </span>
-          </div>
+          </a>
         </div>
 
         {/* Nav */}
@@ -169,6 +175,29 @@ export default function Sidebar() {
               forceCollapsed={forceCollapsed}
             />
           ))}
+
+          {/* Back to website — external link at bottom of nav */}
+          <div className="mt-auto pt-3 border-t border-[#f3f4f6]">
+            <a
+              href="https://brixgate.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={closeMobile}
+              title="Back to Website"
+              className={cn(
+                'flex items-center gap-[10px] px-3 py-[14px] rounded-[8px] w-full transition-colors duration-100 hover:bg-[#f7f8fa]',
+                forceCollapsed ? 'justify-center' : 'justify-center lg:justify-start max-lg:justify-start'
+              )}
+            >
+              <ArrowLeft01Icon size={20} color="#9ca3af" strokeWidth={1.5} />
+              <span className={cn(
+                'text-[14px] leading-[20px] font-display font-medium text-[#9ca3af] whitespace-nowrap',
+                forceCollapsed ? 'hidden' : 'hidden lg:inline max-lg:inline'
+              )}>
+                Back to Website
+              </span>
+            </a>
+          </div>
         </nav>
 
         {/* User card */}

@@ -99,9 +99,14 @@ export default function AdminSidebar() {
 
   return (
     <aside className="bg-white flex flex-col h-screen sticky top-0 flex-shrink-0 w-[260px] border-r border-[#f3f4f6]">
-      {/* Logo */}
+      {/* Logo — links to main website */}
       <div className="h-[64px] flex items-center px-5 border-b border-[#f3f4f6] flex-shrink-0">
-        <div className="flex items-center gap-3">
+        <a
+          href="https://brixgate.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+        >
           <Image
             src={LOGO_URL} alt="Brixgate" width={22} height={26}
             onError={(e) => {
@@ -121,7 +126,7 @@ export default function AdminSidebar() {
               Admin
             </span>
           </div>
-        </div>
+        </a>
       </div>
 
       {/* Nav */}

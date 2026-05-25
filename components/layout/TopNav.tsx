@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search01Icon, Menu01Icon, BookOpen01Icon, Settings01Icon, HelpCircleIcon, Logout01Icon, UserGroup02Icon } from 'hugeicons-react'
+import { Search01Icon, Menu01Icon, BookOpen01Icon, Settings01Icon, HelpCircleIcon, Logout01Icon, UserGroup02Icon, Home01Icon } from 'hugeicons-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 // FEATURE_OFF: notifications — import NotificationDropdown from '@/components/shared/NotificationDropdown'
 import { useSidebar } from '@/lib/sidebar-context'
@@ -125,6 +125,18 @@ export default function TopNav({ title, breadcrumbs = [] }: TopNavProps) {
 
             {/* Menu items */}
             <div className="py-1">
+              {/* Back to website */}
+              <a
+                href="https://brixgate.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setShowProfileMenu(false)}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] font-medium text-[#374151] font-body hover:bg-[#f9fafb] transition-colors text-left"
+              >
+                <Home01Icon size={15} color="#6b7280" strokeWidth={1.5} />
+                Back to Website
+              </a>
+
               {PROFILE_MENU.map(({ label, href, icon: Icon }) => (
                 <button
                   key={label}
@@ -139,17 +151,17 @@ export default function TopNav({ title, breadcrumbs = [] }: TopNavProps) {
                 </button>
               ))}
 
-              {/* Teams — always clickable; TeamFeature resolves account type from API */}
-              <button
-                onClick={() => {
-                  setShowProfileMenu(false)
-                  setShowTeams(true)
-                }}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] font-medium text-[#374151] font-body hover:bg-[#f9fafb] transition-colors text-left"
+              {/* Teams — greyed out on individual plans (coming soon) */}
+              <div
+                title="Teams is available on team plans"
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] font-medium text-[#c4c9d4] font-body cursor-not-allowed select-none"
               >
-                <UserGroup02Icon size={15} color="#6b7280" strokeWidth={1.5} />
-                Teams
-              </button>
+                <UserGroup02Icon size={15} color="#c4c9d4" strokeWidth={1.5} />
+                <span>Teams</span>
+                <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide text-[#c4c9d4] bg-[#f3f4f6] px-1.5 py-0.5 rounded-[4px]">
+                  Team plan
+                </span>
+              </div>
             </div>
 
             {/* Logout */}

@@ -1,5 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Standalone output — bundles server + deps into .next/standalone for EC2 deployment.
+  // Zip: .next/standalone/ + .next/static/ (→ standalone/.next/static) + public/ (→ standalone/public)
+  // Run with: node .next/standalone/server.js
+  output: 'standalone',
+
   images: {
     remotePatterns: [
       {

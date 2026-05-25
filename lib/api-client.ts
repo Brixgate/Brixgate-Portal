@@ -96,6 +96,34 @@ export function extractToken(responseData: unknown): string | null {
   return null
 }
 
+// ── Login data extractor ───────────────────────────────────────────────────────
+// Pulls both token AND user from the login response in one pass.
+// If the API embeds the user in the login response we skip a second GET /users/me.
+export function extractLoginData(responseData: unknown): {
+  token: string | null
+  user: Record<string, unknown> | null
+} {
+  if (!responseData || typeof responseData !== 'object') return { token: null, user: null }
+
+  const root  = responseData as Record<string, unknown>
+  // Unwrap { data: { ... } } envelope if present
+  const d     = (root.data && typeof root.data === 'object')
+    ? (root.data as Record<string, unknown>)
+    : root
+
+  const token =
+    (typeof d.token        === 'string' ? d.token        : null) ??
+    (typeof d.access_token === 'string' ? d.access_token : null) ??
+    (typeof root.token        === 'string' ? root.token        : null) ??
+    (typeof root.access_token === 'string' ? root.access_token : null)
+
+  const user =
+    (d.user   && typeof d.user   === 'object' ? d.user   as Record<string, unknown> : null) ??
+    (root.user && typeof root.user === 'object' ? root.user as Record<string, unknown> : null)
+
+  return { token, user }
+}
+
 // ── Error message extractor ────────────────────────────────────────────────────
 export function getApiError(error: unknown): string {
   if (axios.isAxiosError(error)) {

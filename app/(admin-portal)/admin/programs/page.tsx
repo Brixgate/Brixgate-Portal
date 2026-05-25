@@ -224,7 +224,7 @@ export default function AdminProgramsPage() {
                   <td colSpan={6} className="px-4 py-16 text-center">
                     <BookOpen01Icon size={32} color="#d1d5db" strokeWidth={1.5} className="mx-auto mb-3" />
                     <p className="text-[14px] font-semibold text-[#111827] font-display">No programmes yet</p>
-                    <p className="text-[13px] text-[#9ca3af] font-body mt-1">Create your first programme to get started</p>
+                    <p className="text-[13px] text-[#6b7280] font-body mt-1">Create your first programme to get started</p>
                   </td>
                 </tr>
               ) : (
@@ -235,7 +235,7 @@ export default function AdminProgramsPage() {
                     <td className="px-4 py-4">
                       <p className="text-[13px] font-semibold text-[#111827] font-display">{p.title}</p>
                       {p.description && (
-                        <p className="text-[12px] text-[#9ca3af] font-body mt-0.5 line-clamp-1 max-w-[320px]">{p.description}</p>
+                        <p className="text-[12px] text-[#6b7280] font-body mt-0.5 line-clamp-1 max-w-[320px]">{p.description}</p>
                       )}
                     </td>
                     <td className="px-4 py-4">

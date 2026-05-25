@@ -310,7 +310,7 @@ function InviteAcceptContent() {
             Back to Log In
           </Link>
         </div>
-        <p className="text-[12px] text-[#D1D5DB] font-body mt-6">Brixgate 2025</p>
+        <p className="text-[12px] text-[#D1D5DB] font-body mt-6">Brixgate 2026</p>
       </div>
     )
   }
@@ -479,7 +479,7 @@ function InviteAcceptContent() {
           </p>
         </div>
 
-        <p className="text-[12px] text-[#D1D5DB] font-body mt-6">Brixgate 2025</p>
+        <p className="text-[12px] text-[#D1D5DB] font-body mt-6">Brixgate 2026</p>
       </div>
     )
   }
@@ -689,7 +689,7 @@ function InviteAcceptContent() {
         </p>
       </div>
 
-      <p className="text-[12px] text-[#D1D5DB] font-body mt-6">Brixgate 2025</p>
+      <p className="text-[12px] text-[#D1D5DB] font-body mt-6">Brixgate 2026</p>
     </div>
   )
 }

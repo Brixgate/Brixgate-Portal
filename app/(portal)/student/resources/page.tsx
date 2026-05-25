@@ -351,7 +351,7 @@ export default function ResourcesPage() {
               />
             )}
             {!loading && !error && (
-              <p className="text-[13px] text-[#9ca3af] font-body">
+              <p className="text-[13px] text-[#6b7280] font-body">
                 {totalCount} file{totalCount !== 1 ? 's' : ''}
               </p>
             )}

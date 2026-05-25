@@ -56,7 +56,8 @@ interface AuthContextType {
   user: AuthUser | null
   token: string | null
   isLoading: boolean
-  login: (token: string) => Promise<AuthUser | null>
+  // rawUserFromLogin: user object embedded in the login response (skips GET /users/me)
+  login: (token: string, rawUserFromLogin?: Record<string, unknown>) => Promise<AuthUser | null>
   logout: () => Promise<void>
   updateUser: (patch: Partial<AuthUser>) => void
 }
@@ -130,9 +131,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [fetchUser])
 
   const login = useCallback(
-    async (newToken: string): Promise<AuthUser | null> => {
+    async (newToken: string, rawUserFromLogin?: Record<string, unknown>): Promise<AuthUser | null> => {
       setTokenCookie(newToken)
       setToken(newToken)
+      // If the login response already contains the user, map it immediately —
+      // saves a full round-trip GET /users/me and cuts login time in half.
+      if (rawUserFromLogin) {
+        try {
+          const mapped = mapUser(rawUserFromLogin as unknown as ApiUser)
+          setUser(mapped)
+          return mapped
+        } catch {
+          // Mapping failed (unexpected shape) — fall through to fetchUser
+        }
+      }
       return await fetchUser()
     },
     [fetchUser]
