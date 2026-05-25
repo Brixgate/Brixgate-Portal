@@ -92,7 +92,7 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
       })
       setSuccess(true); setTimeout(() => setSuccess(false), 3000)
       load()
-    } catch (err) {
+    } catch {
       // Fallback: diff and make individual calls
       try {
         const currentIds = new Set(cohortModules.map(m => m.program_module_id ?? m.programModuleId ?? 0))
