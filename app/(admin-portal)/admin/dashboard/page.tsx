@@ -216,7 +216,7 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     async function loadTrend() {
       try {
-        const res = await apiClient.get('/admin/cohort-enrollments?page=1&size=500')
+        const res = await apiClient.get('/admin/cohort-enrollments?page=1&size=100')
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const d   = unwrap<any>(res.data)
         const list: RawEnrollment[] = (
