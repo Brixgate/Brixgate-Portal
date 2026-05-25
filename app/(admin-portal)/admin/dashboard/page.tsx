@@ -49,11 +49,15 @@ interface RecentPayment {
   createdAt?: string; created_at?: string
 }
 
+type TrendView = 'year' | 'month'
+interface ProgramOption { id: number; title: string }
+interface CohortOption  { id: number; title: string }
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function buildMonthlyTrend(list: RawEnrollment[]) {
   const now = new Date()
   const buckets: { key: string; month: string; enrollments: number }[] = []
-  for (let i = 5; i >= 0; i--) {
+  for (let i = 11; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
     const month = d.toLocaleDateString('en-NG', { month: 'short' })
@@ -68,6 +72,29 @@ function buildMonthlyTrend(list: RawEnrollment[]) {
     if (b) b.enrollments++
   })
   return buckets.map(({ month, enrollments }) => ({ month, enrollments }))
+}
+
+function buildWeeklyTrend(list: RawEnrollment[]) {
+  const now   = new Date()
+  const year  = now.getFullYear()
+  const month = now.getMonth()
+  const WEEKS = [
+    { label: 'Week 1', start: 1,  end: 7  },
+    { label: 'Week 2', start: 8,  end: 14 },
+    { label: 'Week 3', start: 15, end: 21 },
+    { label: 'Week 4', start: 22, end: 31 },
+  ]
+  const buckets = WEEKS.map(w => ({ ...w, enrollments: 0 }))
+  list.forEach((e) => {
+    const raw = e.createdAt ?? e.created_at
+    if (!raw) return
+    const d = new Date(raw)
+    if (d.getFullYear() !== year || d.getMonth() !== month) return
+    const day = d.getDate()
+    const b   = buckets.find(w => day >= w.start && day <= w.end)
+    if (b) b.enrollments++
+  })
+  return buckets.map(({ label, enrollments }) => ({ month: label, enrollments }))
 }
 
 function paymentDisplayName(p: RecentPayment): string {
@@ -161,6 +188,13 @@ export default function AdminDashboardPage() {
   const [paymentsLoading, setPaymentsLoading]     = useState(true)
   const [trendLoading, setTrendLoading]           = useState(true)
 
+  // Chart filters
+  const [trendView, setTrendView]                 = useState<TrendView>('year')
+  const [trendProgramId, setTrendProgramId]       = useState('')
+  const [trendCohortId, setTrendCohortId]         = useState('')
+  const [trendPrograms, setTrendPrograms]         = useState<ProgramOption[]>([])
+  const [trendCohorts, setTrendCohorts]           = useState<CohortOption[]>([])
+
   // ── Metrics (counts) ────────────────────────────────────────────────────────
   useEffect(() => {
     async function load() {
@@ -212,11 +246,32 @@ export default function AdminDashboardPage() {
     load()
   }, [])
 
-  // ── Enrollment trend (real data, last 6 months) ─────────────────────────────
+  // ── Load programs for chart filter ─────────────────────────────────────────
+  useEffect(() => {
+    apiClient.get('/admin/programs?page=1&size=100')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then(res => { const d = unwrap<any>(res.data); setTrendPrograms(Array.isArray(d?.programs) ? d.programs : Array.isArray(d?.content) ? d.content : Array.isArray(d) ? d : []) })
+      .catch(() => {})
+  }, [])
+
+  // ── Load cohorts when program changes ───────────────────────────────────────
+  useEffect(() => {
+    if (!trendProgramId) { setTrendCohorts([]); setTrendCohortId(''); return }
+    apiClient.get(`/admin/programs/${trendProgramId}/cohorts?page=1&size=100`)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then(res => { const d = unwrap<any>(res.data); setTrendCohorts(Array.isArray(d?.cohorts) ? d.cohorts : Array.isArray(d?.content) ? d.content : Array.isArray(d) ? d : []); setTrendCohortId('') })
+      .catch(() => setTrendCohorts([]))
+  }, [trendProgramId])
+
+  // ── Enrollment trend ────────────────────────────────────────────────────────
   useEffect(() => {
     async function loadTrend() {
+      setTrendLoading(true)
       try {
-        const res = await apiClient.get('/admin/cohort-enrollments?page=1&size=100')
+        const p = new URLSearchParams({ page: '1', size: '100' })
+        if (trendCohortId)       p.set('cohort_id',  trendCohortId)
+        else if (trendProgramId) p.set('program_id', trendProgramId)
+        const res = await apiClient.get(`/admin/cohort-enrollments?${p}`)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const d   = unwrap<any>(res.data)
         const list: RawEnrollment[] = (
@@ -225,7 +280,7 @@ export default function AdminDashboardPage() {
           Array.isArray(d?.data)        ? d.data        :
           Array.isArray(d)              ? d             : []
         )
-        setEnrollmentTrend(buildMonthlyTrend(list))
+        setEnrollmentTrend(trendView === 'month' ? buildWeeklyTrend(list) : buildMonthlyTrend(list))
       } catch {
         setEnrollmentTrend([])
       } finally {
@@ -233,7 +288,7 @@ export default function AdminDashboardPage() {
       }
     }
     loadTrend()
-  }, [])
+  }, [trendView, trendProgramId, trendCohortId])
 
   // ── Recent payments ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -285,10 +340,52 @@ export default function AdminDashboardPage() {
 
         {/* Enrollment Trend — real data grouped by month */}
         <div className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] flex flex-col">
-          <div className="px-6 pt-5 pb-4 flex items-center justify-between border-b border-[#f3f4f6] flex-shrink-0">
-            <div>
-              <h3 className="text-[15px] font-semibold text-[#111827] font-display">Enrollment Trend</h3>
-              <p className="text-[12px] text-[#6b7280] font-body mt-0.5">New enrollments — last 6 months</p>
+          <div className="px-6 pt-5 pb-4 border-b border-[#f3f4f6] flex-shrink-0">
+            {/* Title row + view toggle */}
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="text-[15px] font-semibold text-[#111827] font-display">Enrollment Trend</h3>
+                <p className="text-[12px] text-[#6b7280] font-body mt-0.5">
+                  {trendView === 'year' ? 'Monthly — last 12 months' : `Weekly — ${new Date().toLocaleDateString('en-NG', { month: 'long', year: 'numeric' })}`}
+                </p>
+              </div>
+              {/* Year / Month toggle pill */}
+              <div className="flex items-center bg-[#f3f4f6] rounded-[8px] p-0.5 gap-0.5">
+                {(['year', 'month'] as TrendView[]).map(v => (
+                  <button
+                    key={v}
+                    onClick={() => setTrendView(v)}
+                    className={`h-7 px-3 rounded-[6px] text-[12px] font-semibold font-display transition-colors ${
+                      trendView === v
+                        ? 'bg-white text-[#111827] shadow-[0px_1px_2px_rgba(16,24,40,.08)]'
+                        : 'text-[#6b7280] hover:text-[#374151]'
+                    }`}
+                  >
+                    {v.charAt(0).toUpperCase() + v.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Filter dropdowns */}
+            <div className="flex items-center gap-2">
+              <select
+                value={trendProgramId}
+                onChange={e => { setTrendProgramId(e.target.value) }}
+                className="h-8 px-2.5 border border-[#e5e7eb] rounded-[6px] text-[12px] font-body text-[#374151] bg-white outline-none focus:border-[#d51520] min-w-[160px]"
+              >
+                <option value="">All Programmes</option>
+                {trendPrograms.map(p => <option key={p.id} value={String(p.id)}>{p.title}</option>)}
+              </select>
+              {trendCohorts.length > 0 && (
+                <select
+                  value={trendCohortId}
+                  onChange={e => setTrendCohortId(e.target.value)}
+                  className="h-8 px-2.5 border border-[#e5e7eb] rounded-[6px] text-[12px] font-body text-[#374151] bg-white outline-none focus:border-[#d51520] min-w-[160px]"
+                >
+                  <option value="">All Cohorts</option>
+                  {trendCohorts.map(c => <option key={c.id} value={String(c.id)}>{c.title}</option>)}
+                </select>
+              )}
             </div>
           </div>
           <div className="flex-1 min-h-0 px-6 pt-4 pb-4">
