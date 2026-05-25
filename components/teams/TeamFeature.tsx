@@ -663,7 +663,7 @@ function TeamUpgradeModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 px-4 pt-16"
       onClick={onClose}
     >
       <div
@@ -700,7 +700,7 @@ function TeamUpgradeModal({ onClose }: { onClose: () => void }) {
 function TeamMemberModal({ team, onClose }: { team: TeamData; onClose: () => void }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 px-4 pt-16"
       onClick={onClose}
     >
       <div
@@ -768,12 +768,15 @@ function TeamLeadModal({ team, onClose }: { team: TeamData; onClose: () => void 
   const loadInvitees = useCallback(async () => {
     try {
       const res = await apiClient.get(`/cohort-enrollments/${team.enrollmentId}/invitees`)
-      const data = unwrap<{ invitees?: Invitee[] } | Invitee[]>(res.data)
-      // Defensive: handle both { invitees: [] } and bare array shapes
-      const list: Invitee[] = Array.isArray(data)
-        ? (data as Invitee[])
-        : ((data as { invitees?: Invitee[] })?.invitees ?? [])
-      setInvitees(list)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const extractList = (v: any): Invitee[] => {
+        if (Array.isArray(v)) return v as Invitee[]
+        if (v?.data !== undefined) return extractList(v.data)
+        if (Array.isArray(v?.invitees)) return v.invitees as Invitee[]
+        if (Array.isArray(v?.content)) return v.content as Invitee[]
+        return []
+      }
+      setInvitees(extractList(res.data))
     } catch {
       setInvitees([])
     } finally {
@@ -819,7 +822,7 @@ function TeamLeadModal({ team, onClose }: { team: TeamData; onClose: () => void 
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 px-4 pt-16"
       onClick={onClose}
     >
       <div

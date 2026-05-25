@@ -225,7 +225,12 @@ export default function SettingsPage() {
       setFirstName(user.firstName)
       setLastName(user.lastName)
       setEmail(user.email)
-      if (user.phone) setPhone(user.phone)
+      if (user.phone) {
+        // Strip country code prefix so only the local part goes into the input
+        // e.g. "+2348012345678" → "8012345678"
+        const local = user.phone.replace(/^\+\d{1,4}/, '').replace(/^0+/, '')
+        setPhone(local)
+      }
     }
   }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
