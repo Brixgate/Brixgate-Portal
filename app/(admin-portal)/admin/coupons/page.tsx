@@ -9,7 +9,7 @@ import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 interface Coupon {
   id: number; code: string; type?: string; value?: number; currency?: string
   status?: string; usage_limit?: number; usageLimit?: number
-  usage_count?: number; usageCount?: number
+  times_used?: number; usage_count?: number; usageCount?: number
   valid_from?: string; validFrom?: string
   valid_to?: string; validTo?: string
   description?: string
@@ -333,7 +333,7 @@ export default function AdminCouponsPage() {
                 </td></tr>
               ) : coupons.map(c => {
                 const usageLimit = c.usageLimit ?? c.usage_limit
-                const usageCount = c.usageCount ?? c.usage_count ?? 0
+                const usageCount = c.times_used ?? c.usageCount ?? c.usage_count ?? 0
                 return (
                   <tr key={c.id} className="border-b border-[#f3f4f6] hover:bg-[#fafafa]">
                     <td className="px-4 py-3.5"><span className="font-mono text-[13px] font-bold text-[#111827]">{c.code}</span></td>

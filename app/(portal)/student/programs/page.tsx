@@ -204,6 +204,40 @@ export default function ProgramsPage() {
   const [error, setError]         = useState<string | null>(null)
   const [teamProgram, setTeamProgram] = useState<ProgramRow | null>(null)
 
+  // ── DEBUG: probe cohort-schedules shape — REMOVE after confirming payload ──
+  useEffect(() => {
+    async function probeSchedules() {
+      try {
+        const meRes = await apiClient.get('/users/me/programs')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const meData = unwrap<any>(meRes.data)
+        const programs = Array.isArray(meData?.programs) ? meData.programs : []
+        const firstCohortId = programs[0]?.myCohorts?.[0]?.cohortId ?? programs[0]?.my_cohorts?.[0]?.cohort_id
+        if (!firstCohortId) { console.log('[SCHEDULE DEBUG] No cohortId found'); return }
+        console.log('[SCHEDULE DEBUG] cohortId:', firstCohortId)
+
+        // Try every likely URL pattern
+        const urls = [
+          `/cohort-schedules?cohort_id=${firstCohortId}`,
+          `/cohort-schedules?cohortId=${firstCohortId}`,
+          `/cohorts/${firstCohortId}/schedules`,
+          `/cohort-schedules/${firstCohortId}`,
+        ]
+        for (const url of urls) {
+          try {
+            const r = await apiClient.get(url)
+            console.log(`[SCHEDULE DEBUG] ✅ ${url}`, JSON.parse(JSON.stringify(r.data)))
+          } catch (e: unknown) {
+            const status = (e as { response?: { status?: number } })?.response?.status
+            console.log(`[SCHEDULE DEBUG] ❌ ${url} → ${status ?? 'network error'}`)
+          }
+        }
+      } catch { /* silent */ }
+    }
+    probeSchedules()
+  }, [])
+  // ── END DEBUG ──────────────────────────────────────────────────────────────
+
   useEffect(() => {
     async function load() {
       try {
