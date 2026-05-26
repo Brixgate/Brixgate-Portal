@@ -33,6 +33,7 @@ function CouponModal({
     type:        coupon?.type ?? 'PERCENT',
     value:       coupon?.value ? String(coupon.value) : '',
     currency:    coupon?.currency ?? 'NGN',
+    status:      coupon?.status ?? 'ACTIVE',
     valid_from:  coupon?.validFrom ?? coupon?.valid_from ?? '',
     valid_to:    coupon?.validTo   ?? coupon?.valid_to   ?? '',
     usage_limit: (coupon?.usageLimit ?? coupon?.usage_limit) ? String(coupon?.usageLimit ?? coupon?.usage_limit) : '',
@@ -96,6 +97,7 @@ function CouponModal({
         type:        form.type,
         value:       parseFloat(form.value),
         currency:    form.currency,
+        status:      form.status,
         valid_from:  form.valid_from,
         valid_to:    form.valid_to,
         usage_limit: form.usage_limit ? parseInt(form.usage_limit) : undefined,
@@ -166,13 +168,23 @@ function CouponModal({
             </div>
           </div>
 
-          {/* Currency */}
-          <div>
-            <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Currency</label>
-            <select value={form.currency} onChange={e => set('currency', e.target.value)} className={`${inputCls} bg-white`}>
-              <option value="NGN">NGN (₦)</option>
-              <option value="USD">USD ($)</option>
-            </select>
+          {/* Currency + Status */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Currency</label>
+              <select value={form.currency} onChange={e => set('currency', e.target.value)} className={`${inputCls} bg-white`}>
+                <option value="NGN">NGN (₦)</option>
+                <option value="USD">USD ($)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Status</label>
+              <select value={form.status} onChange={e => set('status', e.target.value)} className={`${inputCls} bg-white`}>
+                <option value="ACTIVE">Active</option>
+                <option value="EXPIRED">Expired</option>
+                <option value="INACTIVE">Inactive</option>
+              </select>
+            </div>
           </div>
 
           {/* Scope toggle */}
