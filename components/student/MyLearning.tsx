@@ -13,6 +13,7 @@ import {
   Download01Icon,
   Loading01Icon,
   UserGroupIcon,
+  UserGroup02Icon,
 } from 'hugeicons-react'
 import { apiClient, unwrap } from '@/lib/api-client'
 import { getProgramImage } from '@/lib/program-images'
@@ -51,6 +52,17 @@ const rRole  = (c: unknown) => (c as Record<string, unknown>)?.['role']        a
 const rStatus = (c: unknown) => (c as Record<string, unknown>)?.['membershipStatus'] as string ?? (c as Record<string, unknown>)?.['membership_status'] as string ?? ''
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const rCohorts = (p: unknown) => ((p as Record<string, unknown>)?.['myCohorts'] ?? (p as Record<string, unknown>)?.['my_cohorts'] ?? []) as unknown[]
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function rEnrollment(c: unknown) {
+  const e = (c as Record<string, unknown>)?.['cohortEnrollment'] ?? (c as Record<string, unknown>)?.['cohort_enrollment'] ?? null
+  if (!e) return null
+  const rec = e as Record<string, unknown>
+  return {
+    enrollmentType:  (rec['enrollmentType']  ?? rec['enrollment_type']  ?? 'INDIVIDUAL') as string,
+    seatsPurchased:  (rec['seatsPurchased']  ?? rec['seats_purchased']  ?? 1) as number,
+    seatsUsed:       (rec['seatsUsed']       ?? rec['seats_used']       ?? 1) as number,
+  }
+}
 
 interface ApiProgramsResponse {
   programs: ApiProgram[]
@@ -176,7 +188,7 @@ function ProgressRing({ value }: { value: number }) {
   )
 }
 
-// ── Course card (mirrors the programmes page card) ────────────────────────────
+// ── Course card (identical to the programmes page card) ───────────────────────
 function CourseCard({ program }: { program: ApiProgram }) {
   const title        = program.title ?? 'Untitled Programme'
   const progress     = program.autoPercentCompletion ?? 0
@@ -191,12 +203,14 @@ function CourseCard({ program }: { program: ApiProgram }) {
   const modulesCount = program.modulesCount ?? 0
   const lessonsCount = program.lessonsCount ?? 0
   const enrolled     = program.enrolledStudentsCount ?? 0
+  const enrollment   = rEnrollment(cohort)
+  const isTeam       = enrollment?.enrollmentType === 'TEAM'
 
   return (
-    <div className="bg-white border border-[#e5e7eb] rounded-[10px] overflow-hidden flex flex-col w-[272px] shrink-0 hover:shadow-[0px_4px_12px_rgba(16,24,40,0.10)] transition-shadow">
+    <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] overflow-hidden flex flex-col hover:shadow-[0px_4px_12px_rgba(16,24,40,0.10)] transition-shadow">
       {/* Thumbnail */}
       <div
-        className="h-[136px] bg-[#1a1d2e] bg-cover bg-center relative flex-shrink-0"
+        className="h-[148px] bg-[#1a1d2e] bg-cover bg-center relative flex-shrink-0"
         style={{ backgroundImage: `url(${getProgramImage(title)})` }}
       >
         <div className="absolute inset-0 bg-black/40" />
@@ -215,15 +229,15 @@ function CourseCard({ program }: { program: ApiProgram }) {
         </div>
       </div>
 
-      {/* Body */}
-      <div className="flex flex-col flex-1 p-4">
-        {/* Title + status */}
+      {/* Card body */}
+      <div className="flex flex-col flex-1 p-5">
+        {/* Title + enrollment status */}
         <div className="flex items-start justify-between gap-2 mb-1">
-          <p className="text-[14px] font-semibold text-[#111827] font-display leading-snug flex-1">
+          <p className="text-[15px] font-semibold text-[#111827] font-display leading-snug flex-1">
             {title}
           </p>
           {membership && (
-            <span className={`text-[9px] font-semibold font-display px-1.5 py-0.5 rounded-full flex-shrink-0 mt-0.5 ${statusStyle(membership)}`}>
+            <span className={`text-[10px] font-semibold font-display px-2 py-0.5 rounded-full flex-shrink-0 mt-0.5 ${statusStyle(membership)}`}>
               {statusLabel(membership)}
             </span>
           )}
@@ -231,62 +245,76 @@ function CourseCard({ program }: { program: ApiProgram }) {
 
         {/* Subtitle */}
         {subtitle && (
-          <p className="text-[11px] text-[#6b7280] font-body leading-[1.5] mb-1.5 line-clamp-2">
+          <p className="text-[12px] text-[#6b7280] font-body leading-[1.5] mb-2 line-clamp-2">
             {subtitle}
           </p>
         )}
 
-        {/* Cohort + role */}
-        <div className="flex items-center gap-1.5 mb-3">
-          <p className="text-[11px] text-[#9ca3af] font-body truncate flex-1">
+        {/* Cohort + role badge + team pill */}
+        <div className="flex items-center gap-2 mb-4 flex-wrap">
+          <p className="text-[11px] text-[#9ca3af] font-body truncate">
             {cohortLabel || cohortName || '—'}
           </p>
           {roleLabel(role) && (
-            <span className="text-[9px] font-semibold font-display text-[#1a1d2e] bg-[#eaebf0] px-1.5 py-0.5 rounded-full flex-shrink-0">
+            <span className="text-[10px] font-semibold font-display text-[#1a1d2e] bg-[#eaebf0] px-2 py-0.5 rounded-full flex-shrink-0">
               {roleLabel(role)}
+            </span>
+          )}
+          {isTeam && enrollment && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold font-display text-[#b45309] bg-[#fffbeb] border border-[#fde68a] px-2 py-0.5 rounded-full flex-shrink-0">
+              <UserGroup02Icon size={10} color="#b45309" strokeWidth={2} />
+              Team {enrollment.seatsUsed}/{enrollment.seatsPurchased}
             </span>
           )}
         </div>
 
-        {/* Meta */}
-        <div className="flex items-center gap-3 flex-wrap mb-3">
+        {/* Meta row */}
+        <div className="flex items-center gap-3 flex-wrap mb-4">
           {(modulesCount > 0 || lessonsCount > 0) && (
-            <div className="flex items-center gap-1 text-[11px] text-[#6b7280] font-body">
-              <BookOpen01Icon size={11} color="#9ca3af" strokeWidth={1.5} />
+            <div className="flex items-center gap-1.5 text-[12px] text-[#6b7280] font-body">
+              <BookOpen01Icon size={12} color="#9ca3af" strokeWidth={1.5} />
               <span>
-                {modulesCount > 0 && `${modulesCount}m`}
+                {modulesCount > 0 && `${modulesCount} module${modulesCount !== 1 ? 's' : ''}`}
                 {modulesCount > 0 && lessonsCount > 0 && ' · '}
-                {lessonsCount > 0 && `${lessonsCount}l`}
+                {lessonsCount > 0 && `${lessonsCount} lesson${lessonsCount !== 1 ? 's' : ''}`}
               </span>
             </div>
           )}
           {enrolled > 0 && (
-            <div className="flex items-center gap-1 text-[11px] text-[#6b7280] font-body">
-              <UserGroupIcon size={11} color="#9ca3af" strokeWidth={1.5} />
+            <div className="flex items-center gap-1.5 text-[12px] text-[#6b7280] font-body">
+              <UserGroupIcon size={12} color="#9ca3af" strokeWidth={1.5} />
               <span>{enrolled} enrolled</span>
             </div>
           )}
         </div>
 
         {/* Progress bar */}
-        <div className="mb-4">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-[#9ca3af] font-body">Progress</span>
-            <span className="text-[10px] font-semibold text-[#d51520] font-display">{progress}%</span>
+        <div className="mb-5">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[11px] text-[#9ca3af] font-body">Progress</span>
+            <span className="text-[11px] font-semibold text-[#d51520] font-display">{progress}%</span>
           </div>
-          <div className="h-1.5 bg-[#f3f4f6] rounded-full overflow-hidden">
+          <div className="h-1.5 bg-[#f3f4f6] rounded-full overflow-hidden w-full">
             <div className="h-full bg-[#d51520] rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
           </div>
         </div>
 
-        {/* CTA */}
-        <Link
-          href={`/student/courses/${cohortId}`}
-          className="mt-auto flex items-center justify-center gap-1.5 bg-[#d51520] text-white text-[12px] font-medium font-display h-8 rounded-[8px] hover:bg-[#b81119] transition-colors"
-        >
-          View Course
-          <ArrowRight01Icon size={12} color="white" strokeWidth={2} />
-        </Link>
+        {/* CTAs */}
+        <div className="flex gap-2 mt-auto">
+          <Link
+            href={`/student/courses/${cohortId}`}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 bg-[#d51520] text-white text-[12px] font-medium font-display px-4 py-2.5 rounded-[8px] hover:bg-[#b81119] transition-colors"
+          >
+            View Course
+            <ArrowRight01Icon size={13} color="white" strokeWidth={2} />
+          </Link>
+          <Link
+            href="/student/resources"
+            className="flex-1 inline-flex items-center justify-center border border-[#e5e7eb] text-[#374151] text-[12px] font-medium font-display px-4 py-2.5 rounded-[8px] hover:bg-[#f9fafb] transition-colors"
+          >
+            Resources
+          </Link>
+        </div>
       </div>
     </div>
   )
@@ -365,7 +393,7 @@ export default function MyLearning() {
               <p className="text-[13px] text-[#9ca3af] font-body mt-1">Your enrolled programmes will appear here.</p>
             </div>
           ) : (
-            <div className="flex flex-wrap gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
               {programs.map((p) => <CourseCard key={p.id} program={p} />)}
             </div>
           )
