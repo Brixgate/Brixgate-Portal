@@ -203,40 +203,28 @@ export default function ProgramsPage() {
   const [loading, setLoading]     = useState(true)
   const [error, setError]         = useState<string | null>(null)
   const [teamProgram, setTeamProgram] = useState<ProgramRow | null>(null)
+  const [scheduleProgress, setScheduleProgress] = useState<Map<number, number>>(new Map())
 
-  // ── DEBUG: probe cohort-schedules shape — REMOVE after confirming payload ──
+  // Fetch schedule-based progress for each enrolled cohort
   useEffect(() => {
-    async function probeSchedules() {
+    if (programs.length === 0) return
+    programs.forEach(async (p) => {
+      if (!p.cohortId) return
       try {
-        const meRes = await apiClient.get('/users/me/programs')
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const meData = unwrap<any>(meRes.data)
-        const programs = Array.isArray(meData?.programs) ? meData.programs : []
-        const firstCohortId = programs[0]?.myCohorts?.[0]?.cohortId ?? programs[0]?.my_cohorts?.[0]?.cohort_id
-        if (!firstCohortId) { console.log('[SCHEDULE DEBUG] No cohortId found'); return }
-        console.log('[SCHEDULE DEBUG] cohortId:', firstCohortId)
-
-        // Try every likely URL pattern
-        const urls = [
-          `/cohort-schedules?cohort_id=${firstCohortId}`,
-          `/cohort-schedules?cohortId=${firstCohortId}`,
-          `/cohorts/${firstCohortId}/schedules`,
-          `/cohort-schedules/${firstCohortId}`,
-        ]
-        for (const url of urls) {
-          try {
-            const r = await apiClient.get(url)
-            console.log(`[SCHEDULE DEBUG] ✅ ${url}`, JSON.parse(JSON.stringify(r.data)))
-          } catch (e: unknown) {
-            const status = (e as { response?: { status?: number } })?.response?.status
-            console.log(`[SCHEDULE DEBUG] ❌ ${url} → ${status ?? 'network error'}`)
-          }
-        }
-      } catch { /* silent */ }
-    }
-    probeSchedules()
-  }, [])
-  // ── END DEBUG ──────────────────────────────────────────────────────────────
+        const res = await apiClient.get(`/cohort-schedules?cohortId=${p.cohortId}`)
+        const d = unwrap<{ schedules?: Array<{ status: string }> }>(res.data)
+        const schedules = Array.isArray(d?.schedules) ? d.schedules : []
+        if (schedules.length === 0) return
+        const completed = schedules.filter(s => s.status === 'COMPLETED').length
+        const pct = Math.round((completed / schedules.length) * 100)
+        setScheduleProgress(prev => {
+          const next = new Map(prev)
+          next.set(p.cohortId, pct)
+          return next
+        })
+      } catch { /* silent — fall back to autoPercentCompletion */ }
+    })
+  }, [programs])
 
   useEffect(() => {
     async function load() {
@@ -339,7 +327,7 @@ export default function ProgramsPage() {
                       )}
                     </div>
                     <div className="absolute bottom-3 right-3">
-                      <ProgressRing value={p.progress} />
+                      <ProgressRing value={scheduleProgress.get(p.cohortId) ?? p.progress} />
                     </div>
                   </div>
 
@@ -410,12 +398,12 @@ export default function ProgramsPage() {
                     <div className="mb-5">
                       <div className="flex items-center justify-between mb-1.5">
                         <span className="text-[11px] text-[#9ca3af] font-body">Progress</span>
-                        <span className="text-[11px] font-semibold text-[#d51520] font-display">{p.progress}%</span>
+                        <span className="text-[11px] font-semibold text-[#d51520] font-display">{scheduleProgress.get(p.cohortId) ?? p.progress}%</span>
                       </div>
                       <div className="h-1.5 bg-[#f3f4f6] rounded-full overflow-hidden w-full">
                         <div
                           className="h-full bg-[#d51520] rounded-full transition-all duration-500"
-                          style={{ width: `${p.progress}%` }}
+                          style={{ width: `${scheduleProgress.get(p.cohortId) ?? p.progress}%` }}
                         />
                       </div>
                     </div>
