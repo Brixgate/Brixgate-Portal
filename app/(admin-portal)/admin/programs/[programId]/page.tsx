@@ -199,7 +199,7 @@ function ModuleItem({
             ? <ArrowDown01Icon size={14} color="#6b7280" strokeWidth={2} />
             : <ArrowRight01Icon size={14} color="#6b7280" strokeWidth={2} />}
           <BookOpen01Icon size={14} color={isSelected ? '#d51520' : '#9ca3af'} strokeWidth={1.5} />
-          <span className={`flex-1 text-[13px] font-medium font-body truncate ${isSelected ? 'text-[#d51520]' : 'text-[#111827]'}`}>
+          <span className={`flex-1 text-[13px] font-semibold font-display truncate ${isSelected ? 'text-[#d51520]' : 'text-[#111827]'}`}>
             {mod.title}
           </span>
           <span className="text-[11px] text-[#9ca3af] font-body flex-shrink-0">
@@ -934,7 +934,7 @@ function CohortsTab({ programId }: { programId: string }) {
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
-type PageTab = 'Cohorts' | 'Curriculum'
+type PageTab = 'Cohorts' | 'General Curriculum'
 
 export default function ProgramDetailPage() {
   const params    = useParams()
@@ -1002,10 +1002,10 @@ export default function ProgramDetailPage() {
             : <h1 className="text-[16px] font-bold text-[#111827] font-display truncate">{program?.title ?? 'Programme'}</h1>
           }
           <p className="text-[13px] text-[#6b7280] font-body mt-0.5">
-            {activeTab === 'Cohorts' ? 'Cohorts running this programme' : 'Master curriculum — modules, lessons & resources'}
+            {activeTab === 'Cohorts' ? 'Cohorts running this programme' : 'General curriculum — modules, lessons & resources'}
           </p>
         </div>
-        {activeTab === 'Curriculum' && (
+        {activeTab === 'General Curriculum' && (
           <button onClick={() => setShowAddMod(true)}
             className="flex items-center gap-2 h-9 px-4 bg-[#d51520] text-white rounded-[8px] text-[12px] font-semibold font-display hover:bg-[#b81119] transition-colors">
             <Add01Icon size={14} strokeWidth={2} /> Add Module
@@ -1015,13 +1015,13 @@ export default function ProgramDetailPage() {
 
       {/* Tab bar */}
       <div className="flex items-center gap-1 px-6 bg-white border-b border-[#f3f4f6] flex-shrink-0">
-        {(['Cohorts', 'Curriculum'] as PageTab[]).map(tab => (
+        {(['Cohorts', 'General Curriculum'] as PageTab[]).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             className={`flex items-center gap-1.5 px-4 py-3 text-[13px] font-semibold font-display border-b-2 transition-colors ${
               activeTab === tab ? 'border-[#d51520] text-[#d51520]' : 'border-transparent text-[#6b7280] hover:text-[#374151]'
             }`}>
-            {tab === 'Cohorts'    && <BookOpen01Icon size={14} strokeWidth={1.5} />}
-            {tab === 'Curriculum' && <File01Icon     size={14} strokeWidth={1.5} />}
+            {tab === 'Cohorts'            && <BookOpen01Icon size={14} strokeWidth={1.5} />}
+            {tab === 'General Curriculum' && <File01Icon     size={14} strokeWidth={1.5} />}
             {tab}
           </button>
         ))}
@@ -1034,7 +1034,7 @@ export default function ProgramDetailPage() {
         </div>
       )}
 
-      {activeTab === 'Curriculum' && (
+      {activeTab === 'General Curriculum' && (
         <div className="flex flex-1 overflow-hidden">
           {/* Left: module list */}
           <div className="w-[300px] flex-shrink-0 bg-white border-r border-[#f3f4f6] overflow-y-auto flex flex-col">

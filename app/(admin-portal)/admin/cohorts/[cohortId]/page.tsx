@@ -6,8 +6,11 @@ import {
   ArrowLeft01Icon, Loading01Icon, UserGroup02Icon,
   StarIcon, BookOpen01Icon, CheckmarkCircle01Icon,
   CircleIcon, AlertCircleIcon, DatabaseIcon,
+  ArrowDown01Icon, ArrowRight01Icon, VideoReplayIcon, File01Icon,
+  PencilEdit01Icon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
+import { useSidebar } from '@/lib/sidebar-context'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Cohort {
@@ -16,7 +19,13 @@ interface Cohort {
   program_id?: number; programId?: number
   program?: { id: number; title: string }
 }
-interface ProgramModule { id: number; title: string; description?: string; order_index?: number; status?: string }
+interface ProgramModuleLesson   { id: number; title: string; content_type: string; duration?: number }
+interface ProgramModuleResource { id: number; title: string; type: string; link?: string }
+interface ProgramModule {
+  id: number; title: string; description?: string; order_index?: number; status?: string
+  lessons?: ProgramModuleLesson[]
+  resources?: ProgramModuleResource[]
+}
 interface CohortModule  { id: number; program_module_id?: number; programModuleId?: number; title?: string }
 
 interface Member {
@@ -71,7 +80,21 @@ function formatDateTime(d?: string) {
   return new Date(d).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-// ── Tab: Curriculum — two-panel ───────────────────────────────────────────────
+// ── Resource type badge ───────────────────────────────────────────────────────
+function ResourceTypeChip({ type }: { type: string }) {
+  const colors: Record<string, string> = {
+    PDF: '#d51520', VIDEO: '#7c3aed', ARTICLE: '#0369a1',
+    IMAGE: '#0d9488', PRESENTATION: '#d97706', LECTURE: '#374151',
+  }
+  return (
+    <span className="inline-flex items-center px-1.5 py-0.5 rounded-[4px] text-[9px] font-bold font-display uppercase"
+      style={{ background: (colors[type] ?? '#374151') + '18', color: colors[type] ?? '#374151' }}>
+      {type}
+    </span>
+  )
+}
+
+// ── Tab: Curriculum ───────────────────────────────────────────────────────────
 function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: number | null }) {
   const [allModules, setAllModules]       = useState<ProgramModule[]>([])
   const [cohortModules, setCohortModules] = useState<CohortModule[]>([])
@@ -80,6 +103,8 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
   const [saving, setSaving]               = useState(false)
   const [error, setError]                 = useState('')
   const [success, setSuccess]             = useState(false)
+  const [mode, setMode]                   = useState<'read' | 'edit'>('read')
+  const [expandedId, setExpandedId]       = useState<number | null>(null)
 
   const load = useCallback(async () => {
     if (!programId) { setLoading(false); return }
@@ -115,6 +140,7 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
         module_ids: allModules.filter(m => selected.has(m.id)).map(m => m.id),
       })
       setSuccess(true); setTimeout(() => setSuccess(false), 3000)
+      setMode('read')
       load()
     } catch {
       try {
@@ -126,10 +152,17 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
           ...toRemove.map(m => apiClient.delete(`/admin/cohorts/${cohortId}/modules/${m.id}`)),
         ])
         setSuccess(true); setTimeout(() => setSuccess(false), 3000)
+        setMode('read')
         load()
       } catch (err) { setError(getApiError(err)) }
     } finally { setSaving(false) }
   }
+
+  const hasChanges = (() => {
+    const cur = new Set(cohortModules.map(m => m.program_module_id ?? m.programModuleId ?? 0))
+    if (cur.size !== selected.size) return true
+    return allModules.some(m => selected.has(m.id) !== cur.has(m.id))
+  })()
 
   if (!programId) return (
     <div className="flex items-center justify-center py-16 text-center px-6">
@@ -141,21 +174,161 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
     </div>
   )
 
-  const hasChanges = (() => {
-    const cur = new Set(cohortModules.map(m => m.program_module_id ?? m.programModuleId ?? 0))
-    if (cur.size !== selected.size) return true
-    return allModules.some(m => selected.has(m.id) !== cur.has(m.id))
-  })()
+  // ── READ MODE ───────────────────────────────────────────────────────────────
+  if (mode === 'read') {
+    const assignedModules = allModules.filter(m => selected.has(m.id))
 
+    return (
+      <div className="flex flex-col h-full overflow-hidden">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-[#f3f4f6] flex items-center justify-between flex-shrink-0 bg-white">
+          <div>
+            <p className="text-[13px] font-semibold text-[#111827] font-display">
+              {loading ? '…' : `${selected.size} module${selected.size !== 1 ? 's' : ''} assigned to this cohort`}
+            </p>
+            <p className="text-[12px] text-[#9ca3af] font-body mt-0.5">
+              Click &ldquo;Edit Curriculum&rdquo; to change assignments
+            </p>
+          </div>
+          {success && (
+            <p className="flex items-center gap-1.5 text-[12px] text-[#027a48] font-body mr-3">
+              <CheckmarkCircle01Icon size={12} color="#027a48" strokeWidth={1.5} /> Saved
+            </p>
+          )}
+          <button onClick={() => setMode('edit')}
+            className="flex items-center gap-2 h-9 px-4 border border-[#e5e7eb] rounded-[8px] text-[12px] font-medium text-[#374151] font-display hover:bg-[#f9fafb] transition-colors">
+            <PencilEdit01Icon size={13} color="#374151" strokeWidth={1.5} />
+            Edit Curriculum
+          </button>
+        </div>
+
+        {/* Module list */}
+        <div className="flex-1 overflow-y-auto bg-white">
+          {loading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 px-6 py-4 border-b border-[#f3f4f6]">
+                <div className="w-5 h-5 rounded bg-[#e5e7eb] animate-pulse flex-shrink-0" />
+                <div className="h-4 bg-[#e5e7eb] rounded animate-pulse flex-1" />
+              </div>
+            ))
+          ) : assignedModules.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center px-6">
+              <div className="w-14 h-14 rounded-[12px] bg-[#f3f4f6] flex items-center justify-center mb-4">
+                <BookOpen01Icon size={28} color="#d1d5db" strokeWidth={1.5} />
+              </div>
+              <p className="text-[14px] font-semibold text-[#111827] font-display mb-1">No modules assigned</p>
+              <p className="text-[13px] text-[#6b7280] font-body max-w-[280px]">
+                Click &ldquo;Edit Curriculum&rdquo; to assign modules from the programme pool
+              </p>
+              <button onClick={() => setMode('edit')}
+                className="mt-5 flex items-center gap-2 h-9 px-4 bg-[#d51520] text-white rounded-[8px] text-[12px] font-semibold font-display hover:bg-[#b81119] transition-colors">
+                <PencilEdit01Icon size={13} color="white" strokeWidth={1.5} />
+                Edit Curriculum
+              </button>
+            </div>
+          ) : (
+            assignedModules.map((m, idx) => {
+              const isOpen = expandedId === m.id
+              const lessons   = m.lessons   ?? []
+              const resources = m.resources ?? []
+
+              return (
+                <div key={m.id} className="border-b border-[#f3f4f6] last:border-0">
+                  {/* Module row */}
+                  <button
+                    onClick={() => setExpandedId(isOpen ? null : m.id)}
+                    className="w-full flex items-center gap-3 px-6 py-4 hover:bg-[#f9fafb] transition-colors text-left"
+                  >
+                    {isOpen
+                      ? <ArrowDown01Icon  size={14} color="#9ca3af" strokeWidth={2} className="flex-shrink-0" />
+                      : <ArrowRight01Icon size={14} color="#9ca3af" strokeWidth={2} className="flex-shrink-0" />
+                    }
+                    <div className="w-6 h-6 rounded-full bg-[#fef2f2] flex items-center justify-center flex-shrink-0">
+                      <span className="text-[10px] font-bold text-[#d51520] font-display">{idx + 1}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-semibold text-[#111827] font-display truncate">{m.title}</p>
+                      {m.description && (
+                        <p className="text-[11px] text-[#9ca3af] font-body mt-0.5 truncate">{m.description}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      {m.status && (
+                        <span className={`text-[9px] font-bold font-display px-1.5 py-0.5 rounded-[3px] uppercase tracking-wide ${
+                          m.status === 'PUBLISHED' ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#fffbeb] text-[#b45309]'
+                        }`}>{m.status}</span>
+                      )}
+                      <span className="text-[11px] text-[#9ca3af] font-body">
+                        {lessons.length}L · {resources.length}R
+                      </span>
+                    </div>
+                  </button>
+
+                  {/* Expanded: lessons + resources */}
+                  {isOpen && (
+                    <div className="px-6 pb-4 pt-1 bg-[#fafafa] border-t border-[#f3f4f6]">
+                      {/* Lessons */}
+                      {lessons.length > 0 && (
+                        <div className="mb-3">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[#9ca3af] font-display mb-1.5 pl-9">
+                            Lessons
+                          </p>
+                          <div className="flex flex-col gap-0.5 pl-9">
+                            {lessons.map(l => (
+                              <div key={l.id} className="flex items-center gap-2 py-1.5">
+                                <VideoReplayIcon size={12} color="#9ca3af" strokeWidth={1.5} className="flex-shrink-0" />
+                                <span className="text-[12px] font-medium text-[#374151] font-body flex-1 truncate">{l.title}</span>
+                                <span className="text-[10px] text-[#9ca3af] font-body flex-shrink-0">{l.content_type}{l.duration ? ` · ${l.duration}min` : ''}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Resources */}
+                      {resources.length > 0 && (
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[#9ca3af] font-display mb-1.5 pl-9">
+                            Resources
+                          </p>
+                          <div className="flex flex-col gap-0.5 pl-9">
+                            {resources.map(r => (
+                              <div key={r.id} className="flex items-center gap-2 py-1.5">
+                                <File01Icon size={12} color="#9ca3af" strokeWidth={1.5} className="flex-shrink-0" />
+                                <span className="text-[12px] font-medium text-[#374151] font-body flex-1 truncate">{r.title}</span>
+                                <ResourceTypeChip type={r.type} />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {lessons.length === 0 && resources.length === 0 && (
+                        <p className="text-[12px] text-[#9ca3af] font-body pl-9 py-1">
+                          No lessons or resources added yet
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // ── EDIT MODE ────────────────────────────────────────────────────────────────
   return (
     <div className="flex h-full overflow-hidden">
       {/* ── Left panel: Master Bank ────────────────────────────── */}
-      <div className="w-[320px] flex-shrink-0 border-r border-[#f3f4f6] flex flex-col bg-[#f9fafb]">
+      <div className="w-[300px] flex-shrink-0 border-r border-[#f3f4f6] flex flex-col bg-[#f9fafb]">
         <div className="px-5 py-4 border-b border-[#f3f4f6] bg-white">
           <div className="flex items-center gap-2">
             <DatabaseIcon size={14} color="#6b7280" strokeWidth={1.5} />
             <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#6b7280] font-display">
-              Master Bank
+              Programme Pool
             </p>
           </div>
           <p className="text-[12px] text-[#9ca3af] font-body mt-0.5">
@@ -180,9 +353,10 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
           ) : (
             allModules.map((m, idx) => (
               <div key={m.id}
-                className={`flex items-start gap-3 px-5 py-3.5 border-b border-[#f3f4f6] ${
+                className={`flex items-start gap-3 px-5 py-3.5 border-b border-[#f3f4f6] cursor-pointer transition-colors ${
                   selected.has(m.id) ? 'bg-[#fef2f2]' : 'bg-white hover:bg-[#f9fafb]'
-                } transition-colors`}
+                }`}
+                onClick={() => toggle(m.id)}
               >
                 <div className={`w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold font-display mt-0.5 ${
                   selected.has(m.id) ? 'bg-[#d51520] text-white' : 'bg-[#e5e7eb] text-[#6b7280]'
@@ -224,7 +398,10 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
           </div>
           <div className="flex items-center gap-3">
             {error && <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body"><AlertCircleIcon size={12} color="#d51520" strokeWidth={1.5} /> {error}</p>}
-            {success && <p className="flex items-center gap-1.5 text-[12px] text-[#027a48] font-body"><CheckmarkCircle01Icon size={12} color="#027a48" strokeWidth={1.5} /> Saved</p>}
+            <button onClick={() => { setMode('read'); load() }}
+              className="h-9 px-4 rounded-[8px] border border-[#e5e7eb] text-[12px] font-medium text-[#374151] font-body hover:bg-[#f9fafb] transition-colors">
+              Cancel
+            </button>
             <button onClick={saveCurriculum} disabled={saving || !hasChanges}
               className="h-9 px-4 rounded-[8px] bg-[#d51520] text-[12px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-50 flex items-center gap-2">
               {saving && <Loading01Icon size={12} className="animate-spin" strokeWidth={2} />}
@@ -308,13 +485,11 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
           ? (() => { const d = unwrap<{ enrollments?: Enrollment[] }>(enrollRes.value.data); return Array.isArray(d?.enrollments) ? d.enrollments : [] })()
           : []
 
-        // Build a lookup: email → member role
         const roleByEmail: Record<string, string> = {}
         members.forEach(m => {
           if (m.user?.email) roleByEmail[m.user.email] = m.role ?? ''
         })
 
-        // Enrollments are the primary source (have type, seats, dates)
         const enrollmentRows: PersonRow[] = enrollments.map(e => ({
           key:              `e-${e.id}`,
           name:             userName(e.user),
@@ -327,7 +502,6 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
           joinedAt:         formatDateTime(e.created_at ?? e.createdAt),
         }))
 
-        // Members who don't appear in enrollments (team members added by lead)
         const enrollmentEmails = new Set(enrollments.map(e => e.user?.email ?? ''))
         const memberOnlyRows: PersonRow[] = members
           .filter(m => m.user?.email && !enrollmentEmails.has(m.user.email))
@@ -374,7 +548,7 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
   )
 
   return (
-    <div className="overflow-x-auto">
+    <div className="px-6 py-4 overflow-x-auto">
       <table className="w-full">
         <thead>
           <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
@@ -469,7 +643,7 @@ function ReviewsTab({ cohortId }: { cohortId: string }) {
   )
 
   return (
-    <div className="overflow-x-auto">
+    <div className="px-6 py-4 overflow-x-auto">
       <table className="w-full">
         <thead>
           <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
@@ -517,6 +691,13 @@ export default function CohortDetailPage() {
   const [cohort, setCohort]       = useState<Cohort | null>(null)
   const [activeTab, setActiveTab] = useState<Tab>('Curriculum')
   const [loading, setLoading]     = useState(true)
+  const { setCollapsed }          = useSidebar()
+
+  // Auto-collapse sidebar when Curriculum tab is active
+  useEffect(() => {
+    setCollapsed(activeTab === 'Curriculum')
+    return () => setCollapsed(false)
+  }, [activeTab, setCollapsed])
 
   useEffect(() => {
     apiClient.get(`/admin/cohorts/${cohortId}`).then(res => {
@@ -585,8 +766,10 @@ export default function CohortDetailPage() {
       </div>
 
       {/* Tab content */}
-      <div className={`flex-1 overflow-y-auto bg-white ${activeTab === 'Curriculum' ? 'overflow-hidden' : ''}`}
-        style={activeTab === 'Curriculum' ? { display: 'flex', flexDirection: 'column' } : {}}>
+      <div
+        className="flex-1 bg-white"
+        style={activeTab === 'Curriculum' ? { display: 'flex', flexDirection: 'column', overflow: 'hidden' } : { overflowY: 'auto' }}
+      >
         {activeTab === 'Curriculum' && <CurriculumTab cohortId={cohortId} programId={programId} />}
         {activeTab === 'People'     && <PeopleTab     cohortId={cohortId} />}
         {activeTab === 'Reviews'    && <ReviewsTab    cohortId={cohortId} />}
