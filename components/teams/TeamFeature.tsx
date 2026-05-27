@@ -663,11 +663,11 @@ function TeamUpgradeModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 px-4 pt-16"
+      className="fixed inset-0 z-50 flex items-end sm:items-start justify-center bg-black/40 px-0 sm:px-4 sm:pt-16"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-[16px] shadow-xl w-full max-w-[400px] p-8 text-center"
+        className="bg-white rounded-t-[20px] sm:rounded-[16px] shadow-xl w-full sm:max-w-[400px] p-6 sm:p-8 text-center"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="w-14 h-14 rounded-[12px] bg-[#fef2f2] flex items-center justify-center mx-auto mb-5">
@@ -700,11 +700,11 @@ function TeamUpgradeModal({ onClose }: { onClose: () => void }) {
 function TeamMemberModal({ team, onClose }: { team: TeamData; onClose: () => void }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 px-4 pt-16"
+      className="fixed inset-0 z-50 flex items-end sm:items-start justify-center bg-black/40 px-0 sm:px-4 sm:pt-16"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-[16px] shadow-xl w-full max-w-[400px] overflow-hidden"
+        className="bg-white rounded-t-[20px] sm:rounded-[16px] shadow-xl w-full sm:max-w-[400px] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-6 pt-6 pb-4 flex items-start justify-between border-b border-[#f3f4f6]">
@@ -822,15 +822,20 @@ function TeamLeadModal({ team, onClose }: { team: TeamData; onClose: () => void 
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 px-4 pt-16"
+      className="fixed inset-0 z-50 flex items-end sm:items-start justify-center bg-black/40 px-0 sm:px-4 sm:pt-16"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-[16px] shadow-xl w-full max-w-[480px] max-h-[90vh] flex flex-col overflow-hidden"
+        className="bg-white rounded-t-[20px] sm:rounded-[16px] shadow-xl w-full sm:max-w-[480px] max-h-[88vh] sm:max-h-[90vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Drag handle — mobile only */}
+        <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0">
+          <div className="w-9 h-1 bg-[#e5e7eb] rounded-full" />
+        </div>
+
         {/* Header */}
-        <div className="px-6 pt-6 pb-4 border-b border-[#f3f4f6] flex items-start justify-between flex-shrink-0">
+        <div className="px-5 sm:px-6 pt-3 sm:pt-6 pb-4 border-b border-[#f3f4f6] flex items-start justify-between flex-shrink-0">
           <div>
             <p className="text-[16px] font-bold text-[#111827] font-display">Manage Team</p>
             <p className="text-[12px] text-[#9ca3af] font-body mt-0.5">{team.cohortTitle}</p>
@@ -843,7 +848,7 @@ function TeamLeadModal({ team, onClose }: { team: TeamData; onClose: () => void 
           </button>
         </div>
 
-        <div className="overflow-y-auto flex-1 px-6 py-5 flex flex-col gap-5">
+        <div className="overflow-y-auto flex-1 px-5 sm:px-6 py-4 sm:py-5 flex flex-col gap-4 sm:gap-5">
 
           {/* Seat usage bar */}
           <div className="bg-[#f9fafb] rounded-[10px] p-4">
