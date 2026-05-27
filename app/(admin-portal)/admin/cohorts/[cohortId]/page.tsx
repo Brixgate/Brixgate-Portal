@@ -7,7 +7,7 @@ import {
   StarIcon, BookOpen01Icon, CheckmarkCircle01Icon,
   CircleIcon, AlertCircleIcon, DatabaseIcon,
   ArrowDown01Icon, ArrowRight01Icon, VideoReplayIcon, File01Icon,
-  PencilEdit01Icon,
+  PencilEdit01Icon, Cancel01Icon, Building01Icon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 import { useSidebar } from '@/lib/sidebar-context'
@@ -15,7 +15,9 @@ import { useSidebar } from '@/lib/sidebar-context'
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Cohort {
   id: number; title: string; status?: string
-  start_date?: string; end_date?: string; max_students?: number
+  start_date?: string; end_date?: string
+  startDate?: string; endDate?: string       // camelCase fallbacks
+  max_students?: number
   program_id?: number; programId?: number
   program?: { id: number; title: string }
 }
@@ -43,6 +45,7 @@ interface Enrollment {
   status?: string
   completion_status?: string; completionStatus?: string
   created_at?: string; createdAt?: string
+  organization_name?: string; organizationName?: string
 }
 interface Review {
   id: number; user?: { name?: string; email: string }; rating?: number
@@ -56,10 +59,20 @@ interface PersonRow {
   email: string
   role: string
   enrollmentType: string
-  seats: number | string
+  seats: number | string        // display value for table cell
+  seatsPurchased: number | null // raw for detail panel
+  seatsUsed: number | null      // raw for detail panel
   enrollmentStatus: string
   completionStatus: string
   joinedAt: string
+  organizationName: string      // '' if not a team enrollment
+}
+
+function getInitials(name: string): string {
+  if (!name || name === '—') return '?'
+  const parts = name.trim().split(/\s+/)
+  if (parts.length === 1) return (parts[0][0] ?? '?').toUpperCase()
+  return ((parts[0][0] ?? '') + (parts[parts.length - 1][0] ?? '')).toUpperCase()
 }
 
 function userName(u?: { name?: string; first_name?: string; firstName?: string; last_name?: string; lastName?: string; email: string }) {
@@ -466,8 +479,9 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
 
 // ── Tab: People (merged Members + Enrollments) ────────────────────────────────
 function PeopleTab({ cohortId }: { cohortId: string }) {
-  const [rows, setRows]       = useState<PersonRow[]>([])
-  const [loading, setLoading] = useState(true)
+  const [rows, setRows]                   = useState<PersonRow[]>([])
+  const [loading, setLoading]             = useState(true)
+  const [selectedPerson, setSelectedPerson] = useState<PersonRow | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -497,9 +511,12 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
           role:             roleByEmail[e.user?.email ?? ''] ?? '',
           enrollmentType:   (e.enrollmentType ?? e.enrollment_type ?? 'INDIVIDUAL').toUpperCase(),
           seats:            e.seatsPurchased ?? e.seats_purchased ?? '—',
+          seatsPurchased:   e.seatsPurchased ?? e.seats_purchased ?? null,
+          seatsUsed:        e.seatsUsed ?? e.seats_used ?? null,
           enrollmentStatus: e.status ?? '—',
           completionStatus: (e.completionStatus ?? e.completion_status ?? 'NOT_STARTED').replace(/_/g, ' '),
           joinedAt:         formatDateTime(e.created_at ?? e.createdAt),
+          organizationName: e.organizationName ?? e.organization_name ?? '',
         }))
 
         const enrollmentEmails = new Set(enrollments.map(e => e.user?.email ?? ''))
@@ -512,9 +529,12 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
             role:             m.role ?? '',
             enrollmentType:   'TEAM MEMBER',
             seats:            '—',
+            seatsPurchased:   null,
+            seatsUsed:        null,
             enrollmentStatus: m.membershipStatus ?? m.membership_status ?? '—',
             completionStatus: '—',
             joinedAt:         '—',
+            organizationName: '',
           }))
 
         setRows([...enrollmentRows, ...memberOnlyRows])
@@ -541,6 +561,13 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
     TEAM_LEAD:   'bg-[#fffbeb] text-[#b45309]',
   }
 
+  const isTeam = (type: string) => type === 'TEAM' || type === 'TEAM MEMBER' || type === 'TEAM_MEMBER'
+
+  // Find all teammates of the selected person (same non-empty org name)
+  const teammates = selectedPerson?.organizationName
+    ? rows.filter(r => r.organizationName === selectedPerson.organizationName)
+    : []
+
   if (loading) return (
     <div className="flex items-center justify-center py-16">
       <Loading01Icon size={20} className="animate-spin text-[#d51520]" strokeWidth={1.5} />
@@ -548,79 +575,266 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
   )
 
   return (
-    <div className="px-6 py-4 overflow-x-auto">
-      <table className="w-full">
-        <thead>
-          <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
-            {['Name', 'Email', 'Role', 'Plan', 'Seats', 'Status', 'Progress', 'Joined'].map(h => (
-              <th key={h}
-                className={`px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6b7280] font-display ${
-                  h === 'Seats' ? 'text-center' : 'text-left'
-                }`}>
-                {h}
-              </th>
+    <>
+      <div className="px-6 py-4 overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
+              {['Name', 'Email', 'Role', 'Plan', 'Seats', 'Status', 'Progress', 'Joined'].map(h => (
+                <th key={h}
+                  className={`px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6b7280] font-display ${
+                    h === 'Seats' ? 'text-center' : 'text-left'
+                  }`}>
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="px-4 py-12 text-center text-[13px] text-[#9ca3af] font-body">
+                  No people in this cohort yet
+                </td>
+              </tr>
+            ) : rows.map(r => (
+              <tr
+                key={r.key}
+                onClick={() => setSelectedPerson(r)}
+                className={`border-b border-[#f3f4f6] cursor-pointer transition-colors ${
+                  selectedPerson?.key === r.key ? 'bg-[#fef2f2]' : 'hover:bg-[#fafafa]'
+                }`}
+              >
+                <td className="px-4 py-3.5">
+                  <p className="text-[13px] font-semibold text-[#111827] font-display">{r.name}</p>
+                  {r.organizationName && (
+                    <p className="text-[11px] text-[#9ca3af] font-body mt-0.5 flex items-center gap-1">
+                      <Building01Icon size={10} color="#9ca3af" strokeWidth={1.5} />
+                      {r.organizationName}
+                    </p>
+                  )}
+                </td>
+                <td className="px-4 py-3.5">
+                  <p className="text-[12px] text-[#6b7280] font-body">{r.email}</p>
+                </td>
+                <td className="px-4 py-3.5">
+                  {r.role
+                    ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display ${ROLE_STYLE[r.role.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#374151]'}`}>
+                        {r.role}
+                      </span>
+                    : <span className="text-[12px] text-[#d1d5db] font-body">—</span>
+                  }
+                </td>
+                <td className="px-4 py-3.5">
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display ${
+                    isTeam(r.enrollmentType) ? 'bg-[#fffbeb] text-[#b45309]' : 'bg-[#f3f4f6] text-[#6b7280]'
+                  }`}>
+                    {r.enrollmentType}
+                  </span>
+                </td>
+                <td className="px-4 py-3.5 text-center">
+                  <span className="text-[13px] font-semibold text-[#111827] font-display">{r.seats}</span>
+                </td>
+                <td className="px-4 py-3.5">
+                  {r.enrollmentStatus !== '—'
+                    ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display ${STATUS_STYLE[r.enrollmentStatus.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#6b7280]'}`}>
+                        {r.enrollmentStatus}
+                      </span>
+                    : <span className="text-[12px] text-[#d1d5db] font-body">—</span>
+                  }
+                </td>
+                <td className="px-4 py-3.5">
+                  {r.completionStatus !== '—'
+                    ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display ${COMP_STYLE[r.completionStatus.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#6b7280]'}`}>
+                        {r.completionStatus}
+                      </span>
+                    : <span className="text-[12px] text-[#d1d5db] font-body">—</span>
+                  }
+                </td>
+                <td className="px-4 py-3.5">
+                  <p className="text-[12px] text-[#9ca3af] font-body whitespace-nowrap">{r.joinedAt}</p>
+                </td>
+              </tr>
             ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 ? (
-            <tr>
-              <td colSpan={8} className="px-4 py-12 text-center text-[13px] text-[#9ca3af] font-body">
-                No people in this cohort yet
-              </td>
-            </tr>
-          ) : rows.map(r => (
-            <tr key={r.key} className="border-b border-[#f3f4f6] hover:bg-[#fafafa] transition-colors">
-              <td className="px-4 py-3.5">
-                <p className="text-[13px] font-semibold text-[#111827] font-display">{r.name}</p>
-              </td>
-              <td className="px-4 py-3.5">
-                <p className="text-[12px] text-[#6b7280] font-body">{r.email}</p>
-              </td>
-              <td className="px-4 py-3.5">
-                {r.role
-                  ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display ${ROLE_STYLE[r.role.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#374151]'}`}>
-                      {r.role}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ── Backdrop ─────────────────────────────────────────────────────────── */}
+      {selectedPerson && (
+        <div
+          className="fixed inset-0 bg-black/20 z-[49]"
+          onClick={() => setSelectedPerson(null)}
+        />
+      )}
+
+      {/* ── Detail panel (always in DOM for slide animation) ─────────────────── */}
+      <div className={`fixed right-0 top-0 h-screen w-[420px] bg-white z-50 flex flex-col shadow-2xl transition-transform duration-300 ease-in-out ${
+        selectedPerson ? 'translate-x-0' : 'translate-x-full'
+      }`}>
+        {selectedPerson && (
+          <>
+            {/* Panel header */}
+            <div className="px-6 pt-6 pb-5 border-b border-[#f3f4f6] flex-shrink-0">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-4">
+                  {/* Avatar */}
+                  <div className="w-14 h-14 rounded-full bg-[#fef2f2] flex items-center justify-center flex-shrink-0">
+                    <span className="text-[18px] font-bold text-[#d51520] font-display">
+                      {getInitials(selectedPerson.name)}
                     </span>
-                  : <span className="text-[12px] text-[#d1d5db] font-body">—</span>
-                }
-              </td>
-              <td className="px-4 py-3.5">
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display ${
-                  r.enrollmentType === 'TEAM' || r.enrollmentType === 'TEAM MEMBER'
-                    ? 'bg-[#fffbeb] text-[#b45309]'
-                    : 'bg-[#f3f4f6] text-[#6b7280]'
-                }`}>
-                  {r.enrollmentType}
-                </span>
-              </td>
-              <td className="px-4 py-3.5 text-center">
-                <span className="text-[13px] font-semibold text-[#111827] font-display">{r.seats}</span>
-              </td>
-              <td className="px-4 py-3.5">
-                {r.enrollmentStatus !== '—'
-                  ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display ${STATUS_STYLE[r.enrollmentStatus.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#6b7280]'}`}>
-                      {r.enrollmentStatus}
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-[16px] font-bold text-[#111827] font-display leading-tight">
+                      {selectedPerson.name}
+                    </h3>
+                    <p className="text-[13px] text-[#6b7280] font-body mt-0.5 break-all">
+                      {selectedPerson.email}
+                    </p>
+                    {selectedPerson.role && (
+                      <span className={`inline-flex items-center mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold font-display ${
+                        ROLE_STYLE[selectedPerson.role.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#374151]'
+                      }`}>
+                        {selectedPerson.role}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedPerson(null)}
+                  className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f3f4f6] transition-colors flex-shrink-0 mt-0.5"
+                >
+                  <Cancel01Icon size={16} color="#6b7280" strokeWidth={1.5} />
+                </button>
+              </div>
+            </div>
+
+            {/* Panel body */}
+            <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-6">
+
+              {/* Enrollment details */}
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#9ca3af] font-display mb-3">
+                  Enrollment Details
+                </p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+                  <div>
+                    <p className="text-[11px] text-[#9ca3af] font-body mb-0.5">Plan Type</p>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold font-display ${
+                      isTeam(selectedPerson.enrollmentType) ? 'bg-[#fffbeb] text-[#b45309]' : 'bg-[#f3f4f6] text-[#6b7280]'
+                    }`}>
+                      {selectedPerson.enrollmentType}
                     </span>
-                  : <span className="text-[12px] text-[#d1d5db] font-body">—</span>
-                }
-              </td>
-              <td className="px-4 py-3.5">
-                {r.completionStatus !== '—'
-                  ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display ${COMP_STYLE[r.completionStatus.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#6b7280]'}`}>
-                      {r.completionStatus}
-                    </span>
-                  : <span className="text-[12px] text-[#d1d5db] font-body">—</span>
-                }
-              </td>
-              <td className="px-4 py-3.5">
-                <p className="text-[12px] text-[#9ca3af] font-body whitespace-nowrap">{r.joinedAt}</p>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-[#9ca3af] font-body mb-0.5">Enrollment Status</p>
+                    {selectedPerson.enrollmentStatus !== '—'
+                      ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold font-display ${
+                          STATUS_STYLE[selectedPerson.enrollmentStatus.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#6b7280]'
+                        }`}>
+                          {selectedPerson.enrollmentStatus}
+                        </span>
+                      : <span className="text-[13px] text-[#d1d5db] font-body">—</span>
+                    }
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-[#9ca3af] font-body mb-0.5">Completion</p>
+                    {selectedPerson.completionStatus !== '—'
+                      ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold font-display ${
+                          COMP_STYLE[selectedPerson.completionStatus.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#6b7280]'
+                        }`}>
+                          {selectedPerson.completionStatus}
+                        </span>
+                      : <span className="text-[13px] text-[#d1d5db] font-body">—</span>
+                    }
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-[#9ca3af] font-body mb-0.5">Date Joined</p>
+                    <p className="text-[13px] font-medium text-[#374151] font-body">{selectedPerson.joinedAt}</p>
+                  </div>
+                  {(selectedPerson.seatsPurchased !== null) && (
+                    <div className="col-span-2">
+                      <p className="text-[11px] text-[#9ca3af] font-body mb-0.5">Seats</p>
+                      <p className="text-[13px] font-medium text-[#374151] font-body">
+                        {selectedPerson.seatsPurchased} purchased
+                        {selectedPerson.seatsUsed !== null && ` · ${selectedPerson.seatsUsed} used`}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Organisation / Team section — only for team enrollments with an org name */}
+              {selectedPerson.organizationName && teammates.length > 0 && (
+                <div>
+                  <div className="h-px bg-[#f3f4f6] -mx-6 mb-5" />
+                  <div className="flex items-center gap-2 mb-3">
+                    <Building01Icon size={14} color="#6b7280" strokeWidth={1.5} />
+                    <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#9ca3af] font-display">
+                      Organisation
+                    </p>
+                  </div>
+                  {/* Org name */}
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-8 h-8 rounded-[8px] bg-[#fffbeb] flex items-center justify-center flex-shrink-0">
+                      <Building01Icon size={14} color="#b45309" strokeWidth={1.5} />
+                    </div>
+                    <p className="text-[14px] font-semibold text-[#111827] font-display">
+                      {selectedPerson.organizationName}
+                    </p>
+                  </div>
+
+                  {/* Team members list */}
+                  <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#9ca3af] font-display mb-2">
+                    Team Members ({teammates.length})
+                  </p>
+                  <div className="flex flex-col gap-1">
+                    {teammates.map(t => (
+                      <div
+                        key={t.key}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-[8px] border transition-colors cursor-pointer ${
+                          t.key === selectedPerson.key
+                            ? 'border-[#d51520] bg-[#fef2f2]'
+                            : 'border-[#f3f4f6] bg-[#f9fafb] hover:bg-[#f3f4f6]'
+                        }`}
+                        onClick={() => setSelectedPerson(t)}
+                      >
+                        <div className="w-8 h-8 rounded-full bg-[#e5e7eb] flex items-center justify-center flex-shrink-0">
+                          <span className="text-[11px] font-bold text-[#374151] font-display">
+                            {getInitials(t.name)}
+                          </span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-[13px] font-semibold font-display truncate ${
+                            t.key === selectedPerson.key ? 'text-[#d51520]' : 'text-[#111827]'
+                          }`}>
+                            {t.name}
+                            {t.key === selectedPerson.key && (
+                              <span className="ml-1.5 text-[9px] font-bold text-[#d51520] font-display uppercase tracking-wide">
+                                (you)
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-[11px] text-[#9ca3af] font-body truncate">{t.email}</p>
+                        </div>
+                        <span className={`flex-shrink-0 text-[9px] font-bold font-display px-1.5 py-0.5 rounded-[4px] uppercase tracking-wide ${
+                          isTeam(t.enrollmentType) && t.enrollmentType !== 'TEAM MEMBER' && t.enrollmentType !== 'TEAM_MEMBER'
+                            ? 'bg-[#fffbeb] text-[#b45309]'
+                            : 'bg-[#f3f4f6] text-[#6b7280]'
+                        }`}>
+                          {t.enrollmentType === 'TEAM' ? 'Lead' : 'Member'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+            </div>
+          </>
+        )}
+      </div>
+    </>
   )
 }
 
@@ -743,9 +957,8 @@ export default function CohortDetailPage() {
         }
         {cohort && (
           <div className="flex items-center gap-4 text-[12px] text-[#9ca3af] font-body ml-auto flex-shrink-0">
-            <span>Start: {formatDate(cohort.start_date)}</span>
-            <span>End: {formatDate(cohort.end_date)}</span>
-            <span>Max: {cohort.max_students ?? '—'}</span>
+            <span>Start: <span className="text-[#374151] font-medium">{formatDate(cohort.start_date ?? cohort.startDate)}</span></span>
+            <span>End: <span className="text-[#374151] font-medium">{formatDate(cohort.end_date ?? cohort.endDate)}</span></span>
           </div>
         )}
       </div>
