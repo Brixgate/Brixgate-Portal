@@ -1,11 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   BookOpen01Icon, Add01Icon, Loading01Icon, Cancel01Icon,
-  AlertCircleIcon, MoreVerticalIcon, PencilEdit01Icon,
-  ArrowRight01Icon, Delete01Icon,
+  AlertCircleIcon, PencilEdit01Icon, Delete01Icon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 
@@ -40,71 +39,6 @@ const STATUS_STYLE: Record<string, string> = {
   PUBLISHED: 'bg-[#ecfdf3] text-[#027a48]',
   DRAFT:     'bg-[#fffbeb] text-[#b45309]',
   ARCHIVED:  'bg-[#f3f4f6] text-[#6b7280]',
-}
-
-// ── 3-dot action menu ─────────────────────────────────────────────────────────
-function ActionMenu({
-  program, onEdit, onOpen, onDelete,
-}: {
-  program: ApiProgram
-  onEdit:   (p: ApiProgram) => void
-  onOpen:   (p: ApiProgram) => void
-  onDelete: (p: ApiProgram) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [open])
-
-  function handle(fn: () => void) {
-    setOpen(false)
-    fn()
-  }
-
-  return (
-    <div ref={ref} className="relative flex justify-end" onClick={e => e.stopPropagation()}>
-      <button
-        onClick={() => setOpen(v => !v)}
-        className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#f3f4f6] transition-colors"
-      >
-        <MoreVerticalIcon size={15} color="#6b7280" strokeWidth={1.5} />
-      </button>
-
-      {open && (
-        <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-[#e5e7eb] rounded-[8px] shadow-[0_4px_16px_rgba(0,0,0,.1)] py-1 w-[148px]">
-          <button
-            onClick={() => handle(() => onEdit(program))}
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-body text-[#374151] hover:bg-[#f9fafb] text-left"
-          >
-            <PencilEdit01Icon size={14} color="#6b7280" strokeWidth={1.5} />
-            Edit
-          </button>
-          <button
-            onClick={() => handle(() => onOpen(program))}
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-body text-[#374151] hover:bg-[#f9fafb] text-left"
-          >
-            <ArrowRight01Icon size={14} color="#6b7280" strokeWidth={1.5} />
-            Open
-          </button>
-          <div className="h-px bg-[#f3f4f6] mx-2 my-1" />
-          <button
-            onClick={() => handle(() => onDelete(program))}
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-body text-[#d51520] hover:bg-[#fef2f2] text-left"
-          >
-            <Delete01Icon size={14} color="#d51520" strokeWidth={1.5} />
-            Delete
-          </button>
-        </div>
-      )}
-    </div>
-  )
 }
 
 // ── Edit programme modal ───────────────────────────────────────────────────────
@@ -424,8 +358,8 @@ export default function AdminProgramsPage() {
           <table className="w-full">
             <thead>
               <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
-                {['Programme', 'Level', 'Format', 'Final Price', 'Status', 'Actions'].map(h => (
-                  <th key={h} className={`text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6b7280] font-display ${h === 'Actions' ? 'text-right' : ''}`}>
+                {['Programme', 'Level', 'Format', 'Final Price', 'Status', ''].map(h => (
+                  <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6b7280] font-display">
                     {h}
                   </th>
                 ))}
@@ -452,7 +386,11 @@ export default function AdminProgramsPage() {
                 </tr>
               ) : (
                 programs.map(p => (
-                  <tr key={p.id} className="border-b border-[#f3f4f6] hover:bg-[#fafafa] transition-colors">
+                  <tr
+                    key={p.id}
+                    onClick={() => router.push(`/admin/programs/${p.id}`)}
+                    className="border-b border-[#f3f4f6] hover:bg-[#fafafa] transition-colors cursor-pointer"
+                  >
                     <td className="px-4 py-4">
                       <p className="text-[13px] font-semibold text-[#111827] font-display">{p.title}</p>
                       {p.description && (
@@ -483,13 +421,24 @@ export default function AdminProgramsPage() {
                         : <span className="text-[#d1d5db]">—</span>
                       }
                     </td>
-                    <td className="px-4 py-4">
-                      <ActionMenu
-                        program={p}
-                        onEdit={setEditProgram}
-                        onOpen={prog => router.push(`/admin/programs/${prog.id}`)}
-                        onDelete={setDeleteProgram}
-                      />
+                    {/* Inline actions — stop propagation so row click doesn't fire */}
+                    <td className="px-4 py-4" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => setEditProgram(p)}
+                          className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#f3f4f6] transition-colors"
+                          title="Edit programme"
+                        >
+                          <PencilEdit01Icon size={14} color="#6b7280" strokeWidth={1.5} />
+                        </button>
+                        <button
+                          onClick={() => setDeleteProgram(p)}
+                          className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#fef2f2] transition-colors"
+                          title="Delete programme"
+                        >
+                          <Delete01Icon size={14} color="#d51520" strokeWidth={1.5} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))

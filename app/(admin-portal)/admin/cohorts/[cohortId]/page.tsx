@@ -525,13 +525,20 @@ export default function CohortDetailPage() {
   }, [cohortId])
 
   const programId = cohort?.programId ?? cohort?.program_id ?? cohort?.program?.id ?? null
-  const backHref  = programId ? `/admin/programs/${programId}` : '/admin/programs'
+
+  function goBack() {
+    if (programId) {
+      router.push(`/admin/programs/${programId}`)
+    } else {
+      router.back()
+    }
+  }
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       {/* Top bar */}
       <div className="flex items-center gap-3 px-6 py-4 bg-white border-b border-[#f3f4f6] flex-shrink-0">
-        <button onClick={() => router.push(backHref)}
+        <button onClick={goBack}
           className="w-8 h-8 flex items-center justify-center rounded-[6px] hover:bg-[#f3f4f6] transition-colors">
           <ArrowLeft01Icon size={16} color="#374151" strokeWidth={1.5} />
         </button>

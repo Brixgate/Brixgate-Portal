@@ -6,7 +6,7 @@ import {
   Add01Icon, Cancel01Icon, Loading01Icon, AlertCircleIcon,
   Delete01Icon, ArrowDown01Icon, ArrowRight01Icon,
   ArrowLeft01Icon, File01Icon, BookOpen01Icon, VideoReplayIcon,
-  Upload01Icon, Link01Icon,
+  Upload01Icon, Link01Icon, PencilEdit01Icon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 
@@ -678,14 +678,17 @@ function formatDate(d?: string) {
 // ── Cohorts tab ───────────────────────────────────────────────────────────────
 function CohortsTab({ programId }: { programId: string }) {
   const router = useRouter()
-  const [cohorts, setCohorts]   = useState<ApiCohort[]>([])
-  const [loading, setLoading]   = useState(true)
-  const [showCreate, setShowCreate] = useState(false)
-  const [form, setForm]         = useState<ApiCohortCreate>({ program_id: programId, title: '', start_date: '', end_date: '', status: 'UPCOMING', max_students: '30' })
-  const [saving, setSaving]     = useState(false)
-  const [formError, setFormError] = useState('')
+  const [cohorts, setCohorts]         = useState<ApiCohort[]>([])
+  const [loading, setLoading]         = useState(true)
+  const [showCreate, setShowCreate]   = useState(false)
+  const [editCohort, setEditCohort]   = useState<ApiCohort | null>(null)
+  const [deleteCohort, setDeleteCohort] = useState<ApiCohort | null>(null)
+  const [form, setForm]               = useState<ApiCohortCreate>({ program_id: programId, title: '', start_date: '', end_date: '', status: 'UPCOMING', max_students: '30' })
+  const [saving, setSaving]           = useState(false)
+  const [deleting, setDeleting]       = useState(false)
+  const [formError, setFormError]     = useState('')
 
-  const clsInput = 'w-full h-10 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 bg-white'
+  const clsInput = 'w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 bg-white'
 
   function setF(k: string, v: string) { setForm(p => ({ ...p, [k]: v })) }
 
@@ -716,13 +719,109 @@ function CohortsTab({ programId }: { programId: string }) {
     } catch (err) { setFormError(getApiError(err)) } finally { setSaving(false) }
   }
 
+  async function saveCohortEdit(e: React.FormEvent) {
+    e.preventDefault(); setFormError('')
+    if (!editCohort) return
+    setSaving(true)
+    try {
+      await apiClient.patch(`/admin/cohorts/${editCohort.id}`, {
+        title:        form.title.trim(),
+        start_date:   form.start_date,
+        end_date:     form.end_date,
+        status:       form.status,
+        max_students: parseInt(form.max_students) || 30,
+      })
+      setEditCohort(null)
+      load()
+    } catch (err) { setFormError(getApiError(err)) } finally { setSaving(false) }
+  }
+
+  async function doDeleteCohort() {
+    if (!deleteCohort) return
+    setDeleting(true)
+    try {
+      await apiClient.delete(`/admin/cohorts/${deleteCohort.id}`)
+      setCohorts(prev => prev.filter(c => c.id !== deleteCohort.id))
+      setDeleteCohort(null)
+    } catch (err) { setFormError(getApiError(err)) } finally { setDeleting(false) }
+  }
+
+  function openEdit(c: ApiCohort) {
+    setForm({
+      program_id:   programId,
+      title:        c.title,
+      start_date:   c.start_date ?? '',
+      end_date:     c.end_date   ?? '',
+      status:       c.status     ?? 'UPCOMING',
+      max_students: String(c.max_students ?? 30),
+    })
+    setFormError('')
+    setEditCohort(c)
+  }
+
+  const cohortFormModal = (isEdit: boolean) => (
+    <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/40 px-4" onClick={() => isEdit ? setEditCohort(null) : setShowCreate(false)}>
+      <div className="bg-white rounded-[14px] shadow-xl w-full max-w-[480px] overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-[#f3f4f6]">
+          <h2 className="text-[15px] font-bold text-[#111827] font-display">{isEdit ? 'Edit Cohort' : 'New Cohort'}</h2>
+          <button onClick={() => isEdit ? setEditCohort(null) : setShowCreate(false)} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f3f4f6]">
+            <Cancel01Icon size={15} color="#6b7280" strokeWidth={1.5} />
+          </button>
+        </div>
+        <form onSubmit={isEdit ? saveCohortEdit : createCohort} className="px-6 py-5 flex flex-col gap-4">
+          <div>
+            <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Cohort Title</label>
+            <input value={form.title} onChange={e => setF('title', e.target.value)}
+              placeholder="AI Prompt Engineering — Cohort 3" className={clsInput} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Start Date</label>
+              <input type="date" value={form.start_date} onChange={e => setF('start_date', e.target.value)} className={clsInput} />
+            </div>
+            <div>
+              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">End Date</label>
+              <input type="date" value={form.end_date} onChange={e => setF('end_date', e.target.value)} className={clsInput} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Status</label>
+              <select value={form.status} onChange={e => setF('status', e.target.value)} className={clsInput}>
+                {['UPCOMING', 'OPEN', 'CLOSED'].map(s => <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Max Students</label>
+              <input type="number" value={form.max_students} onChange={e => setF('max_students', e.target.value)} placeholder="30" className={clsInput} />
+            </div>
+          </div>
+          {formError && (
+            <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body">
+              <AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} /> {formError}
+            </p>
+          )}
+          <div className="flex gap-2 pt-1">
+            <button type="button" onClick={() => isEdit ? setEditCohort(null) : setShowCreate(false)}
+              className="flex-1 h-10 rounded-[8px] border border-[#e5e7eb] text-[13px] font-body hover:bg-[#f9fafb]">Cancel</button>
+            <button type="submit" disabled={saving}
+              className="flex-1 h-10 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-60 flex items-center justify-center gap-2">
+              {saving && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
+              {isEdit ? 'Save Changes' : 'Create Cohort'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-5">
         <p className="text-[13px] text-[#6b7280] font-body">
           {loading ? 'Loading…' : `${cohorts.length} cohort${cohorts.length !== 1 ? 's' : ''}`}
         </p>
-        <button onClick={() => setShowCreate(true)}
+        <button onClick={() => { setForm({ program_id: programId, title: '', start_date: '', end_date: '', status: 'UPCOMING', max_students: '30' }); setFormError(''); setShowCreate(true) }}
           className="flex items-center gap-1.5 h-9 px-4 bg-[#d51520] text-white rounded-[8px] text-[12px] font-semibold font-display hover:bg-[#b81119] transition-colors">
           <Add01Icon size={13} strokeWidth={2} /> New Cohort
         </button>
@@ -752,7 +851,8 @@ function CohortsTab({ programId }: { programId: string }) {
             </thead>
             <tbody>
               {cohorts.map(c => (
-                <tr key={c.id} onClick={() => router.push(`/admin/cohorts/${c.id}`)}
+                <tr key={c.id}
+                  onClick={() => router.push(`/admin/cohorts/${c.id}`)}
                   className="border-b border-[#f3f4f6] hover:bg-[#fafafa] cursor-pointer transition-colors">
                   <td className="px-4 py-3.5">
                     <p className="text-[13px] font-semibold text-[#111827] font-display">{c.title}</p>
@@ -770,8 +870,24 @@ function CohortsTab({ programId }: { programId: string }) {
                   <td className="px-4 py-3.5 text-[13px] font-medium text-[#111827] font-body">
                     {c.enrolled_count ?? 0} / {c.max_students ?? '—'}
                   </td>
-                  <td className="px-4 py-3.5 text-right">
-                    <ArrowRight01Icon size={15} color="#9ca3af" strokeWidth={1.5} />
+                  {/* Inline actions */}
+                  <td className="px-4 py-3.5" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => openEdit(c)}
+                        className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#f3f4f6] transition-colors"
+                        title="Edit cohort"
+                      >
+                        <PencilEdit01Icon size={13} color="#6b7280" strokeWidth={1.5} />
+                      </button>
+                      <button
+                        onClick={() => setDeleteCohort(c)}
+                        className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#fef2f2] transition-colors"
+                        title="Delete cohort"
+                      >
+                        <Delete01Icon size={13} color="#d51520" strokeWidth={1.5} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -780,58 +896,36 @@ function CohortsTab({ programId }: { programId: string }) {
         </div>
       )}
 
-      {/* Create cohort modal */}
-      {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={() => setShowCreate(false)}>
-          <div className="bg-white rounded-[14px] shadow-xl w-full max-w-[480px] overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-[#f3f4f6]">
-              <h2 className="text-[15px] font-bold text-[#111827] font-display">New Cohort</h2>
-              <button onClick={() => setShowCreate(false)} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f3f4f6]">
-                <Cancel01Icon size={15} color="#6b7280" strokeWidth={1.5} />
+      {showCreate && cohortFormModal(false)}
+      {editCohort  && cohortFormModal(true)}
+
+      {/* Delete cohort confirm */}
+      {deleteCohort && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/40 px-4" onClick={() => setDeleteCohort(null)}>
+          <div className="bg-white rounded-[14px] shadow-xl w-full max-w-[400px] p-6" onClick={e => e.stopPropagation()}>
+            <div className="w-10 h-10 rounded-full bg-[#fef2f2] flex items-center justify-center mb-4">
+              <Delete01Icon size={18} color="#d51520" strokeWidth={1.5} />
+            </div>
+            <h2 className="text-[15px] font-bold text-[#111827] font-display mb-1">Delete Cohort?</h2>
+            <p className="text-[13px] text-[#6b7280] font-body mb-5">
+              <span className="font-semibold text-[#374151]">{deleteCohort.title}</span> will be permanently deleted. This cannot be undone.
+            </p>
+            {formError && (
+              <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body mb-3">
+                <AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} /> {formError}
+              </p>
+            )}
+            <div className="flex gap-2">
+              <button onClick={() => setDeleteCohort(null)}
+                className="flex-1 h-10 rounded-[8px] border border-[#e5e7eb] text-[13px] font-medium font-body hover:bg-[#f9fafb] transition-colors">
+                Cancel
+              </button>
+              <button onClick={doDeleteCohort} disabled={deleting}
+                className="flex-1 h-10 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-60 flex items-center justify-center gap-2">
+                {deleting && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
+                Delete
               </button>
             </div>
-            <form onSubmit={createCohort} className="px-6 py-5 flex flex-col gap-4">
-              <div>
-                <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Cohort Title</label>
-                <input value={form.title} onChange={e => setF('title', e.target.value)}
-                  placeholder="AI Prompt Engineering — Cohort 3" className={clsInput} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Start Date</label>
-                  <input type="date" value={form.start_date} onChange={e => setF('start_date', e.target.value)} className={clsInput} />
-                </div>
-                <div>
-                  <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">End Date</label>
-                  <input type="date" value={form.end_date} onChange={e => setF('end_date', e.target.value)} className={clsInput} />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Status</label>
-                  <select value={form.status} onChange={e => setF('status', e.target.value)} className={`${clsInput}`}>
-                    {['UPCOMING', 'OPEN', 'CLOSED'].map(s => <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Max Students</label>
-                  <input type="number" value={form.max_students} onChange={e => setF('max_students', e.target.value)} placeholder="30" className={clsInput} />
-                </div>
-              </div>
-              {formError && (
-                <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body">
-                  <AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} /> {formError}
-                </p>
-              )}
-              <div className="flex gap-2 pt-1">
-                <button type="button" onClick={() => setShowCreate(false)}
-                  className="flex-1 h-10 rounded-[8px] border border-[#e5e7eb] text-[13px] font-body hover:bg-[#f9fafb]">Cancel</button>
-                <button type="submit" disabled={saving}
-                  className="flex-1 h-10 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-60 flex items-center justify-center gap-2">
-                  {saving && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />} Create Cohort
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}
