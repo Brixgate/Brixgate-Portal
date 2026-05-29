@@ -794,6 +794,7 @@ function TeamLeadModal({ team, onClose }: { team: TeamData; onClose: () => void 
     const email = emailInput.trim()
     if (!email)               { setInviteError('Enter an email address.'); return }
     if (!isValidEmail(email)) { setInviteError('Enter a valid email address.'); return }
+    if (invitees.length >= team.seatsPurchased) { setInviteError('Invites number exceeded.'); return }
     if (seatsAvailable <= 0)  { setInviteError('No seats available. All seats have been used.'); return }
     if (invitees.some((i) => i.inviteeEmail.toLowerCase() === email.toLowerCase())) {
       setInviteError('An invite has already been sent to this email.'); return
@@ -873,6 +874,7 @@ function TeamLeadModal({ team, onClose }: { team: TeamData; onClose: () => void 
               {seatsAvailable > 0
                 ? `${seatsAvailable} seat${seatsAvailable !== 1 ? 's' : ''} available`
                 : 'All seats used — no more invites can be sent'}
+              {seatsAvailable > 0 && invitees.length >= team.seatsPurchased && ' · Invite limit reached'}
             </p>
           </div>
 
@@ -898,7 +900,7 @@ function TeamLeadModal({ team, onClose }: { team: TeamData; onClose: () => void 
                     setInviteSuccess(false)
                   }}
                   placeholder="colleague@company.com"
-                  disabled={seatsAvailable <= 0 || inviting}
+                  disabled={seatsAvailable <= 0 || inviting || invitees.length >= team.seatsPurchased}
                   className={`w-full h-[38px] pl-8 pr-3 border rounded-[8px] text-[13px] font-body text-[#111827] placeholder:text-[#9ca3af] outline-none transition-all bg-white disabled:bg-[#f9fafb] disabled:cursor-not-allowed ${
                     inviteError
                       ? 'border-[#D51520] focus:ring-2 focus:ring-[#D51520]/10'
@@ -908,7 +910,7 @@ function TeamLeadModal({ team, onClose }: { team: TeamData; onClose: () => void 
               </div>
               <button
                 type="submit"
-                disabled={inviting || seatsAvailable <= 0}
+                disabled={inviting || seatsAvailable <= 0 || invitees.length >= team.seatsPurchased}
                 className="h-[38px] px-4 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5 flex-shrink-0"
               >
                 {inviting

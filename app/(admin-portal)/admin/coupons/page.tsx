@@ -182,7 +182,6 @@ function CouponModal({
               <select value={form.status} onChange={e => set('status', e.target.value)} className={`${inputCls} bg-white`}>
                 <option value="ACTIVE">Active</option>
                 <option value="EXPIRED">Expired</option>
-                <option value="INACTIVE">Inactive</option>
               </select>
             </div>
           </div>

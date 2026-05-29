@@ -29,6 +29,7 @@ interface ProgramModule {
   resources?: ProgramModuleResource[]
 }
 interface CohortModule  { id: number; program_module_id?: number; programModuleId?: number; title?: string }
+interface CustomLesson  { tempId: string; title: string }
 
 interface Member {
   id: number
@@ -109,99 +110,151 @@ function ResourceTypeChip({ type }: { type: string }) {
 
 // ── Tab: Curriculum ───────────────────────────────────────────────────────────
 function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: number | null }) {
-  const [allModules, setAllModules]       = useState<ProgramModule[]>([])
-  const [cohortModules, setCohortModules] = useState<CohortModule[]>([])
-  const [selected, setSelected]           = useState<Set<number>>(new Set())
-  const [loading, setLoading]             = useState(true)
-  const [saving, setSaving]               = useState(false)
-  const [error, setError]                 = useState('')
-  const [success, setSuccess]             = useState(false)
-  const [mode, setMode]                   = useState<'read' | 'edit'>('read')
-  const [expandedId, setExpandedId]       = useState<number | null>(null)
+  const [allModules, setAllModules]           = useState<ProgramModule[]>([])
+  const [cohortModules, setCohortModules]     = useState<CohortModule[]>([])
+  const [selectedModuleIds, setSelectedModuleIds] = useState<Set<number>>(new Set())
+  const [loading, setLoading]                 = useState(true)
+  const [saving, setSaving]                   = useState(false)
+  const [error, setError]                     = useState('')
+  const [success, setSuccess]                 = useState(false)
+  const [mode, setMode]                       = useState<'read' | 'edit'>('read')
+  const [expandedId, setExpandedId]           = useState<number | null>(null)
+
+  // Phase 2 — per-module lesson selection
+  const [editingModule, setEditingModule]     = useState<ProgramModule | null>(null)
+  const [loadingLessons, setLoadingLessons]   = useState(false)
+  const [fetchedLessons, setFetchedLessons]   = useState<ProgramModuleLesson[]>([])
+  const [selectedLessonsPerModule, setSelectedLessonsPerModule] = useState<Record<number, Set<number>>>({})
+  const [customLessonsPerModule, setCustomLessonsPerModule]     = useState<Record<number, CustomLesson[]>>({})
+  const [newLessonTitle, setNewLessonTitle]   = useState('')
 
   const load = useCallback(async () => {
-    if (!programId) { setLoading(false); return }
     setLoading(true)
     try {
-      const [progModRes, cohortModRes] = await Promise.allSettled([
-        apiClient.get(`/admin/programs/${programId}/modules`),
-        apiClient.get(`/admin/cohorts/${cohortId}/modules`),
-      ])
-      if (progModRes.status === 'fulfilled') {
-        const d = unwrap<{ modules?: ProgramModule[] } | ProgramModule[]>(progModRes.value.data)
-        setAllModules(Array.isArray(d) ? d : (d as { modules?: ProgramModule[] })?.modules ?? [])
-      }
-      if (cohortModRes.status === 'fulfilled') {
-        const d = unwrap<{ modules?: CohortModule[] } | CohortModule[]>(cohortModRes.value.data)
+      // Always fetch the cohort's own modules — this works without programId
+      const cohortModRes = await apiClient.get(`/cohorts/${cohortId}/modules`).catch(() => null)
+      if (cohortModRes) {
+        const d = unwrap<{ modules?: CohortModule[] } | CohortModule[]>(cohortModRes.data)
         const mods: CohortModule[] = Array.isArray(d) ? d : (d as { modules?: CohortModule[] })?.modules ?? []
         setCohortModules(mods)
-        setSelected(new Set(mods.map(m => m.program_module_id ?? m.programModuleId ?? 0)))
+        setSelectedModuleIds(new Set(mods.map(m => m.program_module_id ?? m.programModuleId ?? 0).filter(Boolean)))
+      }
+      // Fetch programme pool only when we know the programId
+      if (programId) {
+        const progModRes = await apiClient.get(`/admin/programs/${programId}/modules`).catch(() => null)
+        if (progModRes) {
+          const d = unwrap<{ modules?: ProgramModule[] } | ProgramModule[]>(progModRes.data)
+          setAllModules(Array.isArray(d) ? d : (d as { modules?: ProgramModule[] })?.modules ?? [])
+        }
       }
     } finally { setLoading(false) }
   }, [cohortId, programId])
 
   useEffect(() => { load() }, [load])
 
-  function toggle(id: number) {
-    setSelected(prev => { const n = new Set(prev); if (n.has(id)) { n.delete(id) } else { n.add(id) }; return n })
+  function toggleModule(id: number) {
+    setSelectedModuleIds(prev => {
+      const n = new Set(prev); if (n.has(id)) { n.delete(id) } else { n.add(id) }; return n
+    })
+  }
+
+  async function openModuleLessons(module: ProgramModule) {
+    setEditingModule(module)
+    let lessons: ProgramModuleLesson[] = module.lessons ?? []
+    if (lessons.length === 0 && programId) {
+      setLoadingLessons(true)
+      try {
+        const res = await apiClient.get(`/admin/programs/${programId}/modules/${module.id}/lessons`)
+        const d = unwrap<{ lessons?: ProgramModuleLesson[] } | ProgramModuleLesson[]>(res.data)
+        lessons = Array.isArray(d) ? d : (d as { lessons?: ProgramModuleLesson[] })?.lessons ?? []
+        setAllModules(prev => prev.map(m => m.id === module.id ? { ...m, lessons } : m))
+      } catch { lessons = [] } finally { setLoadingLessons(false) }
+    }
+    setFetchedLessons(lessons)
+    // Pre-select all lessons the first time this module is opened
+    if (!selectedLessonsPerModule[module.id]) {
+      setSelectedLessonsPerModule(prev => ({ ...prev, [module.id]: new Set(lessons.map(l => l.id)) }))
+    }
+  }
+
+  function toggleLesson(lessonId: number) {
+    if (!editingModule) return
+    setSelectedLessonsPerModule(prev => {
+      const s = new Set(prev[editingModule.id] ?? [])
+      if (s.has(lessonId)) { s.delete(lessonId) } else { s.add(lessonId) }
+      return { ...prev, [editingModule.id]: s }
+    })
+  }
+
+  function addCustomLesson() {
+    const title = newLessonTitle.trim()
+    if (!title || !editingModule) return
+    const tempId = `custom-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    setCustomLessonsPerModule(prev => ({
+      ...prev, [editingModule.id]: [...(prev[editingModule.id] ?? []), { tempId, title }],
+    }))
+    setNewLessonTitle('')
+  }
+
+  function removeCustomLesson(moduleId: number, tempId: string) {
+    setCustomLessonsPerModule(prev => ({
+      ...prev, [moduleId]: (prev[moduleId] ?? []).filter(l => l.tempId !== tempId),
+    }))
   }
 
   async function saveCurriculum() {
     setSaving(true); setError(''); setSuccess(false)
     try {
-      await apiClient.post(`/admin/cohorts/${cohortId}/modules`, {
-        module_ids: allModules.filter(m => selected.has(m.id)).map(m => m.id),
-      })
-      setSuccess(true); setTimeout(() => setSuccess(false), 3000)
-      setMode('read')
-      load()
-    } catch {
+      const moduleIds = Array.from(selectedModuleIds)
+      // Save module assignments — batch first, fall back to individual
       try {
+        await apiClient.post(`/admin/cohorts/${cohortId}/modules`, { module_ids: moduleIds })
+      } catch {
         const currentIds = new Set(cohortModules.map(m => m.program_module_id ?? m.programModuleId ?? 0))
-        const toAdd    = Array.from(selected).filter(id => !currentIds.has(id))
-        const toRemove = cohortModules.filter(m => !selected.has(m.program_module_id ?? m.programModuleId ?? 0))
-        await Promise.all([
-          ...toAdd.map(id => apiClient.post(`/admin/cohorts/${cohortId}/modules`, { program_module_id: id })),
+        const toAdd    = moduleIds.filter(id => !currentIds.has(id))
+        const toRemove = cohortModules.filter(m => !selectedModuleIds.has(m.program_module_id ?? m.programModuleId ?? 0))
+        await Promise.allSettled([
+          ...toAdd.map(id   => apiClient.post(`/admin/cohorts/${cohortId}/modules`, { program_module_id: id })),
           ...toRemove.map(m => apiClient.delete(`/admin/cohorts/${cohortId}/modules/${m.id}`)),
         ])
-        setSuccess(true); setTimeout(() => setSuccess(false), 3000)
-        setMode('read')
-        load()
-      } catch (err) { setError(getApiError(err)) }
-    } finally { setSaving(false) }
+      }
+      // Save lessons for each selected module (ignore duplicates)
+      await Promise.allSettled(
+        moduleIds.flatMap(mid => [
+          ...Array.from(selectedLessonsPerModule[mid] ?? []).map(lid =>
+            apiClient.post(`/admin/cohorts/${cohortId}/lessons`, { program_lesson_id: lid, module_id: mid })
+          ),
+          ...(customLessonsPerModule[mid] ?? []).map(cl =>
+            apiClient.post(`/admin/cohorts/${cohortId}/lessons`, { title: cl.title, module_id: mid, content_type: 'VIDEO' })
+          ),
+        ])
+      )
+      setSuccess(true); setTimeout(() => setSuccess(false), 3000)
+      setMode('read'); setEditingModule(null)
+      setSelectedLessonsPerModule({}); setCustomLessonsPerModule({})
+      load()
+    } catch (err) { setError(getApiError(err)) } finally { setSaving(false) }
   }
 
   const hasChanges = (() => {
     const cur = new Set(cohortModules.map(m => m.program_module_id ?? m.programModuleId ?? 0))
-    if (cur.size !== selected.size) return true
-    return allModules.some(m => selected.has(m.id) !== cur.has(m.id))
+    if (cur.size !== selectedModuleIds.size) return true
+    if (allModules.some(m => selectedModuleIds.has(m.id) !== cur.has(m.id))) return true
+    // Also dirty if the user has queued up any custom lessons
+    return Object.values(customLessonsPerModule).some(ls => ls.length > 0)
   })()
-
-  if (!programId) return (
-    <div className="flex items-center justify-center py-16 text-center px-6">
-      <div>
-        <BookOpen01Icon size={32} color="#e5e7eb" strokeWidth={1.5} className="mx-auto mb-3" />
-        <p className="text-[14px] font-semibold text-[#111827] font-display">No programme linked</p>
-        <p className="text-[13px] text-[#6b7280] font-body mt-1">This cohort has no programme associated</p>
-      </div>
-    </div>
-  )
 
   // ── READ MODE ───────────────────────────────────────────────────────────────
   if (mode === 'read') {
-    const assignedModules = allModules.filter(m => selected.has(m.id))
-
+    const assignedModules = allModules.filter(m => selectedModuleIds.has(m.id))
     return (
       <div className="flex flex-col h-full overflow-hidden">
-        {/* Header */}
         <div className="px-6 py-4 border-b border-[#f3f4f6] flex items-center justify-between flex-shrink-0 bg-white">
           <div>
             <p className="text-[13px] font-semibold text-[#111827] font-display">
-              {loading ? '…' : `${selected.size} module${selected.size !== 1 ? 's' : ''} assigned to this cohort`}
+              {loading ? '…' : `${selectedModuleIds.size} module${selectedModuleIds.size !== 1 ? 's' : ''} assigned to this cohort`}
             </p>
-            <p className="text-[12px] text-[#9ca3af] font-body mt-0.5">
-              Click &ldquo;Edit Curriculum&rdquo; to change assignments
-            </p>
+            <p className="text-[12px] text-[#9ca3af] font-body mt-0.5">Click &ldquo;Edit Curriculum&rdquo; to change assignments</p>
           </div>
           {success && (
             <p className="flex items-center gap-1.5 text-[12px] text-[#027a48] font-body mr-3">
@@ -214,8 +267,6 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
             Edit Curriculum
           </button>
         </div>
-
-        {/* Module list */}
         <div className="flex-1 overflow-y-auto bg-white">
           {loading ? (
             Array.from({ length: 4 }).map((_, i) => (
@@ -241,29 +292,22 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
             </div>
           ) : (
             assignedModules.map((m, idx) => {
-              const isOpen = expandedId === m.id
+              const isOpen    = expandedId === m.id
               const lessons   = m.lessons   ?? []
               const resources = m.resources ?? []
-
               return (
                 <div key={m.id} className="border-b border-[#f3f4f6] last:border-0">
-                  {/* Module row */}
-                  <button
-                    onClick={() => setExpandedId(isOpen ? null : m.id)}
-                    className="w-full flex items-center gap-3 px-6 py-4 hover:bg-[#f9fafb] transition-colors text-left"
-                  >
+                  <button onClick={() => setExpandedId(isOpen ? null : m.id)}
+                    className="w-full flex items-center gap-3 px-6 py-4 hover:bg-[#f9fafb] transition-colors text-left">
                     {isOpen
                       ? <ArrowDown01Icon  size={14} color="#9ca3af" strokeWidth={2} className="flex-shrink-0" />
-                      : <ArrowRight01Icon size={14} color="#9ca3af" strokeWidth={2} className="flex-shrink-0" />
-                    }
+                      : <ArrowRight01Icon size={14} color="#9ca3af" strokeWidth={2} className="flex-shrink-0" />}
                     <div className="w-6 h-6 rounded-full bg-[#fef2f2] flex items-center justify-center flex-shrink-0">
                       <span className="text-[10px] font-bold text-[#d51520] font-display">{idx + 1}</span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] font-semibold text-[#111827] font-display truncate">{m.title}</p>
-                      {m.description && (
-                        <p className="text-[11px] text-[#9ca3af] font-body mt-0.5 truncate">{m.description}</p>
-                      )}
+                      {m.description && <p className="text-[11px] text-[#9ca3af] font-body mt-0.5 truncate">{m.description}</p>}
                     </div>
                     <div className="flex items-center gap-3 flex-shrink-0">
                       {m.status && (
@@ -271,21 +315,14 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
                           m.status === 'PUBLISHED' ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#fffbeb] text-[#b45309]'
                         }`}>{m.status}</span>
                       )}
-                      <span className="text-[11px] text-[#9ca3af] font-body">
-                        {lessons.length}L · {resources.length}R
-                      </span>
+                      <span className="text-[11px] text-[#9ca3af] font-body">{lessons.length}L · {resources.length}R</span>
                     </div>
                   </button>
-
-                  {/* Expanded: lessons + resources */}
                   {isOpen && (
                     <div className="px-6 pb-4 pt-1 bg-[#fafafa] border-t border-[#f3f4f6]">
-                      {/* Lessons */}
                       {lessons.length > 0 && (
                         <div className="mb-3">
-                          <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[#9ca3af] font-display mb-1.5 pl-9">
-                            Lessons
-                          </p>
+                          <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[#9ca3af] font-display mb-1.5 pl-9">Lessons</p>
                           <div className="flex flex-col gap-0.5 pl-9">
                             {lessons.map(l => (
                               <div key={l.id} className="flex items-center gap-2 py-1.5">
@@ -297,13 +334,9 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
                           </div>
                         </div>
                       )}
-
-                      {/* Resources */}
                       {resources.length > 0 && (
                         <div>
-                          <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[#9ca3af] font-display mb-1.5 pl-9">
-                            Resources
-                          </p>
+                          <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[#9ca3af] font-display mb-1.5 pl-9">Resources</p>
                           <div className="flex flex-col gap-0.5 pl-9">
                             {resources.map(r => (
                               <div key={r.id} className="flex items-center gap-2 py-1.5">
@@ -315,11 +348,8 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
                           </div>
                         </div>
                       )}
-
                       {lessons.length === 0 && resources.length === 0 && (
-                        <p className="text-[12px] text-[#9ca3af] font-body pl-9 py-1">
-                          No lessons or resources added yet
-                        </p>
+                        <p className="text-[12px] text-[#9ca3af] font-body pl-9 py-1">No lessons or resources added yet</p>
                       )}
                     </div>
                   )}
@@ -332,20 +362,150 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
     )
   }
 
-  // ── EDIT MODE ────────────────────────────────────────────────────────────────
+  // ── EDIT MODE — Phase 2: lesson selection for a specific module ─────────────
+  if (editingModule) {
+    const selectedIds = selectedLessonsPerModule[editingModule.id] ?? new Set<number>()
+    const customs     = customLessonsPerModule[editingModule.id] ?? []
+    return (
+      <div className="flex flex-col h-full overflow-hidden bg-white">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-[#f3f4f6] flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setEditingModule(null)}
+              className="flex items-center gap-1.5 text-[12px] font-medium text-[#6b7280] font-body hover:text-[#374151] transition-colors">
+              <ArrowLeft01Icon size={14} color="currentColor" strokeWidth={2} />
+              Back to modules
+            </button>
+            <div className="w-px h-4 bg-[#e5e7eb]" />
+            <div>
+              <p className="text-[13px] font-semibold text-[#111827] font-display">{editingModule.title}</p>
+              <p className="text-[11px] text-[#9ca3af] font-body">Select lessons to include in this cohort</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {error && (
+              <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body">
+                <AlertCircleIcon size={12} color="#d51520" strokeWidth={1.5} />{error}
+              </p>
+            )}
+            <button onClick={() => setEditingModule(null)}
+              className="h-9 px-4 rounded-[8px] border border-[#e5e7eb] text-[12px] font-medium text-[#374151] font-body hover:bg-[#f9fafb] transition-colors">
+              Back
+            </button>
+            <button onClick={saveCurriculum} disabled={saving || !hasChanges}
+              className="h-9 px-4 rounded-[8px] bg-[#d51520] text-[12px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-50 flex items-center gap-2">
+              {saving && <Loading01Icon size={12} className="animate-spin" strokeWidth={2} />}
+              Save Curriculum
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6">
+          {loadingLessons ? (
+            <div className="flex flex-col gap-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-14 bg-[#f9fafb] rounded-[10px] animate-pulse" />
+              ))}
+            </div>
+          ) : (
+            <>
+              {/* Programme lessons */}
+              <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#9ca3af] font-display mb-3">
+                Lessons from programme ({fetchedLessons.length})
+              </p>
+              {fetchedLessons.length === 0 ? (
+                <p className="text-[13px] text-[#9ca3af] font-body mb-6">No lessons found in this module</p>
+              ) : (
+                <div className="flex flex-col gap-2 mb-6">
+                  {fetchedLessons.map(lesson => {
+                    const checked = selectedIds.has(lesson.id)
+                    return (
+                      <button key={lesson.id} onClick={() => toggleLesson(lesson.id)}
+                        className={`flex items-center gap-3 rounded-[10px] border px-4 py-3 text-left transition-all ${
+                          checked ? 'border-[#d51520] bg-[#fef2f2]' : 'border-[#e5e7eb] bg-white hover:border-[#d1d5db]'
+                        }`}>
+                        <div className={`w-5 h-5 rounded-[5px] border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+                          checked ? 'bg-[#d51520] border-[#d51520]' : 'border-[#d1d5db] bg-white'
+                        }`}>
+                          {checked && (
+                            <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                              <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          )}
+                        </div>
+                        <VideoReplayIcon size={13} color={checked ? '#d51520' : '#9ca3af'} strokeWidth={1.5} className="flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-[13px] font-semibold font-display ${checked ? 'text-[#d51520]' : 'text-[#111827]'}`}>{lesson.title}</p>
+                          <p className="text-[11px] text-[#9ca3af] font-body">{lesson.content_type}{lesson.duration ? ` · ${lesson.duration}min` : ''}</p>
+                        </div>
+                        {checked
+                          ? <CheckmarkCircle01Icon size={14} color="#d51520" strokeWidth={1.5} className="flex-shrink-0" />
+                          : <CircleIcon           size={14} color="#d1d5db" strokeWidth={1.5} className="flex-shrink-0" />}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Custom lessons */}
+              {customs.length > 0 && (
+                <div className="mb-6">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#9ca3af] font-display mb-3">
+                    Custom lessons ({customs.length})
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    {customs.map(cl => (
+                      <div key={cl.tempId} className="flex items-center gap-3 rounded-[10px] border border-[#d51520] bg-[#fef2f2] px-4 py-3">
+                        <VideoReplayIcon size={13} color="#d51520" strokeWidth={1.5} className="flex-shrink-0" />
+                        <p className="flex-1 text-[13px] font-semibold text-[#d51520] font-display truncate">{cl.title}</p>
+                        <span className="flex-shrink-0 text-[9px] font-bold uppercase text-[#d51520] font-display border border-[#d51520] px-1.5 py-0.5 rounded-[4px]">Custom</span>
+                        <button onClick={() => removeCustomLesson(editingModule.id, cl.tempId)}
+                          className="w-6 h-6 flex items-center justify-center rounded-[4px] hover:bg-[#fecdca] transition-colors flex-shrink-0">
+                          <Cancel01Icon size={12} color="#d51520" strokeWidth={1.5} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Add custom lesson */}
+              <div className="border-t border-[#f3f4f6] pt-5">
+                <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#9ca3af] font-display mb-3">Add custom lesson</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newLessonTitle}
+                    onChange={e => setNewLessonTitle(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustomLesson() } }}
+                    placeholder="Lesson title…"
+                    className="flex-1 h-9 px-3 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body text-[#111827] placeholder:text-[#9ca3af] focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 outline-none transition-all"
+                  />
+                  <button onClick={addCustomLesson} disabled={!newLessonTitle.trim()}
+                    className="h-9 px-4 rounded-[8px] bg-[#d51520] text-[12px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-50 transition-colors flex-shrink-0">
+                    Add
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // ── EDIT MODE — Phase 1: module selection (two panels) ─────────────────────
   return (
     <div className="flex h-full overflow-hidden">
-      {/* ── Left panel: Master Bank ────────────────────────────── */}
+      {/* Left panel: programme pool */}
       <div className="w-[300px] flex-shrink-0 border-r border-[#f3f4f6] flex flex-col bg-[#f9fafb]">
         <div className="px-5 py-4 border-b border-[#f3f4f6] bg-white">
           <div className="flex items-center gap-2">
             <DatabaseIcon size={14} color="#6b7280" strokeWidth={1.5} />
-            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#6b7280] font-display">
-              Programme Pool
-            </p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#6b7280] font-display">Programme Pool</p>
           </div>
           <p className="text-[12px] text-[#9ca3af] font-body mt-0.5">
-            All modules in this programme ({allModules.length})
+            {programId ? `All modules (${allModules.length}) — click to select` : 'No programme linked to this cohort'}
           </p>
         </div>
         <div className="flex-1 overflow-y-auto">
@@ -359,35 +519,34 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
                 </div>
               </div>
             ))
+          ) : !programId ? (
+            <div className="text-center py-12 px-4">
+              <p className="text-[13px] text-[#9ca3af] font-body">Link a programme to this cohort to see the module pool</p>
+            </div>
           ) : allModules.length === 0 ? (
             <div className="text-center py-12 px-4">
               <p className="text-[13px] text-[#9ca3af] font-body">No modules in programme</p>
             </div>
           ) : (
-            allModules.map((m, idx) => (
+            allModules.map(m => (
               <div key={m.id}
-                className={`flex items-start gap-3 px-5 py-3.5 border-b border-[#f3f4f6] cursor-pointer transition-colors ${
-                  selected.has(m.id) ? 'bg-[#fef2f2]' : 'bg-white hover:bg-[#f9fafb]'
+                className={`flex items-center gap-3 px-5 py-3.5 border-b border-[#f3f4f6] cursor-pointer transition-colors ${
+                  selectedModuleIds.has(m.id) ? 'bg-[#fef2f2]' : 'bg-white hover:bg-[#f9fafb]'
                 }`}
-                onClick={() => toggle(m.id)}
+                onClick={() => toggleModule(m.id)}
               >
-                <div className={`w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold font-display mt-0.5 ${
-                  selected.has(m.id) ? 'bg-[#d51520] text-white' : 'bg-[#e5e7eb] text-[#6b7280]'
+                <div className={`w-5 h-5 rounded-[5px] border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+                  selectedModuleIds.has(m.id) ? 'bg-[#d51520] border-[#d51520]' : 'border-[#d1d5db] bg-white'
                 }`}>
-                  {idx + 1}
+                  {selectedModuleIds.has(m.id) && (
+                    <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                      <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className={`text-[13px] font-semibold font-display leading-tight ${selected.has(m.id) ? 'text-[#d51520]' : 'text-[#111827]'}`}>
-                    {m.title}
-                  </p>
-                  {m.description && (
-                    <p className="text-[11px] text-[#9ca3af] font-body mt-0.5 leading-snug line-clamp-2">{m.description}</p>
-                  )}
-                  {m.status && (
-                    <span className={`inline-block mt-1 text-[9px] font-bold font-display px-1.5 py-0.5 rounded-[3px] uppercase tracking-wide ${
-                      m.status === 'PUBLISHED' ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#fffbeb] text-[#b45309]'
-                    }`}>{m.status}</span>
-                  )}
+                  <p className={`text-[13px] font-semibold font-display leading-tight ${selectedModuleIds.has(m.id) ? 'text-[#d51520]' : 'text-[#111827]'}`}>{m.title}</p>
+                  {m.description && <p className="text-[11px] text-[#9ca3af] font-body mt-0.5 truncate">{m.description}</p>}
                 </div>
               </div>
             ))
@@ -395,22 +554,24 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
         </div>
       </div>
 
-      {/* ── Right panel: Cohort Curriculum ────────────────────── */}
+      {/* Right panel: cohort curriculum */}
       <div className="flex-1 flex flex-col overflow-hidden bg-white">
         <div className="px-6 py-4 border-b border-[#f3f4f6] flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2">
               <BookOpen01Icon size={14} color="#d51520" strokeWidth={1.5} />
-              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#d51520] font-display">
-                Cohort Curriculum
-              </p>
+              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#d51520] font-display">Cohort Curriculum</p>
             </div>
             <p className="text-[12px] text-[#9ca3af] font-body mt-0.5">
-              {selected.size} of {allModules.length} modules selected for this cohort
+              {selectedModuleIds.size} of {allModules.length} modules selected — click a module to configure its lessons
             </p>
           </div>
           <div className="flex items-center gap-3">
-            {error && <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body"><AlertCircleIcon size={12} color="#d51520" strokeWidth={1.5} /> {error}</p>}
+            {error && (
+              <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body">
+                <AlertCircleIcon size={12} color="#d51520" strokeWidth={1.5} />{error}
+              </p>
+            )}
             <button onClick={() => { setMode('read'); load() }}
               className="h-9 px-4 rounded-[8px] border border-[#e5e7eb] text-[12px] font-medium text-[#374151] font-body hover:bg-[#f9fafb] transition-colors">
               Cancel
@@ -422,50 +583,38 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
             </button>
           </div>
         </div>
-
         <div className="flex-1 overflow-y-auto p-6">
-          {loading ? (
-            <div className="flex flex-col gap-2">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="h-14 bg-[#f9fafb] rounded-[10px] animate-pulse" />
-              ))}
-            </div>
-          ) : allModules.length === 0 ? (
-            <div className="text-center py-16">
-              <BookOpen01Icon size={32} color="#e5e7eb" strokeWidth={1.5} className="mx-auto mb-3" />
-              <p className="text-[14px] font-semibold text-[#111827] font-display">No modules in programme</p>
-              <p className="text-[13px] text-[#6b7280] font-body mt-1">Add modules to the programme first, then assign them here</p>
+          {selectedModuleIds.size === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="w-14 h-14 rounded-[12px] bg-[#f3f4f6] flex items-center justify-center mb-4">
+                <BookOpen01Icon size={24} color="#d1d5db" strokeWidth={1.5} />
+              </div>
+              <p className="text-[14px] font-semibold text-[#111827] font-display mb-1">No modules selected</p>
+              <p className="text-[13px] text-[#6b7280] font-body max-w-[280px]">Select modules from the programme pool on the left</p>
             </div>
           ) : (
             <div className="flex flex-col gap-2">
-              {allModules.map(m => {
-                const checked = selected.has(m.id)
+              {allModules.filter(m => selectedModuleIds.has(m.id)).map((m, idx) => {
+                const configuredCount = selectedLessonsPerModule[m.id]?.size ?? null
+                const customCount     = customLessonsPerModule[m.id]?.length ?? 0
+                const programCount    = m.lessons?.length ?? 0
                 return (
-                  <button key={m.id} onClick={() => toggle(m.id)}
-                    className={`flex items-center gap-3 rounded-[10px] border px-4 py-3.5 text-left transition-all ${
-                      checked ? 'border-[#d51520] bg-[#fef2f2]' : 'border-[#e5e7eb] bg-white hover:border-[#d1d5db]'
-                    }`}>
-                    <div className={`w-5 h-5 rounded-[5px] border-2 flex-shrink-0 flex items-center justify-center transition-all ${
-                      checked ? 'bg-[#d51520] border-[#d51520]' : 'border-[#d1d5db] bg-white'
-                    }`}>
-                      {checked && (
-                        <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                          <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      )}
+                  <button key={m.id} onClick={() => openModuleLessons(m)}
+                    className="flex items-center gap-3 rounded-[10px] border border-[#d51520] bg-[#fef2f2] px-4 py-3.5 text-left hover:bg-[#fde8e8] transition-all">
+                    <div className="w-6 h-6 rounded-full bg-[#d51520] flex items-center justify-center flex-shrink-0">
+                      <span className="text-[10px] font-bold text-white font-display">{idx + 1}</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className={`text-[13px] font-semibold font-display ${checked ? 'text-[#d51520]' : 'text-[#111827]'}`}>
-                        {m.order_index !== undefined ? `${m.order_index + 1}. ` : ''}{m.title}
+                      <p className="text-[13px] font-semibold text-[#d51520] font-display truncate">{m.title}</p>
+                      <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">
+                        {configuredCount !== null
+                          ? `${configuredCount + customCount} lesson${configuredCount + customCount !== 1 ? 's' : ''} selected`
+                          : programCount > 0
+                          ? `${programCount} lesson${programCount !== 1 ? 's' : ''} available — click to configure`
+                          : 'Click to add lessons'}
                       </p>
-                      {m.description && (
-                        <p className="text-[12px] text-[#6b7280] font-body mt-0.5 truncate">{m.description}</p>
-                      )}
                     </div>
-                    {checked
-                      ? <CheckmarkCircle01Icon size={16} color="#d51520" strokeWidth={1.5} className="flex-shrink-0" />
-                      : <CircleIcon            size={16} color="#d1d5db" strokeWidth={1.5} className="flex-shrink-0" />
-                    }
+                    <ArrowRight01Icon size={14} color="#d51520" strokeWidth={1.5} className="flex-shrink-0" />
                   </button>
                 )
               })}
@@ -764,8 +913,8 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
                 </div>
               </div>
 
-              {/* Organisation / Team section — only for team enrollments with an org name */}
-              {selectedPerson.organizationName && teammates.length > 0 && (
+              {/* Organisation / Team section — only for TEAM leads (not team members) */}
+              {selectedPerson.enrollmentType === 'TEAM' && selectedPerson.organizationName && teammates.length > 0 && (
                 <div>
                   <div className="h-px bg-[#f3f4f6] -mx-6 mb-5" />
                   <div className="flex items-center gap-2 mb-3">
@@ -914,9 +1063,38 @@ export default function CohortDetailPage() {
   }, [activeTab, setCollapsed])
 
   useEffect(() => {
-    apiClient.get(`/admin/cohorts/${cohortId}`).then(res => {
-      setCohort(unwrap<Cohort>(res.data))
-    }).catch(() => {}).finally(() => setLoading(false))
+    async function loadCohort() {
+      try {
+        const res = await apiClient.get(`/admin/cohorts/${cohortId}`)
+        const c   = unwrap<Cohort>(res.data)
+        setCohort(c)
+
+        // Supplement dates from the program cohorts list if the single endpoint doesn't return them
+        const pId = c?.programId ?? c?.program_id ?? c?.program?.id ?? null
+        if (pId) {
+          try {
+            const listRes = await apiClient.get(`/admin/programs/${pId}/cohorts?size=50`)
+            const ld = unwrap<{ cohorts?: Cohort[]; content?: Cohort[] } | Cohort[]>(listRes.data)
+            const list: Cohort[] = Array.isArray(ld)
+              ? ld
+              : (ld as { cohorts?: Cohort[]; content?: Cohort[] })?.cohorts
+                ?? (ld as { cohorts?: Cohort[]; content?: Cohort[] })?.content
+                ?? []
+            const match = list.find(co => co.id === Number(cohortId))
+            if (match) {
+              setCohort(prev => prev ? {
+                ...prev,
+                start_date: prev.start_date ?? match.start_date,
+                end_date:   prev.end_date   ?? match.end_date,
+                startDate:  prev.startDate  ?? match.startDate,
+                endDate:    prev.endDate    ?? match.endDate,
+              } : prev)
+            }
+          } catch { /* ignore — dates stay as returned by single cohort endpoint */ }
+        }
+      } catch { /* ignore */ } finally { setLoading(false) }
+    }
+    loadCohort()
   }, [cohortId])
 
   const programId = cohort?.programId ?? cohort?.program_id ?? cohort?.program?.id ?? null
