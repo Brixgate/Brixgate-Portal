@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   UserGroup02Icon, Add01Icon, Loading01Icon, Cancel01Icon,
-  AlertCircleIcon, Search01Icon, RefreshIcon,
+  AlertCircleIcon, Search01Icon, RefreshIcon, Download01Icon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
+import AdminPageLoader from '@/components/admin/AdminPageLoader'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface ApiUser {
@@ -42,6 +43,11 @@ function userName(u: ApiUser): string {
   return `${f} ${l}`.trim() || u.email
 }
 
+function formatDate(d?: string) {
+  if (!d) return '—'
+  return new Date(d).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
 function RoleBadge({ role }: { role: string }) {
   const cls = ROLE_STYLE[role?.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#374151]'
   return (
@@ -49,6 +55,42 @@ function RoleBadge({ role }: { role: string }) {
       {ROLE_LABELS[role?.toUpperCase()] ?? role}
     </span>
   )
+}
+
+// ── CSV export helpers ────────────────────────────────────────────────────────
+async function fetchAllUsersForExport(role?: string): Promise<ApiUser[]> {
+  const all: ApiUser[] = []
+  let pg = 1
+  while (true) {
+    const params = new URLSearchParams({ page: String(pg), size: '100' })
+    if (role) params.set('role', role)
+    const res  = await apiClient.get(`/admin/users?${params}`)
+    const data = unwrap<{ users?: ApiUser[]; pagination?: Pagination }>(res.data)
+    const batch: ApiUser[] = Array.isArray(data?.users) ? data.users : []
+    all.push(...batch)
+    const hasNext = data?.pagination?.hasNext ?? data?.pagination?.has_next ?? false
+    if (!hasNext || batch.length === 0) break
+    pg++
+  }
+  return all
+}
+
+function downloadCSV(rows: ApiUser[], filename: string) {
+  const esc = (s: string) => `"${(s ?? '').replace(/"/g, '""')}"`
+  const lines = [
+    ['Name', 'Email', 'Role', 'Status', 'Date Joined'].join(','),
+    ...rows.map(u => [
+      esc(userName(u)),
+      esc(u.email),
+      esc(u.role ?? ''),
+      esc(u.status ?? ''),
+      esc(formatDate(u.createdAt ?? u.created_at)),
+    ].join(',')),
+  ]
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a'); a.href = url; a.download = filename; a.click()
+  URL.revokeObjectURL(url)
 }
 
 // ── Create user modal ─────────────────────────────────────────────────────────
@@ -100,7 +142,7 @@ function CreateUserModal({ onClose, onCreated }: { onClose: () => void; onCreate
             <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Role</label>
             <select
               value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value }))}
-              className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 bg-white"
+              className="w-full h-10 pl-3 pr-8 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 bg-white"
             >
               {ROLES.filter(Boolean).map(r => <option key={r} value={r}>{ROLE_LABELS[r] ?? r}</option>)}
             </select>
@@ -132,13 +174,16 @@ function CreateUserModal({ onClose, onCreated }: { onClose: () => void; onCreate
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function AdminUsersPage() {
-  const [users, setUsers]         = useState<ApiUser[]>([])
+  const [users, setUsers]           = useState<ApiUser[]>([])
   const [pagination, setPagination] = useState<Pagination | null>(null)
-  const [page, setPage]           = useState(1)
+  const [page, setPage]             = useState(1)
   const [roleFilter, setRoleFilter] = useState('')
-  const [search, setSearch]       = useState('')
-  const [loading, setLoading]     = useState(true)
+  const [search, setSearch]         = useState('')
+  const [loading, setLoading]       = useState(true)
   const [showCreate, setShowCreate] = useState(false)
+  const [showExport, setShowExport] = useState(false)
+  const [exporting, setExporting]   = useState(false)
+  const exportRef                   = useRef<HTMLDivElement>(null)
 
   const fetchUsers = useCallback(async () => {
     setLoading(true)
@@ -154,17 +199,35 @@ export default function AdminUsersPage() {
 
   useEffect(() => { fetchUsers() }, [fetchUsers])
 
+  // Close export dropdown on outside click
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (exportRef.current && !exportRef.current.contains(e.target as Node)) {
+        setShowExport(false)
+      }
+    }
+    if (showExport) document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showExport])
+
+  async function handleExport(exportAll: boolean) {
+    setShowExport(false); setExporting(true)
+    try {
+      const role = exportAll ? '' : roleFilter
+      const rows = await fetchAllUsersForExport(role || undefined)
+      const label = role ? (ROLE_LABELS[role] ?? role).toLowerCase() : 'all'
+      downloadCSV(rows, `brixgate-users-${label}-${new Date().toISOString().slice(0, 10)}.csv`)
+    } finally { setExporting(false) }
+  }
+
   const filtered = search.trim()
     ? users.filter(u => userName(u).toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase()))
     : users
 
-  function formatDate(d?: string) {
-    if (!d) return '—'
-    return new Date(d).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })
-  }
-
   return (
     <div className="p-8">
+      {loading && users.length === 0 && <AdminPageLoader />}
+
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
@@ -173,10 +236,51 @@ export default function AdminUsersPage() {
             {pagination ? `${(pagination.totalElements ?? pagination.total_elements ?? pagination.total ?? 0).toLocaleString()} total users` : 'Manage all users'}
           </p>
         </div>
-        <button onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 h-10 px-4 bg-[#d51520] text-white rounded-[8px] text-[13px] font-semibold font-display hover:bg-[#b81119] transition-colors">
-          <Add01Icon size={15} strokeWidth={2} /> Create User
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Export button */}
+          <div className="relative" ref={exportRef}>
+            <button
+              onClick={() => setShowExport(v => !v)}
+              disabled={exporting}
+              className="flex items-center gap-2 h-10 px-4 border border-[#e5e7eb] rounded-[8px] text-[13px] font-medium text-[#374151] font-body hover:bg-[#f9fafb] transition-colors disabled:opacity-60"
+            >
+              {exporting
+                ? <Loading01Icon size={14} className="animate-spin" strokeWidth={2} />
+                : <Download01Icon size={14} strokeWidth={1.5} />
+              }
+              Export
+            </button>
+            {showExport && (
+              <div className="absolute right-0 top-full mt-1.5 w-[230px] bg-white rounded-[10px] border border-[#e5e7eb] shadow-lg z-20 overflow-hidden py-1">
+                <button
+                  onClick={() => handleExport(false)}
+                  className="w-full px-4 py-3 text-left hover:bg-[#f9fafb] transition-colors"
+                >
+                  <p className="text-[13px] font-semibold text-[#111827] font-display">
+                    {roleFilter ? `Export ${ROLE_LABELS[roleFilter] ?? roleFilter}s` : 'Export current view'}
+                  </p>
+                  <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">
+                    {roleFilter ? `Only ${ROLE_LABELS[roleFilter] ?? roleFilter} users` : 'All users, no role filter'}
+                  </p>
+                </button>
+                <div className="h-px bg-[#f3f4f6] mx-2" />
+                <button
+                  onClick={() => handleExport(true)}
+                  className="w-full px-4 py-3 text-left hover:bg-[#f9fafb] transition-colors"
+                >
+                  <p className="text-[13px] font-semibold text-[#111827] font-display">Export all users</p>
+                  <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">Every role, no filters applied</p>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Create User */}
+          <button onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 h-10 px-4 bg-[#d51520] text-white rounded-[8px] text-[13px] font-semibold font-display hover:bg-[#b81119] transition-colors">
+            <Add01Icon size={15} strokeWidth={2} /> Create User
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -191,7 +295,7 @@ export default function AdminUsersPage() {
         </div>
         <select
           value={roleFilter} onChange={e => { setRoleFilter(e.target.value); setPage(1) }}
-          className="h-9 px-3 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body text-[#374151] outline-none focus:border-[#d51520] bg-white"
+          className="h-9 pl-3 pr-8 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body text-[#374151] outline-none focus:border-[#d51520] bg-white"
         >
           {ROLES.map(r => <option key={r} value={r}>{r ? ROLE_LABELS[r] : 'All Roles'}</option>)}
         </select>
