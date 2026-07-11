@@ -250,12 +250,57 @@ function TutorDetailPanel({ expert, onClose }: { expert: Expert; onClose: () => 
   )
 }
 
+// ── Country codes ─────────────────────────────────────────────────────────────
+const COUNTRY_CODES = [
+  { code: '+234', label: '🇳🇬 +234', country: 'NG' },
+  { code: '+1',   label: '🇺🇸 +1',   country: 'US' },
+  { code: '+44',  label: '🇬🇧 +44',  country: 'GB' },
+  { code: '+27',  label: '🇿🇦 +27',  country: 'ZA' },
+  { code: '+254', label: '🇰🇪 +254', country: 'KE' },
+  { code: '+233', label: '🇬🇭 +233', country: 'GH' },
+  { code: '+251', label: '🇪🇹 +251', country: 'ET' },
+  { code: '+20',  label: '🇪🇬 +20',  country: 'EG' },
+  { code: '+212', label: '🇲🇦 +212', country: 'MA' },
+  { code: '+49',  label: '🇩🇪 +49',  country: 'DE' },
+  { code: '+33',  label: '🇫🇷 +33',  country: 'FR' },
+  { code: '+31',  label: '🇳🇱 +31',  country: 'NL' },
+  { code: '+971', label: '🇦🇪 +971', country: 'AE' },
+  { code: '+91',  label: '🇮🇳 +91',  country: 'IN' },
+  { code: '+1-CA',label: '🇨🇦 +1',   country: 'CA' },
+  { code: '+61',  label: '🇦🇺 +61',  country: 'AU' },
+]
+
 // ── Create Tutor Modal ────────────────────────────────────────────────────────
 interface CreateForm {
-  name: string; email: string
-  phone: string; expertise: string; bio: string; website: string
+  name: string; email: string; title: string
+  countryCode: string; phone: string
+  expertise: string; linkedin: string
+  location: string; yoe: string
+  organization: string; biography: string
 }
-const EMPTY_FORM: CreateForm = { name: '', email: '', phone: '', expertise: '', bio: '', website: '' }
+const EMPTY_FORM: CreateForm = {
+  name: '', email: '', title: '',
+  countryCode: '+234', phone: '',
+  expertise: '', linkedin: '',
+  location: '', yoe: '',
+  organization: '', biography: '',
+}
+
+function FormField({ label, required, children, hint }: {
+  label: string; required?: boolean; children: React.ReactNode; hint?: string
+}) {
+  return (
+    <div>
+      <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">
+        {label}{required && <span className="text-[#d51520] ml-0.5">*</span>}
+      </label>
+      {children}
+      {hint && <p className="mt-1 text-[11px] text-[#98a2b3] font-body">{hint}</p>}
+    </div>
+  )
+}
+
+const INPUT_CLS = 'w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#4b5563] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10'
 
 function CreateTutorModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [form, setForm]     = useState<CreateForm>(EMPTY_FORM)
@@ -263,24 +308,30 @@ function CreateTutorModal({ onClose, onCreated }: { onClose: () => void; onCreat
   const [error, setError]   = useState('')
 
   function set(field: keyof CreateForm) {
-    return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
       setForm(p => ({ ...p, [field]: e.target.value }))
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setError('')
-    if (!form.name.trim())   { setError('Full name is required.'); return }
-    if (!form.email.trim())  { setError('Email is required.'); return }
+    if (!form.name.trim())  { setError('Full name is required.'); return }
+    if (!form.email.trim()) { setError('Email is required.'); return }
     setSaving(true)
     try {
+      const phone = form.phone.trim()
       await apiClient.post('/admin/users', {
-        name:      form.name.trim(),
-        email:     form.email.trim(),
-        phone:     form.phone.trim()     || undefined,
-        expertise: form.expertise.trim() || undefined,
-        bio:       form.bio.trim()       || undefined,
-        website:   form.website.trim()   || undefined,
-        role:      'INSTRUCTOR',
+        name:                form.name.trim(),
+        email:               form.email.trim(),
+        role:                'INSTRUCTOR',
+        title:               form.title.trim()        || undefined,
+        phone:               phone ? `${form.countryCode}${phone}` : undefined,
+        country_code:        form.countryCode         || undefined,
+        expertise:           form.expertise.trim()    || undefined,
+        linkedin_url:        form.linkedin.trim()     || undefined,
+        location:            form.location.trim()     || undefined,
+        years_of_experience: form.yoe ? Number(form.yoe) : undefined,
+        organization:        form.organization.trim() || undefined,
+        biography:           form.biography.trim()    || undefined,
       })
       onCreated()
     } catch (err) {
@@ -290,7 +341,7 @@ function CreateTutorModal({ onClose, onCreated }: { onClose: () => void; onCreat
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={onClose}>
-      <div className="bg-white rounded-[14px] shadow-xl w-full max-w-[500px] overflow-hidden" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-[14px] shadow-xl w-full max-w-[540px] overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-[#f3f4f6]">
           <h2 className="text-[15px] font-bold text-[#111827] font-display">Add Tutor</h2>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f3f4f6] transition-colors">
@@ -298,43 +349,69 @@ function CreateTutorModal({ onClose, onCreated }: { onClose: () => void; onCreat
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="px-6 py-5 flex flex-col gap-4 max-h-[70vh] overflow-y-auto">
-          <div>
-            <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Full Name <span className="text-[#d51520]">*</span></label>
-            <input value={form.name} onChange={set('name')} placeholder="Adunola Okafor"
-              className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#4b5563] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10" />
+        <form onSubmit={handleSubmit} className="px-6 py-5 flex flex-col gap-4 max-h-[76vh] overflow-y-auto">
+
+          {/* ── Basic info ── */}
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Full Name" required>
+              <input value={form.name} onChange={set('name')} placeholder="Adunola Okafor" className={INPUT_CLS} />
+            </FormField>
+            <FormField label="Title">
+              <input value={form.title} onChange={set('title')} placeholder="Senior AI Engineer" className={INPUT_CLS} />
+            </FormField>
           </div>
 
-          <div>
-            <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Email Address <span className="text-[#d51520]">*</span></label>
-            <input type="email" value={form.email} onChange={set('email')} placeholder="adunola@example.com"
-              className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#4b5563] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10" />
+          <FormField label="Email Address" required>
+            <input type="email" value={form.email} onChange={set('email')} placeholder="adunola@example.com" className={INPUT_CLS} />
+          </FormField>
+
+          {/* ── Phone with country code ── */}
+          <FormField label="Phone Number">
+            <div className="flex gap-2">
+              <select
+                value={form.countryCode}
+                onChange={set('countryCode')}
+                className="h-10 pl-2 pr-6 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] bg-white outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 flex-shrink-0"
+                style={{ backgroundImage: 'none' }}
+              >
+                {COUNTRY_CODES.map(c => (
+                  <option key={c.code} value={c.code}>{c.label}</option>
+                ))}
+              </select>
+              <input
+                value={form.phone} onChange={set('phone')} placeholder="801 234 5678"
+                className="flex-1 h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#4b5563] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10"
+              />
+            </div>
+          </FormField>
+
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Location">
+              <input value={form.location} onChange={set('location')} placeholder="Lagos, Nigeria" className={INPUT_CLS} />
+            </FormField>
+            <FormField label="Years of Experience">
+              <input type="number" min="0" max="60" value={form.yoe} onChange={set('yoe')} placeholder="5" className={INPUT_CLS} />
+            </FormField>
           </div>
 
-          <div>
-            <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Phone Number</label>
-            <input value={form.phone} onChange={set('phone')} placeholder="+234 801 234 5678"
-              className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#4b5563] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10" />
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Organisation">
+              <input value={form.organization} onChange={set('organization')} placeholder="Brixgate, Google, etc." className={INPUT_CLS} />
+            </FormField>
+            <FormField label="LinkedIn URL">
+              <input value={form.linkedin} onChange={set('linkedin')} placeholder="linkedin.com/in/adunola" className={INPUT_CLS} />
+            </FormField>
           </div>
 
-          <div>
-            <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Expertise</label>
-            <input value={form.expertise} onChange={set('expertise')} placeholder="AI & Machine Learning, Prompt Engineering"
-              className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#4b5563] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10" />
-          </div>
+          <FormField label="Expertise" hint="Separate multiple areas with commas">
+            <input value={form.expertise} onChange={set('expertise')} placeholder="AI & Machine Learning, Prompt Engineering, Data Science" className={INPUT_CLS} />
+          </FormField>
 
-          <div>
-            <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Website / LinkedIn</label>
-            <input value={form.website} onChange={set('website')} placeholder="https://linkedin.com/in/adunola"
-              className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#4b5563] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10" />
-          </div>
-
-          <div>
-            <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Bio</label>
-            <textarea value={form.bio} onChange={set('bio')} rows={3}
+          <FormField label="Biography">
+            <textarea value={form.biography} onChange={set('biography')} rows={3}
               placeholder="Brief professional background and areas of expertise…"
               className="w-full px-3 py-2.5 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#4b5563] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 resize-none" />
-          </div>
+          </FormField>
 
           {error && (
             <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body">
