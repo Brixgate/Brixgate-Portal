@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import Image from 'next/image'
 import {
   TeacherIcon, Add01Icon, Loading01Icon, Cancel01Icon,
   AlertCircleIcon, Search01Icon, Refresh01Icon, Mail01Icon,
@@ -31,34 +32,149 @@ interface Pagination {
   hasNext?: boolean; has_next?: boolean
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
 function expertName(e: Expert): string {
   if (e.name) return e.name
   return `${e.firstName ?? e.first_name ?? ''} ${e.lastName ?? e.last_name ?? ''}`.trim() || e.email || '—'
 }
-function expertPhone(e: Expert): string {
-  return e.phone ?? e.phone_number ?? e.phoneNumber ?? '—'
-}
-function expertBio(e: Expert): string {
-  return e.bio ?? e.about ?? e.description ?? ''
-}
-function expertSpecialty(e: Expert): string {
-  return e.specialty ?? e.expertise ?? e.specialization ?? '—'
-}
+function expertPhone(e: Expert): string  { return e.phone ?? e.phone_number ?? e.phoneNumber ?? '—' }
+function expertBio(e: Expert): string    { return e.bio ?? e.about ?? e.description ?? '' }
+function expertSpecialty(e: Expert): string { return e.expertise ?? e.specialty ?? e.specialization ?? '—' }
 function expertAvatar(e: Expert): string | null {
   return e.profile_image ?? e.profileImage ?? e.avatar ?? e.photo ?? null
+}
+function expertLink(e: Expert): string | null {
+  return e.website ?? e.linkedin ?? e.linkedin_url ?? e.linkedinUrl ?? null
 }
 function formatDate(d?: string) {
   if (!d) return '—'
   return new Date(d).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-function Initials({ name }: { name: string }) {
+function Initials({ name, size = 10 }: { name: string; size?: number }) {
   const parts = name.trim().split(' ')
   const letters = (parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')
+  const dim = size === 10 ? 'w-10 h-10 text-[13px]' : 'w-8 h-8 text-[11px]'
   return (
-    <div className="w-10 h-10 rounded-full bg-[#fef2f2] flex items-center justify-center flex-shrink-0">
-      <span className="text-[13px] font-bold text-[#d51520] font-display uppercase">{letters || '?'}</span>
+    <div className={`${dim} rounded-full bg-[#fef2f2] flex items-center justify-center flex-shrink-0`}>
+      <span className="font-bold text-[#d51520] font-display uppercase">{letters || '?'}</span>
     </div>
+  )
+}
+
+// ── Detail side panel ─────────────────────────────────────────────────────────
+function TutorDetailPanel({ expert, onClose }: { expert: Expert; onClose: () => void }) {
+  const name    = expertName(expert)
+  const avatar  = expertAvatar(expert)
+  const bio     = expertBio(expert)
+  const spec    = expertSpecialty(expert)
+  const phone   = expertPhone(expert)
+  const link    = expertLink(expert)
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/20" onClick={onClose} />
+      <div className="fixed right-0 top-0 h-screen w-[420px] z-50 bg-white shadow-2xl flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-5 border-b border-[#f3f4f6] flex-shrink-0">
+          <h2 className="text-[16px] font-bold text-[#111827] font-display">Tutor Details</h2>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f3f4f6] transition-colors">
+            <Cancel01Icon size={16} color="#6b7280" strokeWidth={1.5} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto">
+          {/* Profile banner */}
+          <div className="px-6 py-6 flex items-center gap-4 border-b border-[#f3f4f6]">
+            {avatar
+              ? <Image src={avatar} alt={name} width={56} height={56} className="w-14 h-14 rounded-full object-cover flex-shrink-0" unoptimized />
+              : (
+                <div className="w-14 h-14 rounded-full bg-[#fef2f2] flex items-center justify-center flex-shrink-0">
+                  <span className="text-[18px] font-bold text-[#d51520] font-display uppercase">
+                    {name.split(' ').map(p => p[0]).join('').slice(0, 2)}
+                  </span>
+                </div>
+              )
+            }
+            <div className="flex-1 min-w-0">
+              <p className="text-[16px] font-bold text-[#111827] font-display truncate">{name}</p>
+              {spec !== '—' && <p className="text-[13px] text-[#d51520] font-body mt-0.5 truncate">{spec}</p>}
+              {expert.status && (
+                <span className={`inline-flex items-center mt-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold font-display ${
+                  expert.status.toUpperCase() === 'ACTIVE' ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#f3f4f6] text-[#6b7280]'
+                }`}>{expert.status}</span>
+              )}
+            </div>
+          </div>
+
+          <div className="px-6 py-5 space-y-6">
+            {/* Contact */}
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display mb-3">Contact</p>
+              <div className="space-y-3">
+                {expert.email && (
+                  <div className="flex items-center gap-3">
+                    <div className="w-7 h-7 rounded-[6px] bg-[#f3f4f6] flex items-center justify-center flex-shrink-0">
+                      <Mail01Icon size={13} color="#6b7280" strokeWidth={1.5} />
+                    </div>
+                    <p className="text-[13px] text-[#374151] font-body">{expert.email}</p>
+                  </div>
+                )}
+                {phone !== '—' && (
+                  <div className="flex items-center gap-3">
+                    <div className="w-7 h-7 rounded-[6px] bg-[#f3f4f6] flex items-center justify-center flex-shrink-0">
+                      <CallIcon size={13} color="#6b7280" strokeWidth={1.5} />
+                    </div>
+                    <p className="text-[13px] text-[#374151] font-body">{phone}</p>
+                  </div>
+                )}
+                {link && (
+                  <div className="flex items-center gap-3">
+                    <div className="w-7 h-7 rounded-[6px] bg-[#f3f4f6] flex items-center justify-center flex-shrink-0">
+                      <Globe02Icon size={13} color="#6b7280" strokeWidth={1.5} />
+                    </div>
+                    <a href={link} target="_blank" rel="noopener noreferrer"
+                      className="text-[13px] text-[#d51520] font-body hover:underline truncate">
+                      {link.replace(/^https?:\/\//, '')}
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Bio */}
+            {bio && (
+              <>
+                <div className="h-px bg-[#f3f4f6]" />
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display mb-2">Bio</p>
+                  <p className="text-[13px] text-[#374151] font-body leading-[1.75]">{bio}</p>
+                </div>
+              </>
+            )}
+
+            {/* Meta */}
+            <div className="h-px bg-[#f3f4f6]" />
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display mb-3">Details</p>
+              <div className="space-y-2.5">
+                {(expert.years_experience ?? expert.yearsExperience) != null && (
+                  <div className="flex justify-between">
+                    <p className="text-[12px] text-[#9ca3af] font-body">Years of Experience</p>
+                    <p className="text-[13px] font-medium text-[#111827] font-body">{expert.years_experience ?? expert.yearsExperience} yrs</p>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <p className="text-[12px] text-[#9ca3af] font-body">Date Added</p>
+                  <p className="text-[13px] font-medium text-[#111827] font-body">{formatDate(expert.createdAt ?? expert.created_at)}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
   )
 }
 
@@ -67,7 +183,6 @@ interface CreateForm {
   first_name: string; last_name: string; email: string
   phone: string; expertise: string; bio: string; website: string
 }
-
 const EMPTY_FORM: CreateForm = { first_name: '', last_name: '', email: '', phone: '', expertise: '', bio: '', website: '' }
 
 function CreateTutorModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
@@ -83,17 +198,17 @@ function CreateTutorModal({ onClose, onCreated }: { onClose: () => void; onCreat
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setError('')
     if (!form.first_name.trim()) { setError('First name is required.'); return }
-    if (!form.email.trim()) { setError('Email is required.'); return }
+    if (!form.email.trim())      { setError('Email is required.'); return }
     setSaving(true)
     try {
       await apiClient.post('/admin/users', {
         first_name: form.first_name.trim(),
         last_name:  form.last_name.trim(),
         email:      form.email.trim(),
-        phone:      form.phone.trim() || undefined,
+        phone:      form.phone.trim()     || undefined,
         expertise:  form.expertise.trim() || undefined,
-        bio:        form.bio.trim() || undefined,
-        website:    form.website.trim() || undefined,
+        bio:        form.bio.trim()       || undefined,
+        website:    form.website.trim()   || undefined,
         role:       'INSTRUCTOR',
       })
       onCreated()
@@ -105,7 +220,6 @@ function CreateTutorModal({ onClose, onCreated }: { onClose: () => void; onCreat
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={onClose}>
       <div className="bg-white rounded-[14px] shadow-xl w-full max-w-[500px] overflow-hidden" onClick={e => e.stopPropagation()}>
-        {/* Header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-[#f3f4f6]">
           <h2 className="text-[15px] font-bold text-[#111827] font-display">Add Tutor</h2>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f3f4f6] transition-colors">
@@ -114,7 +228,6 @@ function CreateTutorModal({ onClose, onCreated }: { onClose: () => void; onCreat
         </div>
 
         <form onSubmit={handleSubmit} className="px-6 py-5 flex flex-col gap-4 max-h-[70vh] overflow-y-auto">
-          {/* Name row */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">First Name <span className="text-[#d51520]">*</span></label>
@@ -182,100 +295,25 @@ function CreateTutorModal({ onClose, onCreated }: { onClose: () => void; onCreat
   )
 }
 
-// ── Tutor Card ────────────────────────────────────────────────────────────────
-function TutorCard({ expert }: { expert: Expert }) {
-  const name    = expertName(expert)
-  const avatar  = expertAvatar(expert)
-  const bio     = expertBio(expert)
-  const phone   = expertPhone(expert)
-  const spec    = expertSpecialty(expert)
-
-  return (
-    <div className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] p-5 hover:shadow-[0px_1px_3px_rgba(16,24,40,.10)] transition-shadow duration-150">
-      {/* Top row */}
-      <div className="flex items-start gap-3 mb-4">
-        {avatar
-          ? <img src={avatar} alt={name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
-          : <Initials name={name} />
-        }
-        <div className="flex-1 min-w-0">
-          <p className="text-[14px] font-semibold text-[#111827] font-display truncate">{name}</p>
-          {spec !== '—' && (
-            <p className="text-[12px] text-[#d51520] font-body truncate mt-0.5">{spec}</p>
-          )}
-        </div>
-        {expert.status && (
-          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display flex-shrink-0 ${
-            expert.status.toUpperCase() === 'ACTIVE' ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#f3f4f6] text-[#6b7280]'
-          }`}>
-            {expert.status}
-          </span>
-        )}
-      </div>
-
-      {/* Bio */}
-      {bio && (
-        <p className="text-[12px] text-[#6b7280] font-body line-clamp-2 mb-4">{bio}</p>
-      )}
-
-      {/* Contact row */}
-      <div className="flex flex-col gap-1.5 border-t border-[#f3f4f6] pt-4">
-        {expert.email && (
-          <div className="flex items-center gap-2">
-            <Mail01Icon size={12} color="#9ca3af" strokeWidth={1.5} />
-            <span className="text-[12px] text-[#6b7280] font-body truncate">{expert.email}</span>
-          </div>
-        )}
-        {phone !== '—' && (
-          <div className="flex items-center gap-2">
-            <CallIcon size={12} color="#9ca3af" strokeWidth={1.5} />
-            <span className="text-[12px] text-[#6b7280] font-body">{phone}</span>
-          </div>
-        )}
-        {(expert.website ?? expert.linkedin ?? expert.linkedin_url ?? expert.linkedinUrl) && (
-          <div className="flex items-center gap-2">
-            <Globe02Icon size={12} color="#9ca3af" strokeWidth={1.5} />
-            <a
-              href={expert.website ?? expert.linkedin ?? expert.linkedin_url ?? expert.linkedinUrl ?? '#'}
-              target="_blank" rel="noopener noreferrer"
-              className="text-[12px] text-[#d51520] font-body truncate hover:underline"
-              onClick={e => e.stopPropagation()}
-            >
-              {(expert.website ?? expert.linkedin ?? expert.linkedin_url ?? expert.linkedinUrl ?? '').replace(/^https?:\/\//, '')}
-            </a>
-          </div>
-        )}
-      </div>
-
-      {expert.created_at || expert.createdAt ? (
-        <p className="text-[11px] text-[#d1d5db] font-body mt-3">
-          Added {formatDate(expert.createdAt ?? expert.created_at)}
-        </p>
-      ) : null}
-    </div>
-  )
-}
-
 // ── Page ──────────────────────────────────────────────────────────────────────
 const PAGE_SIZE = 20
 
 export default function AdminTutorsPage() {
-  const [experts, setExperts]       = useState<Expert[]>([])
-  const [pagination, setPagination] = useState<Pagination | null>(null)
-  const [page, setPage]             = useState(1)
-  const [search, setSearch]         = useState('')
-  const [loading, setLoading]       = useState(true)
-  const [showCreate, setShowCreate] = useState(false)
-  const [view, setView]             = useState<'grid' | 'list'>('grid')
+  const [experts, setExperts]           = useState<Expert[]>([])
+  const [pagination, setPagination]     = useState<Pagination | null>(null)
+  const [page, setPage]                 = useState(1)
+  const [search, setSearch]             = useState('')
+  const [loading, setLoading]           = useState(true)
+  const [showCreate, setShowCreate]     = useState(false)
+  const [view, setView]                 = useState<'list' | 'grid'>('list')
+  const [selectedTutor, setSelected]    = useState<Expert | null>(null)
 
   const fetchExperts = useCallback(async () => {
     setLoading(true)
     try {
       const params = new URLSearchParams({ page: String(page), size: String(PAGE_SIZE) })
       const res    = await apiClient.get(`/experts?${params}`)
-      // The endpoint may return an array directly or wrapped in data/experts
-      const raw    = res.data
-      const unwrapped = unwrap<Expert[] | { experts?: Expert[]; data?: Expert[]; results?: Expert[]; pagination?: Pagination }>(raw)
+      const unwrapped = unwrap<Expert[] | { experts?: Expert[]; data?: Expert[]; results?: Expert[]; pagination?: Pagination }>(res.data)
 
       let list: Expert[] = []
       let pag: Pagination | null = null
@@ -315,6 +353,10 @@ export default function AdminTutorsPage() {
     <div className="p-8">
       {loading && experts.length === 0 && <AdminPageLoader />}
 
+      {selectedTutor && (
+        <TutorDetailPanel expert={selectedTutor} onClose={() => setSelected(null)} />
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
@@ -323,28 +365,23 @@ export default function AdminTutorsPage() {
             {loading ? 'Loading…' : `${total.toLocaleString()} tutor${total !== 1 ? 's' : ''}`}
           </p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 h-10 px-4 bg-[#d51520] text-white rounded-[8px] text-[13px] font-semibold font-display hover:bg-[#b81119] transition-colors"
-        >
+        <button onClick={() => setShowCreate(true)}
+          className="flex items-center gap-2 h-10 px-4 bg-[#d51520] text-white rounded-[8px] text-[13px] font-semibold font-display hover:bg-[#b81119] transition-colors">
           <Add01Icon size={15} strokeWidth={2} /> Add Tutor
         </button>
       </div>
 
-      {/* Search + view toggle */}
+      {/* Toolbar */}
       <div className="flex items-center gap-3 mb-6">
         <div className="relative flex-1 max-w-[360px]">
           <Search01Icon size={14} color="#9ca3af" strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Search by name, email, or specialty…"
-            className="w-full h-9 pl-8 pr-3 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body text-[#111827] placeholder:text-[#9ca3af] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10"
-          />
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search by name, email, or expertise…"
+            className="w-full h-9 pl-8 pr-3 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body text-[#111827] placeholder:text-[#9ca3af] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10" />
         </div>
 
-        {/* Grid / List toggle */}
         <div className="flex items-center border border-[#e5e7eb] rounded-[8px] overflow-hidden">
-          {(['grid', 'list'] as const).map(v => (
+          {(['list', 'grid'] as const).map(v => (
             <button key={v} onClick={() => setView(v)}
               className={`h-9 px-3 text-[12px] font-medium font-body transition-colors ${
                 view === v ? 'bg-[#fef2f2] text-[#d51520]' : 'text-[#6b7280] hover:bg-[#f9fafb]'
@@ -362,7 +399,20 @@ export default function AdminTutorsPage() {
 
       {/* Content */}
       {loading ? (
-        view === 'grid' ? (
+        view === 'list' ? (
+          <div className="bg-white rounded-[10px] border border-[#eaecf0] overflow-hidden">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-4 px-5 py-4 border-b border-[#f3f4f6]">
+                <div className="w-8 h-8 rounded-full bg-[#f3f4f6] animate-pulse flex-shrink-0" />
+                <div className="flex-1 space-y-1.5">
+                  <div className="h-3.5 bg-[#f3f4f6] rounded animate-pulse w-1/3" />
+                  <div className="h-3 bg-[#f3f4f6] rounded animate-pulse w-1/4" />
+                </div>
+                <div className="h-3 bg-[#f3f4f6] rounded animate-pulse w-40" />
+              </div>
+            ))}
+          </div>
+        ) : (
           <div className="grid grid-cols-3 gap-6">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="bg-white rounded-[10px] border border-[#eaecf0] p-5 space-y-3">
@@ -378,19 +428,6 @@ export default function AdminTutorsPage() {
               </div>
             ))}
           </div>
-        ) : (
-          <div className="bg-white rounded-[10px] border border-[#eaecf0] overflow-hidden">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-4 px-5 py-4 border-b border-[#f3f4f6]">
-                <div className="w-9 h-9 rounded-full bg-[#f3f4f6] animate-pulse flex-shrink-0" />
-                <div className="flex-1 space-y-1.5">
-                  <div className="h-3.5 bg-[#f3f4f6] rounded animate-pulse w-1/3" />
-                  <div className="h-3 bg-[#f3f4f6] rounded animate-pulse w-1/4" />
-                </div>
-                <div className="h-3 bg-[#f3f4f6] rounded animate-pulse w-40" />
-              </div>
-            ))}
-          </div>
         )
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -401,7 +438,7 @@ export default function AdminTutorsPage() {
             {search ? 'No tutors match your search' : 'No tutors yet'}
           </p>
           <p className="text-[13px] text-[#9ca3af] font-body max-w-[280px]">
-            {search ? 'Try a different name, email, or specialty.' : 'Add your first tutor to get started.'}
+            {search ? 'Try a different name, email, or expertise.' : 'Add your first tutor to get started.'}
           </p>
           {!search && (
             <button onClick={() => setShowCreate(true)}
@@ -410,17 +447,13 @@ export default function AdminTutorsPage() {
             </button>
           )}
         </div>
-      ) : view === 'grid' ? (
-        <div className="grid grid-cols-3 gap-6">
-          {filtered.map(e => <TutorCard key={e.id} expert={e} />)}
-        </div>
-      ) : (
-        /* List view */
+      ) : view === 'list' ? (
+        /* ── List (default) ── */
         <div className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] overflow-hidden">
           <table className="w-full">
             <thead>
               <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
-                {['Tutor', 'Specialty', 'Email', 'Phone', 'Status', 'Added'].map(h => (
+                {['Tutor', 'Expertise', 'Email', 'Phone', 'Status', 'Added'].map(h => (
                   <th key={h} className="text-left px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6b7280] font-display">{h}</th>
                 ))}
               </tr>
@@ -430,42 +463,32 @@ export default function AdminTutorsPage() {
                 const name   = expertName(e)
                 const avatar = expertAvatar(e)
                 return (
-                  <tr key={e.id} className="border-b border-[#f3f4f6] hover:bg-[#fafafa] transition-colors">
+                  <tr key={e.id} onClick={() => setSelected(e)}
+                    className="border-b border-[#f3f4f6] hover:bg-[#fafafa] transition-colors cursor-pointer">
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
                         {avatar
-                          ? <img src={avatar} alt={name} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
-                          : <Initials name={name} />
+                          ? <Image src={avatar} alt={name} width={32} height={32} className="w-8 h-8 rounded-full object-cover flex-shrink-0" unoptimized />
+                          : <Initials name={name} size={8} />
                         }
                         <p className="text-[13px] font-medium text-[#111827] font-body">{name}</p>
                       </div>
                     </td>
+                    <td className="px-5 py-3.5"><p className="text-[13px] text-[#6b7280] font-body">{expertSpecialty(e)}</p></td>
+                    <td className="px-5 py-3.5"><p className="text-[13px] text-[#6b7280] font-body">{e.email ?? '—'}</p></td>
+                    <td className="px-5 py-3.5"><p className="text-[13px] text-[#6b7280] font-body">{expertPhone(e)}</p></td>
                     <td className="px-5 py-3.5">
-                      <p className="text-[13px] text-[#6b7280] font-body">{expertSpecialty(e)}</p>
+                      {e.status
+                        ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold font-display ${e.status.toUpperCase() === 'ACTIVE' ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#f3f4f6] text-[#6b7280]'}`}>{e.status}</span>
+                        : <span className="text-[#d1d5db]">—</span>}
                     </td>
-                    <td className="px-5 py-3.5">
-                      <p className="text-[13px] text-[#6b7280] font-body">{e.email ?? '—'}</p>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <p className="text-[13px] text-[#6b7280] font-body">{expertPhone(e)}</p>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      {e.status ? (
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold font-display ${
-                          e.status.toUpperCase() === 'ACTIVE' ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#f3f4f6] text-[#6b7280]'
-                        }`}>{e.status}</span>
-                      ) : <span className="text-[#d1d5db]">—</span>}
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <p className="text-[12px] text-[#9ca3af] font-body">{formatDate(e.createdAt ?? e.created_at)}</p>
-                    </td>
+                    <td className="px-5 py-3.5"><p className="text-[12px] text-[#9ca3af] font-body">{formatDate(e.createdAt ?? e.created_at)}</p></td>
                   </tr>
                 )
               })}
             </tbody>
           </table>
 
-          {/* Pagination */}
           {totalPages > 1 && (
             <div className="px-5 py-3 flex items-center justify-between border-t border-[#f3f4f6]">
               <p className="text-[12px] text-[#6b7280] font-body">
@@ -480,6 +503,52 @@ export default function AdminTutorsPage() {
               </div>
             </div>
           )}
+        </div>
+      ) : (
+        /* ── Grid ── */
+        <div className="grid grid-cols-3 gap-6">
+          {filtered.map(e => {
+            const name   = expertName(e)
+            const avatar = expertAvatar(e)
+            const bio    = expertBio(e)
+            const spec   = expertSpecialty(e)
+            const phone  = expertPhone(e)
+            return (
+              <div key={e.id} onClick={() => setSelected(e)}
+                className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] p-5 hover:shadow-[0px_1px_3px_rgba(16,24,40,.10)] transition-shadow duration-150 cursor-pointer">
+                <div className="flex items-start gap-3 mb-4">
+                  {avatar
+                    ? <Image src={avatar} alt={name} width={40} height={40} className="w-10 h-10 rounded-full object-cover flex-shrink-0" unoptimized />
+                    : <Initials name={name} />
+                  }
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[14px] font-semibold text-[#111827] font-display truncate">{name}</p>
+                    {spec !== '—' && <p className="text-[12px] text-[#d51520] font-body truncate mt-0.5">{spec}</p>}
+                  </div>
+                  {e.status && (
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display flex-shrink-0 ${e.status.toUpperCase() === 'ACTIVE' ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#f3f4f6] text-[#6b7280]'}`}>
+                      {e.status}
+                    </span>
+                  )}
+                </div>
+                {bio && <p className="text-[12px] text-[#6b7280] font-body line-clamp-2 mb-4">{bio}</p>}
+                <div className="flex flex-col gap-1.5 border-t border-[#f3f4f6] pt-4">
+                  {e.email && (
+                    <div className="flex items-center gap-2">
+                      <Mail01Icon size={12} color="#9ca3af" strokeWidth={1.5} />
+                      <span className="text-[12px] text-[#6b7280] font-body truncate">{e.email}</span>
+                    </div>
+                  )}
+                  {phone !== '—' && (
+                    <div className="flex items-center gap-2">
+                      <CallIcon size={12} color="#9ca3af" strokeWidth={1.5} />
+                      <span className="text-[12px] text-[#6b7280] font-body">{phone}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
 
