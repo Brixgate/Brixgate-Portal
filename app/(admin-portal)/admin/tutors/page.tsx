@@ -318,21 +318,33 @@ function CreateTutorModal({ onClose, onCreated }: { onClose: () => void; onCreat
     if (!form.email.trim()) { setError('Email is required.'); return }
     setSaving(true)
     try {
-      const phone = form.phone.trim()
-      await apiClient.post('/admin/users', {
-        name:                form.name.trim(),
-        email:               form.email.trim(),
-        role:                'INSTRUCTOR',
-        title:               form.title.trim()        || undefined,
-        phone:               phone ? `${form.countryCode}${phone}` : undefined,
-        country_code:        form.countryCode         || undefined,
-        expertise:           form.expertise.trim()    || undefined,
-        linkedin_url:        form.linkedin.trim()     || undefined,
-        location:            form.location.trim()     || undefined,
-        years_of_experience: form.yoe ? Number(form.yoe) : undefined,
-        organization:        form.organization.trim() || undefined,
-        biography:           form.biography.trim()    || undefined,
+      // Step 1: create the user (only name/email/role accepted here)
+      const createRes = await apiClient.post('/admin/users', {
+        name:  form.name.trim(),
+        email: form.email.trim(),
+        role:  'INSTRUCTOR',
       })
+      const created = unwrap<{ id: number }>(createRes.data)
+      const userId  = created?.id
+
+      // Step 2: patch all profile fields (camelCase per AdminPatchUserRequest schema)
+      if (userId) {
+        const phone = form.phone.trim()
+        const patch: Record<string, unknown> = {}
+        if (form.title.trim())        patch.title              = form.title.trim()
+        if (form.biography.trim())    patch.biography          = form.biography.trim()
+        if (form.expertise.trim())    patch.expertise          = form.expertise.trim()
+        if (form.linkedin.trim())     patch.linkedinUrl        = form.linkedin.trim()
+        if (form.location.trim())     patch.location           = form.location.trim()
+        if (form.yoe)                 patch.yearsOfExperience  = Number(form.yoe)
+        if (form.organization.trim()) patch.organization       = form.organization.trim()
+        if (form.countryCode)         patch.countryCode        = form.countryCode
+        if (phone)                    patch.fullPhoneNumber    = `${form.countryCode}${phone}`
+        if (Object.keys(patch).length > 0) {
+          await apiClient.patch(`/admin/users/${userId}`, patch)
+        }
+      }
+
       onCreated()
     } catch (err) {
       setError(getApiError(err))
