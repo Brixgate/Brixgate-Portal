@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   TeacherIcon, Add01Icon, Loading01Icon, Cancel01Icon,
-  AlertCircleIcon, Search01Icon, RefreshIcon, Mail01Icon,
-  CallIcon, Globe01Icon,
+  AlertCircleIcon, Search01Icon, Refresh01Icon, Mail01Icon,
+  CallIcon, Globe02Icon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 import AdminPageLoader from '@/components/admin/AdminPageLoader'
@@ -234,7 +234,7 @@ function TutorCard({ expert }: { expert: Expert }) {
         )}
         {(expert.website ?? expert.linkedin ?? expert.linkedin_url ?? expert.linkedinUrl) && (
           <div className="flex items-center gap-2">
-            <Globe01Icon size={12} color="#9ca3af" strokeWidth={1.5} />
+            <Globe02Icon size={12} color="#9ca3af" strokeWidth={1.5} />
             <a
               href={expert.website ?? expert.linkedin ?? expert.linkedin_url ?? expert.linkedinUrl ?? '#'}
               target="_blank" rel="noopener noreferrer"
@@ -356,7 +356,7 @@ export default function AdminTutorsPage() {
 
         <button onClick={fetchExperts}
           className="h-9 w-9 flex items-center justify-center border border-[#e5e7eb] rounded-[8px] hover:bg-[#f9fafb] transition-colors">
-          <RefreshIcon size={14} color="#6b7280" strokeWidth={1.5} />
+          <Refresh01Icon size={14} color="#6b7280" strokeWidth={1.5} />
         </button>
       </div>
 
