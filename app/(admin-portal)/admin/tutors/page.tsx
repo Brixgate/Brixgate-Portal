@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
-  Teacher01Icon, Add01Icon, Loading01Icon, Cancel01Icon,
+  TeacherIcon, Add01Icon, Loading01Icon, Cancel01Icon,
   AlertCircleIcon, Search01Icon, RefreshIcon, Mail01Icon,
   CallIcon, Globe01Icon,
 } from 'hugeicons-react'
@@ -395,7 +395,7 @@ export default function AdminTutorsPage() {
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <div className="w-16 h-16 rounded-[12px] bg-[#f3f4f6] flex items-center justify-center mb-4">
-            <Teacher01Icon size={28} color="#d1d5db" strokeWidth={1.5} />
+            <TeacherIcon size={28} color="#d1d5db" strokeWidth={1.5} />
           </div>
           <p className="text-[15px] font-semibold text-[#111827] font-display mb-2">
             {search ? 'No tutors match your search' : 'No tutors yet'}

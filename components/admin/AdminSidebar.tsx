@@ -17,7 +17,7 @@ import {
   Logout01Icon,
   ArrowLeft01Icon,
   ArrowRight01Icon,
-  Teacher01Icon,
+  TeacherIcon,
 } from 'hugeicons-react'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -33,7 +33,7 @@ const NAV_GROUPS = [
     items: [
       { label: 'Dashboard',    href: '/admin/dashboard',   icon: Home01Icon                 },
       { label: 'Users',        href: '/admin/users',        icon: UserGroup02Icon            },
-      { label: 'Tutors',       href: '/admin/tutors',       icon: Teacher01Icon              },
+      { label: 'Tutors',       href: '/admin/tutors',       icon: TeacherIcon                },
       { label: 'Programmes',   href: '/admin/programs',     icon: BookOpen01Icon             },
     ],
   },
