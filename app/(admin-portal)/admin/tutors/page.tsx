@@ -65,10 +65,10 @@ function Initials({ name }: { name: string }) {
 // ── Create Tutor Modal ────────────────────────────────────────────────────────
 interface CreateForm {
   first_name: string; last_name: string; email: string
-  phone: string; specialty: string; bio: string; website: string
+  phone: string; expertise: string; bio: string; website: string
 }
 
-const EMPTY_FORM: CreateForm = { first_name: '', last_name: '', email: '', phone: '', specialty: '', bio: '', website: '' }
+const EMPTY_FORM: CreateForm = { first_name: '', last_name: '', email: '', phone: '', expertise: '', bio: '', website: '' }
 
 function CreateTutorModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [form, setForm]     = useState<CreateForm>(EMPTY_FORM)
@@ -86,14 +86,15 @@ function CreateTutorModal({ onClose, onCreated }: { onClose: () => void; onCreat
     if (!form.email.trim()) { setError('Email is required.'); return }
     setSaving(true)
     try {
-      await apiClient.post('/experts', {
+      await apiClient.post('/admin/users', {
         first_name: form.first_name.trim(),
         last_name:  form.last_name.trim(),
         email:      form.email.trim(),
         phone:      form.phone.trim() || undefined,
-        specialty:  form.specialty.trim() || undefined,
+        expertise:  form.expertise.trim() || undefined,
         bio:        form.bio.trim() || undefined,
         website:    form.website.trim() || undefined,
+        role:       'INSTRUCTOR',
       })
       onCreated()
     } catch (err) {
@@ -140,8 +141,8 @@ function CreateTutorModal({ onClose, onCreated }: { onClose: () => void; onCreat
           </div>
 
           <div>
-            <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Specialty / Expertise</label>
-            <input value={form.specialty} onChange={set('specialty')} placeholder="AI & Machine Learning, Prompt Engineering"
+            <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Expertise</label>
+            <input value={form.expertise} onChange={set('expertise')} placeholder="AI & Machine Learning, Prompt Engineering"
               className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#9ca3af] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10" />
           </div>
 
