@@ -252,10 +252,10 @@ function TutorDetailPanel({ expert, onClose }: { expert: Expert; onClose: () => 
 
 // ── Create Tutor Modal ────────────────────────────────────────────────────────
 interface CreateForm {
-  first_name: string; last_name: string; email: string
+  name: string; email: string
   phone: string; expertise: string; bio: string; website: string
 }
-const EMPTY_FORM: CreateForm = { first_name: '', last_name: '', email: '', phone: '', expertise: '', bio: '', website: '' }
+const EMPTY_FORM: CreateForm = { name: '', email: '', phone: '', expertise: '', bio: '', website: '' }
 
 function CreateTutorModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [form, setForm]     = useState<CreateForm>(EMPTY_FORM)
@@ -269,19 +269,18 @@ function CreateTutorModal({ onClose, onCreated }: { onClose: () => void; onCreat
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setError('')
-    if (!form.first_name.trim()) { setError('First name is required.'); return }
-    if (!form.email.trim())      { setError('Email is required.'); return }
+    if (!form.name.trim())   { setError('Full name is required.'); return }
+    if (!form.email.trim())  { setError('Email is required.'); return }
     setSaving(true)
     try {
       await apiClient.post('/admin/users', {
-        first_name: form.first_name.trim(),
-        last_name:  form.last_name.trim(),
-        email:      form.email.trim(),
-        phone:      form.phone.trim()     || undefined,
-        expertise:  form.expertise.trim() || undefined,
-        bio:        form.bio.trim()       || undefined,
-        website:    form.website.trim()   || undefined,
-        role:       'INSTRUCTOR',
+        name:      form.name.trim(),
+        email:     form.email.trim(),
+        phone:     form.phone.trim()     || undefined,
+        expertise: form.expertise.trim() || undefined,
+        bio:       form.bio.trim()       || undefined,
+        website:   form.website.trim()   || undefined,
+        role:      'INSTRUCTOR',
       })
       onCreated()
     } catch (err) {
@@ -300,17 +299,10 @@ function CreateTutorModal({ onClose, onCreated }: { onClose: () => void; onCreat
         </div>
 
         <form onSubmit={handleSubmit} className="px-6 py-5 flex flex-col gap-4 max-h-[70vh] overflow-y-auto">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">First Name <span className="text-[#d51520]">*</span></label>
-              <input value={form.first_name} onChange={set('first_name')} placeholder="Adunola"
-                className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#4b5563] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10" />
-            </div>
-            <div>
-              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Last Name</label>
-              <input value={form.last_name} onChange={set('last_name')} placeholder="Okafor"
-                className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#4b5563] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10" />
-            </div>
+          <div>
+            <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Full Name <span className="text-[#d51520]">*</span></label>
+            <input value={form.name} onChange={set('name')} placeholder="Adunola Okafor"
+              className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#4b5563] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10" />
           </div>
 
           <div>
