@@ -318,31 +318,66 @@ function CreateTutorModal({ onClose, onCreated }: { onClose: () => void; onCreat
     if (!form.email.trim()) { setError('Email is required.'); return }
     setSaving(true)
     try {
-      // Step 1: create the user (only name/email/role accepted here)
+      // Step 1: create the user (POST only accepts name/email/role)
       const createRes = await apiClient.post('/admin/users', {
         name:  form.name.trim(),
         email: form.email.trim(),
         role:  'INSTRUCTOR',
       })
-      const created = unwrap<{ id: number }>(createRes.data)
-      const userId  = created?.id
+      // Extract the new user ID — try every possible location in the response
+      const raw = createRes.data as Record<string, unknown>
+      const inner = (raw?.data ?? raw) as Record<string, unknown>
+      const userId: number | undefined =
+        (inner?.id as number)         ??
+        (inner?.userId as number)     ??
+        ((inner?.user as Record<string, unknown>)?.id as number) ??
+        undefined
 
-      // Step 2: patch all profile fields (camelCase per AdminPatchUserRequest schema)
-      if (userId) {
-        const phone = form.phone.trim()
-        const patch: Record<string, unknown> = {}
-        if (form.title.trim())        patch.title              = form.title.trim()
-        if (form.biography.trim())    patch.biography          = form.biography.trim()
-        if (form.expertise.trim())    patch.expertise          = form.expertise.trim()
-        if (form.linkedin.trim())     patch.linkedinUrl        = form.linkedin.trim()
-        if (form.location.trim())     patch.location           = form.location.trim()
-        if (form.yoe)                 patch.yearsOfExperience  = Number(form.yoe)
-        if (form.organization.trim()) patch.organization       = form.organization.trim()
-        if (form.countryCode)         patch.countryCode        = form.countryCode
-        if (phone)                    patch.fullPhoneNumber    = `${form.countryCode}${phone}`
-        if (Object.keys(patch).length > 0) {
-          await apiClient.patch(`/admin/users/${userId}`, patch)
-        }
+      if (!userId) {
+        setError('Tutor created but could not retrieve their ID to save profile details. Please edit them manually.')
+        onCreated()
+        return
+      }
+
+      // Step 2: patch profile fields — send both camelCase AND snake_case
+      // since Spring Boot Jackson config may use either naming strategy
+      const phone = form.phone.trim()
+      const patch: Record<string, unknown> = {}
+      if (form.title.trim()) {
+        patch.title = form.title.trim()
+      }
+      if (form.biography.trim()) {
+        patch.biography = form.biography.trim()
+      }
+      if (form.expertise.trim()) {
+        patch.expertise = form.expertise.trim()
+      }
+      if (form.linkedin.trim()) {
+        patch.linkedinUrl  = form.linkedin.trim()
+        patch.linkedin_url = form.linkedin.trim()
+      }
+      if (form.location.trim()) {
+        patch.location = form.location.trim()
+      }
+      if (form.yoe) {
+        patch.yearsOfExperience   = Number(form.yoe)
+        patch.years_of_experience = Number(form.yoe)
+      }
+      if (form.organization.trim()) {
+        patch.organization = form.organization.trim()
+      }
+      if (form.countryCode) {
+        patch.countryCode   = form.countryCode
+        patch.country_code  = form.countryCode
+      }
+      if (phone) {
+        patch.fullPhoneNumber    = `${form.countryCode}${phone}`
+        patch.full_phone_number  = `${form.countryCode}${phone}`
+        patch.phone              = `${form.countryCode}${phone}`
+      }
+
+      if (Object.keys(patch).length > 0) {
+        await apiClient.patch(`/admin/users/${userId}`, patch)
       }
 
       onCreated()
