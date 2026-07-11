@@ -122,7 +122,7 @@ function CouponModal({
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-[#f3f4f6]">
           <h2 className="text-[15px] font-bold text-[#111827] font-display">{coupon ? 'Edit Coupon' : 'New Coupon'}</h2>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f3f4f6]">
-            <Cancel01Icon size={15} color="#6b7280" strokeWidth={1.5} />
+            <Cancel01Icon size={15} color="#4b5563" strokeWidth={1.5} />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="px-6 py-5 flex flex-col gap-4 max-h-[80vh] overflow-y-auto">
@@ -215,7 +215,7 @@ function CouponModal({
                   value={selectedProgramId}
                   onChange={e => { setSelectedProgramId(e.target.value); setSelectedCohortId('') }}
                   disabled={loadingProgs}
-                  className={`${inputCls} bg-white disabled:bg-[#f9fafb] disabled:text-[#9ca3af]`}
+                  className={`${inputCls} bg-white disabled:bg-[#f9fafb] disabled:text-[#4b5563]`}
                 >
                   <option value="">{loadingProgs ? 'Loading…' : 'Select a programme'}</option>
                   {programmes.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
@@ -229,7 +229,7 @@ function CouponModal({
                     value={selectedCohortId}
                     onChange={e => setSelectedCohortId(e.target.value)}
                     disabled={loadingCohorts}
-                    className={`${inputCls} bg-white disabled:bg-[#f9fafb] disabled:text-[#9ca3af]`}
+                    className={`${inputCls} bg-white disabled:bg-[#f9fafb] disabled:text-[#4b5563]`}
                   >
                     {loadingCohorts
                       ? <option value="">Loading…</option>
@@ -240,7 +240,7 @@ function CouponModal({
                     }
                   </select>
                   {!loadingCohorts && cohorts.length === 1 && (
-                    <p className="text-[11px] text-[#6b7280] font-body mt-1">Only one cohort — auto-selected.</p>
+                    <p className="text-[11px] text-[#4b5563] font-body mt-1">Only one cohort — auto-selected.</p>
                   )}
                 </div>
               )}
@@ -298,7 +298,7 @@ export default function AdminCouponsPage() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-[24px] font-bold text-[#111827] font-display">Coupons</h1>
-          <p className="text-[14px] text-[#6b7280] font-body mt-0.5">{pagination ? `${(pagination.totalElements ?? pagination.total_elements ?? pagination.total ?? 0)} coupons` : 'Discount codes'}</p>
+          <p className="text-[14px] text-[#4b5563] font-body mt-0.5">{pagination ? `${(pagination.totalElements ?? pagination.total_elements ?? pagination.total ?? 0)} coupons` : 'Discount codes'}</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => fetch()}
@@ -326,7 +326,7 @@ export default function AdminCouponsPage() {
             <thead>
               <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
                 {['Code', 'Type', 'Value', 'Usage', 'Valid From', 'Valid To', 'Status', ''].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6b7280] font-display">{h}</th>
+                  <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -348,7 +348,7 @@ export default function AdminCouponsPage() {
                 return (
                   <tr key={c.id} className="border-b border-[#f3f4f6] hover:bg-[#fafafa]">
                     <td className="px-4 py-3.5"><span className="font-mono text-[13px] font-bold text-[#111827]">{c.code}</span></td>
-                    <td className="px-4 py-3.5"><span className="text-[12px] text-[#6b7280] font-body">{c.type}</span></td>
+                    <td className="px-4 py-3.5"><span className="text-[12px] text-[#4b5563] font-body">{c.type}</span></td>
                     <td className="px-4 py-3.5">
                       <span className="text-[13px] font-semibold text-[#111827] font-display">
                         {c.type === 'PERCENT' ? `${c.value}%` : `₦${c.value?.toLocaleString()}`}
@@ -359,17 +359,17 @@ export default function AdminCouponsPage() {
                         {usageCount}{usageLimit ? ` / ${usageLimit}` : ''}
                       </span>
                     </td>
-                    <td className="px-4 py-3.5"><span className="text-[12px] text-[#6b7280] font-body">{formatDate(c.validFrom ?? c.valid_from)}</span></td>
-                    <td className="px-4 py-3.5"><span className="text-[12px] text-[#6b7280] font-body">{formatDate(c.validTo ?? c.valid_to)}</span></td>
+                    <td className="px-4 py-3.5"><span className="text-[12px] text-[#4b5563] font-body">{formatDate(c.validFrom ?? c.valid_from)}</span></td>
+                    <td className="px-4 py-3.5"><span className="text-[12px] text-[#4b5563] font-body">{formatDate(c.validTo ?? c.valid_to)}</span></td>
                     <td className="px-4 py-3.5">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold font-display ${c.status === 'ACTIVE' ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#f3f4f6] text-[#6b7280]'}`}>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold font-display ${c.status === 'ACTIVE' ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#f3f4f6] text-[#4b5563]'}`}>
                         {c.status}
                       </span>
                     </td>
                     <td className="px-4 py-3.5">
                       <button onClick={() => setModal({ open: true, coupon: c })}
                         className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#f3f4f6]">
-                        <PencilEdit01Icon size={13} color="#6b7280" strokeWidth={1.5} />
+                        <PencilEdit01Icon size={13} color="#4b5563" strokeWidth={1.5} />
                       </button>
                     </td>
                   </tr>
@@ -380,7 +380,7 @@ export default function AdminCouponsPage() {
         </div>
         {pagination && (pagination.totalPages ?? pagination.total_pages ?? 1) > 1 && (
           <div className="px-4 py-3 flex items-center justify-between border-t border-[#f3f4f6]">
-            <p className="text-[12px] text-[#6b7280] font-body">Page {page} of {pagination.totalPages ?? pagination.total_pages ?? 1}</p>
+            <p className="text-[12px] text-[#4b5563] font-body">Page {page} of {pagination.totalPages ?? pagination.total_pages ?? 1}</p>
             <div className="flex gap-1">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="h-7 px-3 rounded-[6px] border border-[#e5e7eb] text-[12px] font-body disabled:opacity-40 hover:bg-[#f9fafb]">Prev</button>
               <button onClick={() => setPage(p => p + 1)} disabled={!(pagination.hasNext ?? pagination.has_next)} className="h-7 px-3 rounded-[6px] border border-[#e5e7eb] text-[12px] font-body disabled:opacity-40 hover:bg-[#f9fafb]">Next</button>

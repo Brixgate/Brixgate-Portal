@@ -15,7 +15,7 @@ export default function AdminPageLoader() {
           className="animate-bounce"
           style={{ animationDuration: '1s', animationTimingFunction: 'cubic-bezier(0.28,0.84,0.42,1)' }}
         />
-        <p className="text-[12px] font-medium text-[#9ca3af] font-body tracking-wide">Loading…</p>
+        <p className="text-[12px] font-medium text-[#4b5563] font-body tracking-wide">Loading…</p>
       </div>
     </div>
   )

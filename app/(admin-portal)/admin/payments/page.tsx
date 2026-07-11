@@ -84,10 +84,10 @@ function PaymentDetailPanel({ payment, onClose }: { payment: Payment; onClose: (
         <div className="flex items-center justify-between px-6 py-5 border-b border-[#f3f4f6] flex-shrink-0">
           <div>
             <h2 className="text-[16px] font-bold text-[#111827] font-display">Transaction Details</h2>
-            <p className="text-[12px] text-[#9ca3af] font-body mt-0.5">#{payment.id}</p>
+            <p className="text-[12px] text-[#4b5563] font-body mt-0.5">#{payment.id}</p>
           </div>
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f3f4f6] transition-colors">
-            <Cancel01Icon size={16} color="#6b7280" strokeWidth={1.5} />
+            <Cancel01Icon size={16} color="#4b5563" strokeWidth={1.5} />
           </button>
         </div>
 
@@ -96,7 +96,7 @@ function PaymentDetailPanel({ payment, onClose }: { payment: Payment; onClose: (
           {/* Amount + status */}
           <div className="bg-[#f9fafb] rounded-[10px] p-5 flex items-center justify-between">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display mb-1">Amount Paid</p>
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-[#4b5563] font-display mb-1">Amount Paid</p>
               <p className="text-[28px] font-bold text-[#111827] font-display leading-none">{resolveAmount(payment)}</p>
             </div>
             {status && (
@@ -109,7 +109,7 @@ function PaymentDetailPanel({ payment, onClose }: { payment: Payment; onClose: (
 
           {/* User */}
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display mb-3">Customer</p>
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-[#4b5563] font-display mb-3">Customer</p>
             <div className="space-y-2.5">
               <Row label="Name"  value={userName(payment.user)} />
               <Row label="Email" value={payment.user?.email ?? '—'} />
@@ -120,7 +120,7 @@ function PaymentDetailPanel({ payment, onClose }: { payment: Payment; onClose: (
 
           {/* References */}
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display mb-3">References</p>
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-[#4b5563] font-display mb-3">References</p>
             <div className="space-y-2.5">
               <CopyRow label="Payment Reference"   value={resolvePayRef(payment)}   id="payref"    copied={copied} onCopy={copy} />
               <CopyRow label="Brixgate Reference"  value={resolveBrixRef(payment)}  id="brixref"   copied={copied} onCopy={copy} />
@@ -132,20 +132,20 @@ function PaymentDetailPanel({ payment, onClose }: { payment: Payment; onClose: (
 
           {/* Payment info */}
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display mb-3">Payment Info</p>
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-[#4b5563] font-display mb-3">Payment Info</p>
             <div className="space-y-2.5">
               <Row label="Payment Type"   value={payment.paymentType ?? payment.payment_type ?? '—'} />
               <Row label="Currency"       value={payment.payable_currency ?? payment.payableCurrency ?? payment.currency ?? 'NGN'} />
               <Row label="Date & Time"    value={formatDateTime(payment.createdAt ?? payment.created_at)} />
               {payment.coupon?.code && (
                 <div className="flex items-center justify-between py-2">
-                  <p className="text-[12px] text-[#6b7280] font-body">Coupon Applied</p>
+                  <p className="text-[12px] text-[#4b5563] font-body">Coupon Applied</p>
                   <div className="flex items-center gap-2">
                     <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] bg-[#f5f3ff] text-[#7c3aed] text-[11px] font-bold font-display">
                       {payment.coupon.code}
                     </span>
                     {payment.coupon.discount != null && (
-                      <span className="text-[12px] text-[#6b7280] font-body">−{payment.coupon.discount}%</span>
+                      <span className="text-[12px] text-[#4b5563] font-body">−{payment.coupon.discount}%</span>
                     )}
                   </div>
                 </div>
@@ -161,7 +161,7 @@ function PaymentDetailPanel({ payment, onClose }: { payment: Payment; onClose: (
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between py-1.5">
-      <p className="text-[12px] text-[#6b7280] font-body">{label}</p>
+      <p className="text-[12px] text-[#4b5563] font-body">{label}</p>
       <p className="text-[13px] font-medium text-[#111827] font-body text-right max-w-[240px] break-all">{value}</p>
     </div>
   )
@@ -172,7 +172,7 @@ function CopyRow({ label, value, id, copied, onCopy }: {
 }) {
   return (
     <div className="flex items-center justify-between py-1.5">
-      <p className="text-[12px] text-[#6b7280] font-body">{label}</p>
+      <p className="text-[12px] text-[#4b5563] font-body">{label}</p>
       <div className="flex items-center gap-2 max-w-[240px]">
         <p className="text-[12px] font-mono text-[#374151] font-body truncate">{value}</p>
         {value !== '—' && (
@@ -223,7 +223,7 @@ export default function AdminPaymentsPage() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-[24px] font-bold text-[#111827] font-display">Payments</h1>
-          <p className="text-[14px] text-[#6b7280] font-body mt-0.5">
+          <p className="text-[14px] text-[#4b5563] font-body mt-0.5">
             {pagination ? `${(pagination.totalElements ?? pagination.total_elements ?? pagination.total ?? 0).toLocaleString()} total transactions` : 'All payment records'}
           </p>
         </div>
@@ -246,7 +246,7 @@ export default function AdminPaymentsPage() {
             <thead>
               <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
                 {['User', 'Amount', 'Reference', 'Type', 'Coupon', 'Status', 'Date'].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6b7280] font-display">{h}</th>
+                  <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -272,13 +272,13 @@ export default function AdminPaymentsPage() {
                   >
                     <td className="px-4 py-3.5">
                       <p className="text-[13px] font-medium text-[#111827] font-body">{userName(p.user)}</p>
-                      {p.user?.email && <p className="text-[11px] text-[#9ca3af] font-body">{p.user.email}</p>}
+                      {p.user?.email && <p className="text-[11px] text-[#4b5563] font-body">{p.user.email}</p>}
                     </td>
                     <td className="px-4 py-3.5"><span className="text-[13px] font-semibold text-[#111827] font-display">{resolveAmount(p)}</span></td>
                     <td className="px-4 py-3.5">
-                      <span className="text-[11px] font-mono text-[#6b7280] font-body tracking-wide">{resolvePayRef(p)}</span>
+                      <span className="text-[11px] font-mono text-[#4b5563] font-body tracking-wide">{resolvePayRef(p)}</span>
                     </td>
-                    <td className="px-4 py-3.5"><span className="text-[12px] text-[#6b7280] font-body">{p.paymentType ?? p.payment_type ?? '—'}</span></td>
+                    <td className="px-4 py-3.5"><span className="text-[12px] text-[#4b5563] font-body">{p.paymentType ?? p.payment_type ?? '—'}</span></td>
                     <td className="px-4 py-3.5">
                       {p.coupon?.code
                         ? <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] bg-[#f5f3ff] text-[#7c3aed] text-[11px] font-bold font-display">{p.coupon.code}</span>
@@ -292,7 +292,7 @@ export default function AdminPaymentsPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3.5"><p className="text-[12px] text-[#9ca3af] font-body">{formatDate(p.createdAt ?? p.created_at)}</p></td>
+                    <td className="px-4 py-3.5"><p className="text-[12px] text-[#4b5563] font-body">{formatDate(p.createdAt ?? p.created_at)}</p></td>
                   </tr>
                 )
               })}
@@ -301,7 +301,7 @@ export default function AdminPaymentsPage() {
         </div>
         {pagination && (pagination.totalPages ?? pagination.total_pages ?? 1) > 1 && (
           <div className="px-4 py-3 flex items-center justify-between border-t border-[#f3f4f6]">
-            <p className="text-[12px] text-[#6b7280] font-body">
+            <p className="text-[12px] text-[#4b5563] font-body">
               Showing {((page - 1) * 20) + 1}–{Math.min(page * 20, pagination.totalElements ?? pagination.total_elements ?? pagination.total ?? 0)} of {(pagination.totalElements ?? pagination.total_elements ?? pagination.total ?? 0).toLocaleString()}
             </p>
             <div className="flex items-center gap-1">

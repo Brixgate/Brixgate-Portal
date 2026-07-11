@@ -143,7 +143,7 @@ export default function PollsPage() {
   }
   const SortIcon = ({ field }: { field: typeof sortField }) =>
     sortField === field
-      ? sortDir === 'desc' ? <ArrowDown01Icon size={12} color="#6b7280" strokeWidth={2} /> : <ArrowUp01Icon size={12} color="#6b7280" strokeWidth={2} />
+      ? sortDir === 'desc' ? <ArrowDown01Icon size={12} color="#4b5563" strokeWidth={2} /> : <ArrowUp01Icon size={12} color="#4b5563" strokeWidth={2} />
       : null
 
   const advanced     = rows.filter(r => ratingLevel(r).toUpperCase() === 'ADVANCED').length
@@ -160,7 +160,7 @@ export default function PollsPage() {
         <div className="flex items-start justify-between">
           <div>
             <h1 className="text-[24px] font-bold text-[#111827] font-display leading-[32px]">AI Readiness Polls</h1>
-            <p className="text-[14px] text-[#6b7280] font-body mt-0.5">Results from the AI readiness quiz on brixgate.com</p>
+            <p className="text-[14px] text-[#4b5563] font-body mt-0.5">Results from the AI readiness quiz on brixgate.com</p>
           </div>
           {/* Questionnaire selector (if there are multiple) */}
           {questionnaires.length > 1 && (
@@ -210,7 +210,7 @@ export default function PollsPage() {
           </div>
           <div>
             <p className="text-[14px] font-semibold text-[#111827] font-display">Average AI Readiness Score: {avgScore}%</p>
-            <p className="text-[12px] text-[#6b7280] font-body mt-0.5">
+            <p className="text-[12px] text-[#4b5563] font-body mt-0.5">
               Across {rows.length.toLocaleString()} response{rows.length !== 1 ? 's' : ''} loaded on this page
             </p>
           </div>
@@ -222,10 +222,10 @@ export default function PollsPage() {
         {/* Filters */}
         <div className="px-5 py-4 border-b border-[#f3f4f6] flex items-center gap-3 flex-wrap">
           <div className="relative flex-1 min-w-[200px]">
-            <Search01Icon className="absolute left-3.5 top-1/2 -translate-y-1/2" size={15} color="#9ca3af" strokeWidth={1.5} />
+            <Search01Icon className="absolute left-3.5 top-1/2 -translate-y-1/2" size={15} color="#4b5563" strokeWidth={1.5} />
             <input type="text" placeholder="Search by name, email, or occupation…"
               value={search} onChange={e => setSearch(e.target.value)}
-              className="w-full h-[38px] pl-9 pr-3.5 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#9ca3af] focus:outline-none focus:border-[#d51520]/40 focus:ring-2 focus:ring-[#d51520]/10" />
+              className="w-full h-[38px] pl-9 pr-3.5 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#4b5563] focus:outline-none focus:border-[#d51520]/40 focus:ring-2 focus:ring-[#d51520]/10" />
           </div>
           <select value={levelFilter} onChange={e => setLevel(e.target.value)}
             className="h-[38px] pl-3 pr-8 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#374151] bg-white outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 min-w-[140px]">
@@ -238,14 +238,14 @@ export default function PollsPage() {
 
         {/* Table */}
         {loading ? (
-          <div className="flex items-center justify-center py-16 gap-2 text-[#9ca3af]">
+          <div className="flex items-center justify-center py-16 gap-2 text-[#4b5563]">
             <Loading01Icon size={18} className="animate-spin" strokeWidth={1.5} />
             <span className="text-[13px] font-body">Loading responses…</span>
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center px-6">
             <p className="text-[14px] font-semibold text-[#374151] font-display mb-1">No results found</p>
-            <p className="text-[13px] text-[#6b7280] font-body">
+            <p className="text-[13px] text-[#4b5563] font-body">
               {rows.length === 0 ? 'No quiz responses have been submitted yet.' : 'Try adjusting your search or filter.'}
             </p>
           </div>
@@ -271,17 +271,17 @@ export default function PollsPage() {
                     <tr key={r.id} className="border-b border-[#f3f4f6] last:border-0 hover:bg-[#f9fafb] transition-colors">
                       <td className="px-5 py-3.5 text-[13px] font-medium text-[#111827] font-body">{displayName(r)}</td>
                       <td className="px-5 py-3.5 text-[13px] text-[#374151] font-body">{r.email}</td>
-                      <td className="px-5 py-3.5 text-[13px] text-[#6b7280] font-body">{r.occupation ?? '—'}</td>
+                      <td className="px-5 py-3.5 text-[13px] text-[#4b5563] font-body">{r.occupation ?? '—'}</td>
                       <td className="px-5 py-3.5"><LevelBadge level={ratingLevel(r)} /></td>
                       <td className="px-5 py-3.5 text-right text-[13px] font-semibold text-[#111827] font-display">{r.score != null ? `${r.score}%` : '—'}</td>
-                      <td className="px-5 py-3.5 text-[13px] text-[#9ca3af] font-body whitespace-nowrap">{createdAt(r)}</td>
+                      <td className="px-5 py-3.5 text-[13px] text-[#4b5563] font-body whitespace-nowrap">{createdAt(r)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
             <div className="px-5 py-4 border-t border-[#f3f4f6] flex items-center justify-between">
-              <p className="text-[12px] text-[#6b7280] font-body">
+              <p className="text-[12px] text-[#4b5563] font-body">
                 Showing {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, total)} of {total.toLocaleString()} responses
               </p>
               <div className="flex items-center gap-2">
@@ -289,7 +289,7 @@ export default function PollsPage() {
                   className="h-8 px-3 border border-[#e5e7eb] rounded-[6px] text-[12px] font-medium text-[#374151] font-body hover:bg-[#f9fafb] disabled:opacity-40 transition-colors">
                   Previous
                 </button>
-                <span className="text-[12px] text-[#6b7280] font-body px-1">Page {page}</span>
+                <span className="text-[12px] text-[#4b5563] font-body px-1">Page {page}</span>
                 <button onClick={() => setPage(p => p + 1)} disabled={page * PAGE_SIZE >= total}
                   className="h-8 px-3 border border-[#e5e7eb] rounded-[6px] text-[12px] font-medium text-[#374151] font-body hover:bg-[#f9fafb] disabled:opacity-40 transition-colors">
                   Next

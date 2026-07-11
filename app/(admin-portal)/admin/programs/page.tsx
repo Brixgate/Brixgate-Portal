@@ -38,7 +38,7 @@ const LEVEL_STYLE: Record<string, string> = {
 const STATUS_STYLE: Record<string, string> = {
   PUBLISHED: 'bg-[#ecfdf3] text-[#027a48]',
   DRAFT:     'bg-[#fffbeb] text-[#b45309]',
-  ARCHIVED:  'bg-[#f3f4f6] text-[#6b7280]',
+  ARCHIVED:  'bg-[#f3f4f6] text-[#4b5563]',
 }
 
 // ── Edit programme modal ───────────────────────────────────────────────────────
@@ -79,7 +79,7 @@ function EditProgramModal({
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-[#f3f4f6]">
           <h2 className="text-[15px] font-bold text-[#111827] font-display">Edit Programme</h2>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f3f4f6]">
-            <Cancel01Icon size={15} color="#6b7280" strokeWidth={1.5} />
+            <Cancel01Icon size={15} color="#4b5563" strokeWidth={1.5} />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="px-6 py-5 flex flex-col gap-4">
@@ -162,7 +162,7 @@ function DeleteConfirmModal({
           <Delete01Icon size={18} color="#d51520" strokeWidth={1.5} />
         </div>
         <h2 className="text-[15px] font-bold text-[#111827] font-display mb-1">Delete Programme?</h2>
-        <p className="text-[13px] text-[#6b7280] font-body mb-5">
+        <p className="text-[13px] text-[#4b5563] font-body mb-5">
           <span className="font-semibold text-[#374151]">{program.title}</span> will be permanently deleted. This cannot be undone.
         </p>
         {error && (
@@ -223,7 +223,7 @@ function CreateProgramModal({ onClose, onCreated }: { onClose: () => void; onCre
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-[#f3f4f6]">
           <h2 className="text-[15px] font-bold text-[#111827] font-display">New Programme</h2>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f3f4f6]">
-            <Cancel01Icon size={15} color="#6b7280" strokeWidth={1.5} />
+            <Cancel01Icon size={15} color="#4b5563" strokeWidth={1.5} />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="px-6 py-5 flex flex-col gap-4">
@@ -342,7 +342,7 @@ export default function AdminProgramsPage() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-[24px] font-bold text-[#111827] font-display">Programmes</h1>
-          <p className="text-[14px] text-[#6b7280] font-body mt-0.5">
+          <p className="text-[14px] text-[#4b5563] font-body mt-0.5">
             {pagination ? `${(pagination.totalElements ?? pagination.total_elements ?? pagination.total ?? 0)} programmes` : 'Master curriculum bank'}
           </p>
         </div>
@@ -359,7 +359,7 @@ export default function AdminProgramsPage() {
             <thead>
               <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
                 {['Programme', 'Level', 'Format', 'Final Price', 'Status', ''].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6b7280] font-display">
+                  <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display">
                     {h}
                   </th>
                 ))}
@@ -381,7 +381,7 @@ export default function AdminProgramsPage() {
                   <td colSpan={6} className="px-4 py-16 text-center">
                     <BookOpen01Icon size={32} color="#d1d5db" strokeWidth={1.5} className="mx-auto mb-3" />
                     <p className="text-[14px] font-semibold text-[#111827] font-display">No programmes yet</p>
-                    <p className="text-[13px] text-[#6b7280] font-body mt-1">Create your first programme to get started</p>
+                    <p className="text-[13px] text-[#4b5563] font-body mt-1">Create your first programme to get started</p>
                   </td>
                 </tr>
               ) : (
@@ -394,7 +394,7 @@ export default function AdminProgramsPage() {
                     <td className="px-4 py-4">
                       <p className="text-[13px] font-semibold text-[#111827] font-display">{p.title}</p>
                       {p.description && (
-                        <p className="text-[12px] text-[#6b7280] font-body mt-0.5 line-clamp-1 max-w-[320px]">{p.description}</p>
+                        <p className="text-[12px] text-[#4b5563] font-body mt-0.5 line-clamp-1 max-w-[320px]">{p.description}</p>
                       )}
                     </td>
                     <td className="px-4 py-4">
@@ -406,7 +406,7 @@ export default function AdminProgramsPage() {
                       }
                     </td>
                     <td className="px-4 py-4">
-                      <span className="text-[12px] text-[#6b7280] font-body">{p.type ? p.type.charAt(0) + p.type.slice(1).toLowerCase() : '—'}</span>
+                      <span className="text-[12px] text-[#4b5563] font-body">{p.type ? p.type.charAt(0) + p.type.slice(1).toLowerCase() : '—'}</span>
                     </td>
                     <td className="px-4 py-4">
                       <span className="text-[13px] font-medium text-[#111827] font-body">
@@ -429,7 +429,7 @@ export default function AdminProgramsPage() {
                           className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#f3f4f6] transition-colors"
                           title="Edit programme"
                         >
-                          <PencilEdit01Icon size={14} color="#6b7280" strokeWidth={1.5} />
+                          <PencilEdit01Icon size={14} color="#4b5563" strokeWidth={1.5} />
                         </button>
                         <button
                           onClick={() => setDeleteProgram(p)}
@@ -449,7 +449,7 @@ export default function AdminProgramsPage() {
 
         {pagination && (pagination.totalPages ?? pagination.total_pages ?? 1) > 1 && (
           <div className="px-4 py-3 flex items-center justify-between border-t border-[#f3f4f6]">
-            <p className="text-[12px] text-[#6b7280] font-body">
+            <p className="text-[12px] text-[#4b5563] font-body">
               Page {page} of {pagination.totalPages ?? pagination.total_pages ?? 1}
             </p>
             <div className="flex items-center gap-1">

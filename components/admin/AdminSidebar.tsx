@@ -158,7 +158,7 @@ export default function AdminSidebar() {
         {NAV_GROUPS.map((group) => (
           <div key={group.label}>
             {!collapsed && (
-              <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#9ca3af] font-display px-3 mb-1">
+              <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#4b5563] font-display px-3 mb-1">
                 {group.label}
               </p>
             )}
@@ -184,7 +184,7 @@ export default function AdminSidebar() {
           onClick={toggleCollapsed}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           className={cn(
-            'flex items-center rounded-[8px] px-3 py-2 w-full text-[#9ca3af] hover:text-[#374151] hover:bg-[#f7f8fa] transition-colors',
+            'flex items-center rounded-[8px] px-3 py-2 w-full text-[#4b5563] hover:text-[#374151] hover:bg-[#f7f8fa] transition-colors',
             collapsed ? 'justify-center' : 'gap-2'
           )}
         >
@@ -215,11 +215,11 @@ export default function AdminSidebar() {
           <>
             <div className="flex-1 min-w-0">
               <p className="text-[13px] font-semibold text-[#111827] font-display truncate">{displayName}</p>
-              <p className="text-[11px] text-[#9ca3af] font-body">Administrator</p>
+              <p className="text-[11px] text-[#4b5563] font-body">Administrator</p>
             </div>
             <button
               aria-label="Logout" onClick={handleLogout}
-              className="text-[#9ca3af] hover:text-[#d51520] transition-colors flex-shrink-0"
+              className="text-[#4b5563] hover:text-[#d51520] transition-colors flex-shrink-0"
             >
               <Logout01Icon size={16} color="currentColor" strokeWidth={1.5} />
             </button>

@@ -45,7 +45,7 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-[#f3f4f6]">
           <h2 className="text-[15px] font-bold text-[#111827] font-display">{title}</h2>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f3f4f6]">
-            <Cancel01Icon size={15} color="#6b7280" strokeWidth={1.5} />
+            <Cancel01Icon size={15} color="#4b5563" strokeWidth={1.5} />
           </button>
         </div>
         <div className="px-6 py-5 max-h-[80vh] overflow-y-auto">{children}</div>
@@ -93,7 +93,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
     <div>
       <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">{label}</label>
       {children}
-      {hint && <p className="text-[11px] text-[#6b7280] font-body mt-1">{hint}</p>}
+      {hint && <p className="text-[11px] text-[#4b5563] font-body mt-1">{hint}</p>}
     </div>
   )
 }
@@ -152,18 +152,18 @@ function FileDropZone({
             <File01Icon size={18} color="#16a34a" strokeWidth={1.5} />
           </div>
           <p className="text-[13px] font-medium text-[#16a34a] font-body truncate max-w-full">{uploadedFileName}</p>
-          <p className="text-[11px] text-[#6b7280] font-body">Click to change file</p>
+          <p className="text-[11px] text-[#4b5563] font-body">Click to change file</p>
         </>
       ) : (
         <>
           <div className="w-9 h-9 rounded-[8px] bg-[#f3f4f6] flex items-center justify-center">
-            <Upload01Icon size={18} color="#6b7280" strokeWidth={1.5} />
+            <Upload01Icon size={18} color="#4b5563" strokeWidth={1.5} />
           </div>
           <div>
             <p className="text-[13px] font-medium text-[#374151] font-body">
               Drag &amp; drop or <span className="text-[#d51520]">browse</span>
             </p>
-            <p className="text-[11px] text-[#6b7280] font-body mt-0.5">PDF, Video, Images — up to 50MB</p>
+            <p className="text-[11px] text-[#4b5563] font-body mt-0.5">PDF, Video, Images — up to 50MB</p>
           </div>
         </>
       )}
@@ -196,20 +196,20 @@ function ModuleItem({
         <div className="flex items-center gap-2 px-4 py-3.5 cursor-pointer"
           onClick={() => { setExpanded(e => !e); onSelect(mod) }}>
           {expanded
-            ? <ArrowDown01Icon size={14} color="#6b7280" strokeWidth={2} />
-            : <ArrowRight01Icon size={14} color="#6b7280" strokeWidth={2} />}
+            ? <ArrowDown01Icon size={14} color="#4b5563" strokeWidth={2} />
+            : <ArrowRight01Icon size={14} color="#4b5563" strokeWidth={2} />}
           <BookOpen01Icon size={14} color={isSelected ? '#d51520' : '#9ca3af'} strokeWidth={1.5} />
           <span className={`flex-1 text-[13px] font-semibold font-display truncate ${isSelected ? 'text-[#d51520]' : 'text-[#111827]'}`}>
             {mod.title}
           </span>
-          <span className="text-[11px] text-[#9ca3af] font-body flex-shrink-0">
+          <span className="text-[11px] text-[#4b5563] font-body flex-shrink-0">
             {mod.lessons.length}L · {mod.resources.length}R
           </span>
           <button onClick={e => { e.stopPropagation(); setConfirmOpen(true) }} disabled={deleting}
             className="w-6 h-6 flex items-center justify-center rounded-[4px] hover:bg-[#fef2f2] transition-colors flex-shrink-0 ml-1">
             {deleting
               ? <Loading01Icon size={11} className="animate-spin text-[#d51520]" strokeWidth={2} />
-              : <Delete01Icon size={12} color="#9ca3af" strokeWidth={1.5} />}
+              : <Delete01Icon size={12} color="#4b5563" strokeWidth={1.5} />}
           </button>
         </div>
 
@@ -217,20 +217,20 @@ function ModuleItem({
           <div className="px-4 pb-3 border-t border-[#f3f4f6] pt-2 space-y-1 bg-[#fafafa]">
             {mod.lessons.map(l => (
               <div key={l.id} className="flex items-center gap-2 py-1.5 pl-4 rounded-[6px]">
-                <VideoReplayIcon size={11} color="#6b7280" strokeWidth={1.5} />
+                <VideoReplayIcon size={11} color="#4b5563" strokeWidth={1.5} />
                 <span className="text-[12px] text-[#374151] font-body flex-1 truncate">{l.title}</span>
-                <span className="text-[10px] text-[#9ca3af] font-body">{l.content_type}</span>
+                <span className="text-[10px] text-[#4b5563] font-body">{l.content_type}</span>
               </div>
             ))}
             {mod.resources.map(r => (
               <div key={r.id} className="flex items-center gap-2 py-1.5 pl-4 rounded-[6px]">
-                <File01Icon size={11} color="#6b7280" strokeWidth={1.5} />
+                <File01Icon size={11} color="#4b5563" strokeWidth={1.5} />
                 <span className="text-[12px] text-[#374151] font-body flex-1 truncate">{r.title}</span>
                 <ResourceTypeIcon type={r.type} />
               </div>
             ))}
             {mod.lessons.length === 0 && mod.resources.length === 0 && (
-              <p className="text-[11px] text-[#6b7280] font-body pl-4 py-1">No lessons or resources yet</p>
+              <p className="text-[11px] text-[#4b5563] font-body pl-4 py-1">No lessons or resources yet</p>
             )}
           </div>
         )}
@@ -404,7 +404,7 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
       <div className="flex flex-col items-center justify-center h-full text-center py-20">
         <BookOpen01Icon size={36} color="#e5e7eb" strokeWidth={1.5} className="mb-3" />
         <p className="text-[14px] font-semibold text-[#374151] font-display">Select a module</p>
-        <p className="text-[13px] text-[#6b7280] font-body mt-1">Choose a module from the left to manage its content</p>
+        <p className="text-[13px] text-[#4b5563] font-body mt-1">Choose a module from the left to manage its content</p>
       </div>
     )
   }
@@ -425,8 +425,8 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
           <p className="text-[14px] text-[#374151] font-body mt-2 leading-[1.7]">{mod.description}</p>
         )}
         <div className="flex items-center gap-4 mt-2">
-          <span className="text-[12px] text-[#6b7280] font-body">{mod.lessons.length} lesson{mod.lessons.length !== 1 ? 's' : ''}</span>
-          <span className="text-[12px] text-[#6b7280] font-body">{mod.resources.length} resource{mod.resources.length !== 1 ? 's' : ''}</span>
+          <span className="text-[12px] text-[#4b5563] font-body">{mod.lessons.length} lesson{mod.lessons.length !== 1 ? 's' : ''}</span>
+          <span className="text-[12px] text-[#4b5563] font-body">{mod.resources.length} resource{mod.resources.length !== 1 ? 's' : ''}</span>
         </div>
       </div>
 
@@ -442,14 +442,14 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
         </div>
         <div className="bg-white rounded-[8px] border border-[#f3f4f6] overflow-hidden">
           {mod.lessons.length === 0 ? (
-            <p className="text-[13px] text-[#6b7280] font-body py-4 text-center">No lessons yet</p>
+            <p className="text-[13px] text-[#4b5563] font-body py-4 text-center">No lessons yet</p>
           ) : (
             mod.lessons.map(l => (
               <div key={l.id} className="flex items-center gap-3 px-4 py-3 border-b border-[#f3f4f6] last:border-0 group hover:bg-[#f9fafb] transition-colors">
-                <VideoReplayIcon size={14} color="#9ca3af" strokeWidth={1.5} className="flex-shrink-0" />
+                <VideoReplayIcon size={14} color="#4b5563" strokeWidth={1.5} className="flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-medium text-[#111827] font-body truncate">{l.title}</p>
-                  <p className="text-[12px] text-[#6b7280] font-body mt-0.5">
+                  <p className="text-[12px] text-[#4b5563] font-body mt-0.5">
                     {l.content_type}{l.duration ? ` · ${l.duration} min` : ''}
                     {l.description ? ` · Has description` : ''}
                   </p>
@@ -484,14 +484,14 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
         </div>
         <div className="bg-white rounded-[8px] border border-[#f3f4f6] overflow-hidden">
           {mod.resources.length === 0 ? (
-            <p className="text-[13px] text-[#6b7280] font-body py-4 text-center">No resources yet</p>
+            <p className="text-[13px] text-[#4b5563] font-body py-4 text-center">No resources yet</p>
           ) : (
             mod.resources.map(r => (
               <div key={r.id} className="flex items-center gap-3 px-4 py-3 border-b border-[#f3f4f6] last:border-0 group hover:bg-[#f9fafb] transition-colors">
-                <File01Icon size={14} color="#9ca3af" strokeWidth={1.5} className="flex-shrink-0" />
+                <File01Icon size={14} color="#4b5563" strokeWidth={1.5} className="flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-medium text-[#111827] font-body truncate">{r.title}</p>
-                  <p className="text-[12px] text-[#6b7280] font-body truncate">{r.link}</p>
+                  <p className="text-[12px] text-[#4b5563] font-body truncate">{r.link}</p>
                 </div>
                 <ResourceTypeIcon type={r.type} />
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -593,14 +593,14 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
                 <button type="button"
                   onClick={() => { setResourceMode('url'); setUploadFile(null) }}
                   className={`flex-1 flex items-center justify-center gap-2 h-9 text-[12px] font-medium font-body transition-colors ${
-                    resourceMode === 'url' ? 'bg-[#f3f4f6] text-[#111827]' : 'text-[#6b7280] hover:bg-[#f9fafb]'
+                    resourceMode === 'url' ? 'bg-[#f3f4f6] text-[#111827]' : 'text-[#4b5563] hover:bg-[#f9fafb]'
                   }`}>
                   <Link01Icon size={13} strokeWidth={1.5} /> Paste URL
                 </button>
                 <button type="button"
                   onClick={() => setResourceMode('upload')}
                   className={`flex-1 flex items-center justify-center gap-2 h-9 text-[12px] font-medium font-body transition-colors border-l border-[#e5e7eb] ${
-                    resourceMode === 'upload' ? 'bg-[#f3f4f6] text-[#111827]' : 'text-[#6b7280] hover:bg-[#f9fafb]'
+                    resourceMode === 'upload' ? 'bg-[#f3f4f6] text-[#111827]' : 'text-[#4b5563] hover:bg-[#f9fafb]'
                   }`}>
                   <Upload01Icon size={13} strokeWidth={1.5} /> Upload File
                 </button>
@@ -668,7 +668,7 @@ interface ApiCohortCreate { program_id: string; title: string; start_date: strin
 const COHORT_STATUS_STYLE: Record<string, string> = {
   OPEN:     'bg-[#ecfdf3] text-[#027a48]',
   UPCOMING: 'bg-[#eff6ff] text-[#1d4ed8]',
-  CLOSED:   'bg-[#f3f4f6] text-[#6b7280]',
+  CLOSED:   'bg-[#f3f4f6] text-[#4b5563]',
 }
 function formatDate(d?: string) {
   if (!d) return '—'
@@ -765,7 +765,7 @@ function CohortsTab({ programId }: { programId: string }) {
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-[#f3f4f6]">
           <h2 className="text-[15px] font-bold text-[#111827] font-display">{isEdit ? 'Edit Cohort' : 'New Cohort'}</h2>
           <button onClick={() => isEdit ? setEditCohort(null) : setShowCreate(false)} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f3f4f6]">
-            <Cancel01Icon size={15} color="#6b7280" strokeWidth={1.5} />
+            <Cancel01Icon size={15} color="#4b5563" strokeWidth={1.5} />
           </button>
         </div>
         <form onSubmit={isEdit ? saveCohortEdit : createCohort} className="px-6 py-5 flex flex-col gap-4">
@@ -818,7 +818,7 @@ function CohortsTab({ programId }: { programId: string }) {
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-5">
-        <p className="text-[13px] text-[#6b7280] font-body">
+        <p className="text-[13px] text-[#4b5563] font-body">
           {loading ? 'Loading…' : `${cohorts.length} cohort${cohorts.length !== 1 ? 's' : ''}`}
         </p>
         <button onClick={() => { setForm({ program_id: programId, title: '', start_date: '', end_date: '', status: 'UPCOMING', max_students: '30' }); setFormError(''); setShowCreate(true) }}
@@ -837,7 +837,7 @@ function CohortsTab({ programId }: { programId: string }) {
         <div className="text-center py-16">
           <BookOpen01Icon size={28} color="#e5e7eb" strokeWidth={1.5} className="mx-auto mb-3" />
           <p className="text-[14px] font-semibold text-[#111827] font-display">No cohorts yet</p>
-          <p className="text-[13px] text-[#6b7280] font-body mt-1">Create the first cohort for this programme</p>
+          <p className="text-[13px] text-[#4b5563] font-body mt-1">Create the first cohort for this programme</p>
         </div>
       ) : (
         <div className="rounded-[10px] border border-[#eaecf0] overflow-hidden">
@@ -845,7 +845,7 @@ function CohortsTab({ programId }: { programId: string }) {
             <thead>
               <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
                 {['Cohort', 'Status', 'Start Date', 'End Date', 'Students', ''].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6b7280] font-display">{h}</th>
+                  <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -865,8 +865,8 @@ function CohortsTab({ programId }: { programId: string }) {
                       : '—'
                     }
                   </td>
-                  <td className="px-4 py-3.5 text-[13px] text-[#6b7280] font-body">{formatDate(c.start_date)}</td>
-                  <td className="px-4 py-3.5 text-[13px] text-[#6b7280] font-body">{formatDate(c.end_date)}</td>
+                  <td className="px-4 py-3.5 text-[13px] text-[#4b5563] font-body">{formatDate(c.start_date)}</td>
+                  <td className="px-4 py-3.5 text-[13px] text-[#4b5563] font-body">{formatDate(c.end_date)}</td>
                   <td className="px-4 py-3.5 text-[13px] font-medium text-[#111827] font-body">
                     {c.enrolled_count ?? 0} / {c.max_students ?? '—'}
                   </td>
@@ -878,7 +878,7 @@ function CohortsTab({ programId }: { programId: string }) {
                         className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#f3f4f6] transition-colors"
                         title="Edit cohort"
                       >
-                        <PencilEdit01Icon size={13} color="#6b7280" strokeWidth={1.5} />
+                        <PencilEdit01Icon size={13} color="#4b5563" strokeWidth={1.5} />
                       </button>
                       <button
                         onClick={() => setDeleteCohort(c)}
@@ -907,7 +907,7 @@ function CohortsTab({ programId }: { programId: string }) {
               <Delete01Icon size={18} color="#d51520" strokeWidth={1.5} />
             </div>
             <h2 className="text-[15px] font-bold text-[#111827] font-display mb-1">Delete Cohort?</h2>
-            <p className="text-[13px] text-[#6b7280] font-body mb-5">
+            <p className="text-[13px] text-[#4b5563] font-body mb-5">
               <span className="font-semibold text-[#374151]">{deleteCohort.title}</span> will be permanently deleted. This cannot be undone.
             </p>
             {formError && (
@@ -1001,7 +1001,7 @@ export default function ProgramDetailPage() {
             ? <div className="h-5 w-48 bg-[#f3f4f6] rounded animate-pulse" />
             : <h1 className="text-[16px] font-bold text-[#111827] font-display truncate">{program?.title ?? 'Programme'}</h1>
           }
-          <p className="text-[13px] text-[#6b7280] font-body mt-0.5">
+          <p className="text-[13px] text-[#4b5563] font-body mt-0.5">
             {activeTab === 'Cohorts' ? 'Cohorts running this programme' : 'General curriculum — modules, lessons & resources'}
           </p>
         </div>
@@ -1018,7 +1018,7 @@ export default function ProgramDetailPage() {
         {(['Cohorts', 'General Curriculum'] as PageTab[]).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             className={`flex items-center gap-1.5 px-4 py-3 text-[13px] font-semibold font-display border-b-2 transition-colors ${
-              activeTab === tab ? 'border-[#d51520] text-[#d51520]' : 'border-transparent text-[#6b7280] hover:text-[#374151]'
+              activeTab === tab ? 'border-[#d51520] text-[#d51520]' : 'border-transparent text-[#4b5563] hover:text-[#374151]'
             }`}>
             {tab === 'Cohorts'            && <BookOpen01Icon size={14} strokeWidth={1.5} />}
             {tab === 'General Curriculum' && <File01Icon     size={14} strokeWidth={1.5} />}
@@ -1039,7 +1039,7 @@ export default function ProgramDetailPage() {
           {/* Left: module list */}
           <div className="w-[300px] flex-shrink-0 bg-white border-r border-[#f3f4f6] overflow-y-auto flex flex-col">
             <div className="px-4 py-3 border-b border-[#f3f4f6]">
-              <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#9ca3af] font-display">
+              <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#4b5563] font-display">
                 {modules.length} Module{modules.length !== 1 ? 's' : ''}
               </p>
             </div>
@@ -1054,7 +1054,7 @@ export default function ProgramDetailPage() {
             ) : modules.length === 0 ? (
               <div className="text-center py-12 px-4">
                 <BookOpen01Icon size={28} color="#e5e7eb" strokeWidth={1.5} className="mx-auto mb-2" />
-                <p className="text-[13px] text-[#6b7280] font-body">No modules yet</p>
+                <p className="text-[13px] text-[#4b5563] font-body">No modules yet</p>
               </div>
             ) : (
               modules.map(m => (

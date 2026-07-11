@@ -21,7 +21,7 @@ interface Pagination { totalElements?: number; total_elements?: number; total?: 
 const COHORT_STATUS_STYLE: Record<string, string> = {
   OPEN:     'bg-[#ecfdf3] text-[#027a48]',
   UPCOMING: 'bg-[#eff6ff] text-[#1d4ed8]',
-  CLOSED:   'bg-[#f3f4f6] text-[#6b7280]',
+  CLOSED:   'bg-[#f3f4f6] text-[#4b5563]',
 }
 
 function formatDate(d?: string) {
@@ -69,7 +69,7 @@ function CreateCohortModal({
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-[#f3f4f6]">
           <h2 className="text-[15px] font-bold text-[#111827] font-display">New Cohort</h2>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f3f4f6]">
-            <Cancel01Icon size={15} color="#6b7280" strokeWidth={1.5} />
+            <Cancel01Icon size={15} color="#4b5563" strokeWidth={1.5} />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="px-6 py-5 flex flex-col gap-4">
@@ -170,7 +170,7 @@ export default function AdminCohortsPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-[24px] font-bold text-[#111827] font-display">Cohorts</h1>
-          <p className="text-[14px] text-[#6b7280] font-body mt-0.5">Browse cohorts by programme</p>
+          <p className="text-[14px] text-[#4b5563] font-body mt-0.5">Browse cohorts by programme</p>
         </div>
         <button onClick={() => setShowCreate(true)}
           className="flex items-center gap-2 h-10 px-4 bg-[#d51520] text-white rounded-[8px] text-[13px] font-semibold font-display hover:bg-[#b81119] transition-colors">
@@ -200,7 +200,7 @@ export default function AdminCohortsPage() {
             <thead>
               <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
                 {['Cohort', 'Status', 'Start Date', 'End Date', 'Students', ''].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6b7280] font-display">
+                  <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display">
                     {h}
                   </th>
                 ))}
@@ -222,7 +222,7 @@ export default function AdminCohortsPage() {
                   <td colSpan={6} className="px-4 py-16 text-center">
                     <PresentationBarChart01Icon size={32} color="#d1d5db" strokeWidth={1.5} className="mx-auto mb-3" />
                     <p className="text-[14px] font-semibold text-[#111827] font-display">No cohorts yet</p>
-                    <p className="text-[13px] text-[#6b7280] font-body mt-1">Create the first cohort for this programme</p>
+                    <p className="text-[13px] text-[#4b5563] font-body mt-1">Create the first cohort for this programme</p>
                   </td>
                 </tr>
               ) : (
@@ -241,15 +241,15 @@ export default function AdminCohortsPage() {
                         : '—'
                       }
                     </td>
-                    <td className="px-4 py-4"><span className="text-[13px] text-[#6b7280] font-body">{formatDate(c.start_date)}</span></td>
-                    <td className="px-4 py-4"><span className="text-[13px] text-[#6b7280] font-body">{formatDate(c.end_date)}</span></td>
+                    <td className="px-4 py-4"><span className="text-[13px] text-[#4b5563] font-body">{formatDate(c.start_date)}</span></td>
+                    <td className="px-4 py-4"><span className="text-[13px] text-[#4b5563] font-body">{formatDate(c.end_date)}</span></td>
                     <td className="px-4 py-4">
                       <span className="text-[13px] font-medium text-[#111827] font-body">
                         {c.enrolled_count ?? 0} / {c.max_students ?? '—'}
                       </span>
                     </td>
                     <td className="px-4 py-4 text-right">
-                      <ArrowRight01Icon size={16} color="#9ca3af" strokeWidth={1.5} />
+                      <ArrowRight01Icon size={16} color="#4b5563" strokeWidth={1.5} />
                     </td>
                   </tr>
                 ))
@@ -259,7 +259,7 @@ export default function AdminCohortsPage() {
         </div>
         {pagination && (pagination.totalPages ?? pagination.total_pages ?? 1) > 1 && (
           <div className="px-4 py-3 flex items-center justify-between border-t border-[#f3f4f6]">
-            <p className="text-[12px] text-[#6b7280] font-body">Page {page} of {pagination.totalPages ?? pagination.total_pages ?? 1}</p>
+            <p className="text-[12px] text-[#4b5563] font-body">Page {page} of {pagination.totalPages ?? pagination.total_pages ?? 1}</p>
             <div className="flex items-center gap-1">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
                 className="h-7 px-3 rounded-[6px] border border-[#e5e7eb] text-[12px] font-body disabled:opacity-40 hover:bg-[#f9fafb]">Prev</button>

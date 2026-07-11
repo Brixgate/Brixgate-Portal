@@ -16,7 +16,7 @@ export default function NewUserDashboard() {
         <h2 className="text-[22px] font-bold text-[#111827] font-display mb-2">
           You&apos;re not enrolled in any programme yet
         </h2>
-        <p className="text-[14px] text-[#6b7280] font-body max-w-[400px] leading-relaxed mb-6">
+        <p className="text-[14px] text-[#4b5563] font-body max-w-[400px] leading-relaxed mb-6">
           Browse Brixgate&apos;s AI programmes and join a cohort to start learning.
           Your dashboard will unlock once you&apos;re enrolled.
         </p>
@@ -50,11 +50,11 @@ export default function NewUserDashboard() {
                 <p className="text-[13px] font-semibold text-[#111827] font-display leading-snug mb-1">
                   {prog.title}
                 </p>
-                <p className="text-[12px] text-[#9ca3af] font-body leading-snug line-clamp-2">
+                <p className="text-[12px] text-[#4b5563] font-body leading-snug line-clamp-2">
                   {prog.subtitle}
                 </p>
                 <div className="mt-3 flex items-center justify-between">
-                  <span className="text-[11px] text-[#6b7280] font-body">{prog.duration}</span>
+                  <span className="text-[11px] text-[#4b5563] font-body">{prog.duration}</span>
                   <Link
                     href="/student/programs"
                     className="text-[12px] font-semibold text-[#d51520] font-display hover:underline"

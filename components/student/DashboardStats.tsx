@@ -54,10 +54,10 @@ function StatCard({
 
       {/* Labels */}
       <div className="flex flex-col gap-0.5">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.05em] text-[#9ca3af] font-display leading-tight">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.05em] text-[#4b5563] font-display leading-tight">
           {label}
         </p>
-        <p className="text-[11px] text-[#6b7280] font-body leading-snug">{sub}</p>
+        <p className="text-[11px] text-[#4b5563] font-body leading-snug">{sub}</p>
       </div>
     </div>
   )

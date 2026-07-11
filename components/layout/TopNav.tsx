@@ -57,11 +57,11 @@ export default function TopNav({ title, breadcrumbs = [] }: TopNavProps) {
       </button>
 
       {/* Breadcrumb — hidden on mobile */}
-      <div className="hidden lg:flex items-center gap-[6px] text-[14px] text-[#6b7280] font-body shrink-0">
+      <div className="hidden lg:flex items-center gap-[6px] text-[14px] text-[#4b5563] font-body shrink-0">
         {crumbPath.map((crumb, i) => (
           <span key={i} className="flex items-center gap-[6px]">
             {i > 0 && <span className="text-[#d1d5db]">/</span>}
-            <span className={i === crumbPath.length - 1 ? 'text-[#6b7280]' : 'text-[#9ca3af]'}>
+            <span className={i === crumbPath.length - 1 ? 'text-[#4b5563]' : 'text-[#4b5563]'}>
               {crumb}
             </span>
           </span>
@@ -81,13 +81,13 @@ export default function TopNav({ title, breadcrumbs = [] }: TopNavProps) {
         <Search01Icon
           className="absolute left-4 top-1/2 -translate-y-1/2"
           size={18}
-          color="#9ca3af"
+          color="#4b5563"
           strokeWidth={1.5}
         />
         <input
           type="text"
           placeholder="Search..."
-          className="w-full h-[44px] pl-[44px] pr-4 bg-[#f9fafb] border border-[#e5e7eb] rounded-[8px] text-[14px] text-[#111827] placeholder:text-[#9ca3af] font-body focus:outline-none focus:border-[#d51520]/30 focus:ring-2 focus:ring-[#d51520]/10 transition-all"
+          className="w-full h-[44px] pl-[44px] pr-4 bg-[#f9fafb] border border-[#e5e7eb] rounded-[8px] text-[14px] text-[#111827] placeholder:text-[#4b5563] font-body focus:outline-none focus:border-[#d51520]/30 focus:ring-2 focus:ring-[#d51520]/10 transition-all"
         />
       </div>
 
@@ -116,7 +116,7 @@ export default function TopNav({ title, breadcrumbs = [] }: TopNavProps) {
               <p className="text-[13px] font-semibold text-[#111827] font-display">
                 {displayName}
               </p>
-              <p className="text-[11px] text-[#9ca3af] font-body truncate mt-0.5">
+              <p className="text-[11px] text-[#4b5563] font-body truncate mt-0.5">
                 {user?.email ?? ''}
               </p>
             </div>
@@ -131,7 +131,7 @@ export default function TopNav({ title, breadcrumbs = [] }: TopNavProps) {
                 onClick={() => setShowProfileMenu(false)}
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] font-medium text-[#374151] font-body hover:bg-[#f9fafb] transition-colors text-left"
               >
-                <Home01Icon size={15} color="#6b7280" strokeWidth={1.5} />
+                <Home01Icon size={15} color="#4b5563" strokeWidth={1.5} />
                 Back to Website
               </a>
 
@@ -144,7 +144,7 @@ export default function TopNav({ title, breadcrumbs = [] }: TopNavProps) {
                   }}
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] font-medium text-[#374151] font-body hover:bg-[#f9fafb] transition-colors text-left"
                 >
-                  <Icon size={15} color="#6b7280" strokeWidth={1.5} />
+                  <Icon size={15} color="#4b5563" strokeWidth={1.5} />
                   {label}
                 </button>
               ))}

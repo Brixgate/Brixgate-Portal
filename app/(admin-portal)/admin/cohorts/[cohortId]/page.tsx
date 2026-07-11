@@ -254,7 +254,7 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
             <p className="text-[13px] font-semibold text-[#111827] font-display">
               {loading ? '…' : `${selectedModuleIds.size} module${selectedModuleIds.size !== 1 ? 's' : ''} assigned to this cohort`}
             </p>
-            <p className="text-[12px] text-[#9ca3af] font-body mt-0.5">Click &ldquo;Edit Curriculum&rdquo; to change assignments</p>
+            <p className="text-[12px] text-[#4b5563] font-body mt-0.5">Click &ldquo;Edit Curriculum&rdquo; to change assignments</p>
           </div>
           {success && (
             <p className="flex items-center gap-1.5 text-[12px] text-[#027a48] font-body mr-3">
@@ -281,7 +281,7 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
                 <BookOpen01Icon size={28} color="#d1d5db" strokeWidth={1.5} />
               </div>
               <p className="text-[14px] font-semibold text-[#111827] font-display mb-1">No modules assigned</p>
-              <p className="text-[13px] text-[#6b7280] font-body max-w-[280px]">
+              <p className="text-[13px] text-[#4b5563] font-body max-w-[280px]">
                 Click &ldquo;Edit Curriculum&rdquo; to assign modules from the programme pool
               </p>
               <button onClick={() => setMode('edit')}
@@ -300,14 +300,14 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
                   <button onClick={() => setExpandedId(isOpen ? null : m.id)}
                     className="w-full flex items-center gap-3 px-6 py-4 hover:bg-[#f9fafb] transition-colors text-left">
                     {isOpen
-                      ? <ArrowDown01Icon  size={14} color="#9ca3af" strokeWidth={2} className="flex-shrink-0" />
-                      : <ArrowRight01Icon size={14} color="#9ca3af" strokeWidth={2} className="flex-shrink-0" />}
+                      ? <ArrowDown01Icon  size={14} color="#4b5563" strokeWidth={2} className="flex-shrink-0" />
+                      : <ArrowRight01Icon size={14} color="#4b5563" strokeWidth={2} className="flex-shrink-0" />}
                     <div className="w-6 h-6 rounded-full bg-[#fef2f2] flex items-center justify-center flex-shrink-0">
                       <span className="text-[10px] font-bold text-[#d51520] font-display">{idx + 1}</span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] font-semibold text-[#111827] font-display truncate">{m.title}</p>
-                      {m.description && <p className="text-[11px] text-[#9ca3af] font-body mt-0.5 truncate">{m.description}</p>}
+                      {m.description && <p className="text-[11px] text-[#4b5563] font-body mt-0.5 truncate">{m.description}</p>}
                     </div>
                     <div className="flex items-center gap-3 flex-shrink-0">
                       {m.status && (
@@ -315,20 +315,20 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
                           m.status === 'PUBLISHED' ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#fffbeb] text-[#b45309]'
                         }`}>{m.status}</span>
                       )}
-                      <span className="text-[11px] text-[#9ca3af] font-body">{lessons.length}L · {resources.length}R</span>
+                      <span className="text-[11px] text-[#4b5563] font-body">{lessons.length}L · {resources.length}R</span>
                     </div>
                   </button>
                   {isOpen && (
                     <div className="px-6 pb-4 pt-1 bg-[#fafafa] border-t border-[#f3f4f6]">
                       {lessons.length > 0 && (
                         <div className="mb-3">
-                          <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[#9ca3af] font-display mb-1.5 pl-9">Lessons</p>
+                          <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[#4b5563] font-display mb-1.5 pl-9">Lessons</p>
                           <div className="flex flex-col gap-0.5 pl-9">
                             {lessons.map(l => (
                               <div key={l.id} className="flex items-center gap-2 py-1.5">
-                                <VideoReplayIcon size={12} color="#9ca3af" strokeWidth={1.5} className="flex-shrink-0" />
+                                <VideoReplayIcon size={12} color="#4b5563" strokeWidth={1.5} className="flex-shrink-0" />
                                 <span className="text-[12px] font-medium text-[#374151] font-body flex-1 truncate">{l.title}</span>
-                                <span className="text-[10px] text-[#9ca3af] font-body flex-shrink-0">{l.content_type}{l.duration ? ` · ${l.duration}min` : ''}</span>
+                                <span className="text-[10px] text-[#4b5563] font-body flex-shrink-0">{l.content_type}{l.duration ? ` · ${l.duration}min` : ''}</span>
                               </div>
                             ))}
                           </div>
@@ -336,11 +336,11 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
                       )}
                       {resources.length > 0 && (
                         <div>
-                          <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[#9ca3af] font-display mb-1.5 pl-9">Resources</p>
+                          <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[#4b5563] font-display mb-1.5 pl-9">Resources</p>
                           <div className="flex flex-col gap-0.5 pl-9">
                             {resources.map(r => (
                               <div key={r.id} className="flex items-center gap-2 py-1.5">
-                                <File01Icon size={12} color="#9ca3af" strokeWidth={1.5} className="flex-shrink-0" />
+                                <File01Icon size={12} color="#4b5563" strokeWidth={1.5} className="flex-shrink-0" />
                                 <span className="text-[12px] font-medium text-[#374151] font-body flex-1 truncate">{r.title}</span>
                                 <ResourceTypeChip type={r.type} />
                               </div>
@@ -349,7 +349,7 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
                         </div>
                       )}
                       {lessons.length === 0 && resources.length === 0 && (
-                        <p className="text-[12px] text-[#9ca3af] font-body pl-9 py-1">No lessons or resources added yet</p>
+                        <p className="text-[12px] text-[#4b5563] font-body pl-9 py-1">No lessons or resources added yet</p>
                       )}
                     </div>
                   )}
@@ -372,14 +372,14 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
         <div className="px-6 py-4 border-b border-[#f3f4f6] flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-3">
             <button onClick={() => setEditingModule(null)}
-              className="flex items-center gap-1.5 text-[12px] font-medium text-[#6b7280] font-body hover:text-[#374151] transition-colors">
+              className="flex items-center gap-1.5 text-[12px] font-medium text-[#4b5563] font-body hover:text-[#374151] transition-colors">
               <ArrowLeft01Icon size={14} color="currentColor" strokeWidth={2} />
               Back to modules
             </button>
             <div className="w-px h-4 bg-[#e5e7eb]" />
             <div>
               <p className="text-[13px] font-semibold text-[#111827] font-display">{editingModule.title}</p>
-              <p className="text-[11px] text-[#9ca3af] font-body">Select lessons to include in this cohort</p>
+              <p className="text-[11px] text-[#4b5563] font-body">Select lessons to include in this cohort</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -410,11 +410,11 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
           ) : (
             <>
               {/* Programme lessons */}
-              <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#9ca3af] font-display mb-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#4b5563] font-display mb-3">
                 Lessons from programme ({fetchedLessons.length})
               </p>
               {fetchedLessons.length === 0 ? (
-                <p className="text-[13px] text-[#9ca3af] font-body mb-6">No lessons found in this module</p>
+                <p className="text-[13px] text-[#4b5563] font-body mb-6">No lessons found in this module</p>
               ) : (
                 <div className="flex flex-col gap-2 mb-6">
                   {fetchedLessons.map(lesson => {
@@ -436,7 +436,7 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
                         <VideoReplayIcon size={13} color={checked ? '#d51520' : '#9ca3af'} strokeWidth={1.5} className="flex-shrink-0" />
                         <div className="flex-1 min-w-0">
                           <p className={`text-[13px] font-semibold font-display ${checked ? 'text-[#d51520]' : 'text-[#111827]'}`}>{lesson.title}</p>
-                          <p className="text-[11px] text-[#9ca3af] font-body">{lesson.content_type}{lesson.duration ? ` · ${lesson.duration}min` : ''}</p>
+                          <p className="text-[11px] text-[#4b5563] font-body">{lesson.content_type}{lesson.duration ? ` · ${lesson.duration}min` : ''}</p>
                         </div>
                         {checked
                           ? <CheckmarkCircle01Icon size={14} color="#d51520" strokeWidth={1.5} className="flex-shrink-0" />
@@ -450,7 +450,7 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
               {/* Custom lessons */}
               {customs.length > 0 && (
                 <div className="mb-6">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#9ca3af] font-display mb-3">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#4b5563] font-display mb-3">
                     Custom lessons ({customs.length})
                   </p>
                   <div className="flex flex-col gap-2">
@@ -471,7 +471,7 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
 
               {/* Add custom lesson */}
               <div className="border-t border-[#f3f4f6] pt-5">
-                <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#9ca3af] font-display mb-3">Add custom lesson</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#4b5563] font-display mb-3">Add custom lesson</p>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -479,7 +479,7 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
                     onChange={e => setNewLessonTitle(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustomLesson() } }}
                     placeholder="Lesson title…"
-                    className="flex-1 h-9 px-3 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body text-[#111827] placeholder:text-[#9ca3af] focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 outline-none transition-all"
+                    className="flex-1 h-9 px-3 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body text-[#111827] placeholder:text-[#4b5563] focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 outline-none transition-all"
                   />
                   <button onClick={addCustomLesson} disabled={!newLessonTitle.trim()}
                     className="h-9 px-4 rounded-[8px] bg-[#d51520] text-[12px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-50 transition-colors flex-shrink-0">
@@ -501,10 +501,10 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
       <div className="w-[300px] flex-shrink-0 border-r border-[#f3f4f6] flex flex-col bg-[#f9fafb]">
         <div className="px-5 py-4 border-b border-[#f3f4f6] bg-white">
           <div className="flex items-center gap-2">
-            <DatabaseIcon size={14} color="#6b7280" strokeWidth={1.5} />
-            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#6b7280] font-display">Programme Pool</p>
+            <DatabaseIcon size={14} color="#4b5563" strokeWidth={1.5} />
+            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#4b5563] font-display">Programme Pool</p>
           </div>
-          <p className="text-[12px] text-[#9ca3af] font-body mt-0.5">
+          <p className="text-[12px] text-[#4b5563] font-body mt-0.5">
             {programId ? `All modules (${allModules.length}) — click to select` : 'No programme linked to this cohort'}
           </p>
         </div>
@@ -521,11 +521,11 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
             ))
           ) : !programId ? (
             <div className="text-center py-12 px-4">
-              <p className="text-[13px] text-[#9ca3af] font-body">Link a programme to this cohort to see the module pool</p>
+              <p className="text-[13px] text-[#4b5563] font-body">Link a programme to this cohort to see the module pool</p>
             </div>
           ) : allModules.length === 0 ? (
             <div className="text-center py-12 px-4">
-              <p className="text-[13px] text-[#9ca3af] font-body">No modules in programme</p>
+              <p className="text-[13px] text-[#4b5563] font-body">No modules in programme</p>
             </div>
           ) : (
             allModules.map(m => (
@@ -546,7 +546,7 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className={`text-[13px] font-semibold font-display leading-tight ${selectedModuleIds.has(m.id) ? 'text-[#d51520]' : 'text-[#111827]'}`}>{m.title}</p>
-                  {m.description && <p className="text-[11px] text-[#9ca3af] font-body mt-0.5 truncate">{m.description}</p>}
+                  {m.description && <p className="text-[11px] text-[#4b5563] font-body mt-0.5 truncate">{m.description}</p>}
                 </div>
               </div>
             ))
@@ -562,7 +562,7 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
               <BookOpen01Icon size={14} color="#d51520" strokeWidth={1.5} />
               <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#d51520] font-display">Cohort Curriculum</p>
             </div>
-            <p className="text-[12px] text-[#9ca3af] font-body mt-0.5">
+            <p className="text-[12px] text-[#4b5563] font-body mt-0.5">
               {selectedModuleIds.size} of {allModules.length} modules selected — click a module to configure its lessons
             </p>
           </div>
@@ -590,7 +590,7 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
                 <BookOpen01Icon size={24} color="#d1d5db" strokeWidth={1.5} />
               </div>
               <p className="text-[14px] font-semibold text-[#111827] font-display mb-1">No modules selected</p>
-              <p className="text-[13px] text-[#6b7280] font-body max-w-[280px]">Select modules from the programme pool on the left</p>
+              <p className="text-[13px] text-[#4b5563] font-body max-w-[280px]">Select modules from the programme pool on the left</p>
             </div>
           ) : (
             <div className="flex flex-col gap-2">
@@ -606,7 +606,7 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] font-semibold text-[#d51520] font-display truncate">{m.title}</p>
-                      <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">
+                      <p className="text-[11px] text-[#4b5563] font-body mt-0.5">
                         {configuredCount !== null
                           ? `${configuredCount + customCount} lesson${configuredCount + customCount !== 1 ? 's' : ''} selected`
                           : programCount > 0
@@ -695,7 +695,7 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
   const COMP_STYLE: Record<string, string> = {
     'COMPLETED':    'bg-[#ecfdf3] text-[#027a48]',
     'IN PROGRESS':  'bg-[#eff6ff] text-[#1d4ed8]',
-    'NOT STARTED':  'bg-[#f3f4f6] text-[#6b7280]',
+    'NOT STARTED':  'bg-[#f3f4f6] text-[#4b5563]',
   }
   const STATUS_STYLE: Record<string, string> = {
     ENROLLED:   'bg-[#ecfdf3] text-[#027a48]',
@@ -731,7 +731,7 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
             <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
               {['Name', 'Email', 'Role', 'Plan', 'Seats', 'Status', 'Progress', 'Joined'].map(h => (
                 <th key={h}
-                  className={`px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6b7280] font-display ${
+                  className={`px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display ${
                     h === 'Seats' ? 'text-center' : 'text-left'
                   }`}>
                   {h}
@@ -742,7 +742,7 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-12 text-center text-[13px] text-[#9ca3af] font-body">
+                <td colSpan={8} className="px-4 py-12 text-center text-[13px] text-[#4b5563] font-body">
                   No people in this cohort yet
                 </td>
               </tr>
@@ -757,14 +757,14 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
                 <td className="px-4 py-3.5">
                   <p className="text-[13px] font-semibold text-[#111827] font-display">{r.name}</p>
                   {r.organizationName && (
-                    <p className="text-[11px] text-[#9ca3af] font-body mt-0.5 flex items-center gap-1">
-                      <Building01Icon size={10} color="#9ca3af" strokeWidth={1.5} />
+                    <p className="text-[11px] text-[#4b5563] font-body mt-0.5 flex items-center gap-1">
+                      <Building01Icon size={10} color="#4b5563" strokeWidth={1.5} />
                       {r.organizationName}
                     </p>
                   )}
                 </td>
                 <td className="px-4 py-3.5">
-                  <p className="text-[12px] text-[#6b7280] font-body">{r.email}</p>
+                  <p className="text-[12px] text-[#4b5563] font-body">{r.email}</p>
                 </td>
                 <td className="px-4 py-3.5">
                   {r.role
@@ -776,7 +776,7 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
                 </td>
                 <td className="px-4 py-3.5">
                   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display ${
-                    isTeam(r.enrollmentType) ? 'bg-[#fffbeb] text-[#b45309]' : 'bg-[#f3f4f6] text-[#6b7280]'
+                    isTeam(r.enrollmentType) ? 'bg-[#fffbeb] text-[#b45309]' : 'bg-[#f3f4f6] text-[#4b5563]'
                   }`}>
                     {r.enrollmentType}
                   </span>
@@ -786,7 +786,7 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
                 </td>
                 <td className="px-4 py-3.5">
                   {r.enrollmentStatus !== '—'
-                    ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display ${STATUS_STYLE[r.enrollmentStatus.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#6b7280]'}`}>
+                    ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display ${STATUS_STYLE[r.enrollmentStatus.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#4b5563]'}`}>
                         {r.enrollmentStatus}
                       </span>
                     : <span className="text-[12px] text-[#d1d5db] font-body">—</span>
@@ -794,14 +794,14 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
                 </td>
                 <td className="px-4 py-3.5">
                   {r.completionStatus !== '—'
-                    ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display ${COMP_STYLE[r.completionStatus.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#6b7280]'}`}>
+                    ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display ${COMP_STYLE[r.completionStatus.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#4b5563]'}`}>
                         {r.completionStatus}
                       </span>
                     : <span className="text-[12px] text-[#d1d5db] font-body">—</span>
                   }
                 </td>
                 <td className="px-4 py-3.5">
-                  <p className="text-[12px] text-[#9ca3af] font-body whitespace-nowrap">{r.joinedAt}</p>
+                  <p className="text-[12px] text-[#4b5563] font-body whitespace-nowrap">{r.joinedAt}</p>
                 </td>
               </tr>
             ))}
@@ -837,7 +837,7 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
                     <h3 className="text-[16px] font-bold text-[#111827] font-display leading-tight">
                       {selectedPerson.name}
                     </h3>
-                    <p className="text-[13px] text-[#6b7280] font-body mt-0.5 break-all">
+                    <p className="text-[13px] text-[#4b5563] font-body mt-0.5 break-all">
                       {selectedPerson.email}
                     </p>
                     {selectedPerson.role && (
@@ -853,7 +853,7 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
                   onClick={() => setSelectedPerson(null)}
                   className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f3f4f6] transition-colors flex-shrink-0 mt-0.5"
                 >
-                  <Cancel01Icon size={16} color="#6b7280" strokeWidth={1.5} />
+                  <Cancel01Icon size={16} color="#4b5563" strokeWidth={1.5} />
                 </button>
               </div>
             </div>
@@ -863,23 +863,23 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
 
               {/* Enrollment details */}
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#9ca3af] font-display mb-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#4b5563] font-display mb-3">
                   Enrollment Details
                 </p>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-4">
                   <div>
-                    <p className="text-[11px] text-[#9ca3af] font-body mb-0.5">Plan Type</p>
+                    <p className="text-[11px] text-[#4b5563] font-body mb-0.5">Plan Type</p>
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold font-display ${
-                      isTeam(selectedPerson.enrollmentType) ? 'bg-[#fffbeb] text-[#b45309]' : 'bg-[#f3f4f6] text-[#6b7280]'
+                      isTeam(selectedPerson.enrollmentType) ? 'bg-[#fffbeb] text-[#b45309]' : 'bg-[#f3f4f6] text-[#4b5563]'
                     }`}>
                       {selectedPerson.enrollmentType}
                     </span>
                   </div>
                   <div>
-                    <p className="text-[11px] text-[#9ca3af] font-body mb-0.5">Enrollment Status</p>
+                    <p className="text-[11px] text-[#4b5563] font-body mb-0.5">Enrollment Status</p>
                     {selectedPerson.enrollmentStatus !== '—'
                       ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold font-display ${
-                          STATUS_STYLE[selectedPerson.enrollmentStatus.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#6b7280]'
+                          STATUS_STYLE[selectedPerson.enrollmentStatus.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#4b5563]'
                         }`}>
                           {selectedPerson.enrollmentStatus}
                         </span>
@@ -887,10 +887,10 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
                     }
                   </div>
                   <div>
-                    <p className="text-[11px] text-[#9ca3af] font-body mb-0.5">Completion</p>
+                    <p className="text-[11px] text-[#4b5563] font-body mb-0.5">Completion</p>
                     {selectedPerson.completionStatus !== '—'
                       ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold font-display ${
-                          COMP_STYLE[selectedPerson.completionStatus.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#6b7280]'
+                          COMP_STYLE[selectedPerson.completionStatus.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#4b5563]'
                         }`}>
                           {selectedPerson.completionStatus}
                         </span>
@@ -898,12 +898,12 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
                     }
                   </div>
                   <div>
-                    <p className="text-[11px] text-[#9ca3af] font-body mb-0.5">Date Joined</p>
+                    <p className="text-[11px] text-[#4b5563] font-body mb-0.5">Date Joined</p>
                     <p className="text-[13px] font-medium text-[#374151] font-body">{selectedPerson.joinedAt}</p>
                   </div>
                   {(selectedPerson.seatsPurchased !== null) && (
                     <div className="col-span-2">
-                      <p className="text-[11px] text-[#9ca3af] font-body mb-0.5">Seats</p>
+                      <p className="text-[11px] text-[#4b5563] font-body mb-0.5">Seats</p>
                       <p className="text-[13px] font-medium text-[#374151] font-body">
                         {selectedPerson.seatsPurchased} purchased
                         {selectedPerson.seatsUsed !== null && ` · ${selectedPerson.seatsUsed} used`}
@@ -918,8 +918,8 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
                 <div>
                   <div className="h-px bg-[#f3f4f6] -mx-6 mb-5" />
                   <div className="flex items-center gap-2 mb-3">
-                    <Building01Icon size={14} color="#6b7280" strokeWidth={1.5} />
-                    <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#9ca3af] font-display">
+                    <Building01Icon size={14} color="#4b5563" strokeWidth={1.5} />
+                    <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#4b5563] font-display">
                       Organisation
                     </p>
                   </div>
@@ -934,7 +934,7 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
                   </div>
 
                   {/* Team members list */}
-                  <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#9ca3af] font-display mb-2">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#4b5563] font-display mb-2">
                     Team Members ({teammates.length})
                   </p>
                   <div className="flex flex-col gap-1">
@@ -964,12 +964,12 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
                               </span>
                             )}
                           </p>
-                          <p className="text-[11px] text-[#9ca3af] font-body truncate">{t.email}</p>
+                          <p className="text-[11px] text-[#4b5563] font-body truncate">{t.email}</p>
                         </div>
                         <span className={`flex-shrink-0 text-[9px] font-bold font-display px-1.5 py-0.5 rounded-[4px] uppercase tracking-wide ${
                           isTeam(t.enrollmentType) && t.enrollmentType !== 'TEAM MEMBER' && t.enrollmentType !== 'TEAM_MEMBER'
                             ? 'bg-[#fffbeb] text-[#b45309]'
-                            : 'bg-[#f3f4f6] text-[#6b7280]'
+                            : 'bg-[#f3f4f6] text-[#4b5563]'
                         }`}>
                           {t.enrollmentType === 'TEAM' ? 'Lead' : 'Member'}
                         </span>
@@ -1011,13 +1011,13 @@ function ReviewsTab({ cohortId }: { cohortId: string }) {
         <thead>
           <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
             {['Reviewer', 'Rating', 'Comment', 'Date'].map(h => (
-              <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6b7280] font-display">{h}</th>
+              <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display">{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {reviews.length === 0 ? (
-            <tr><td colSpan={4} className="px-4 py-12 text-center text-[13px] text-[#9ca3af] font-body">No reviews yet</td></tr>
+            <tr><td colSpan={4} className="px-4 py-12 text-center text-[13px] text-[#4b5563] font-body">No reviews yet</td></tr>
           ) : reviews.map(r => (
             <tr key={r.id} className="border-b border-[#f3f4f6] hover:bg-[#fafafa]">
               <td className="px-4 py-3.5"><p className="text-[13px] font-medium text-[#111827] font-body">{r.is_anonymous ? 'Anonymous' : userName(r.user)}</p></td>
@@ -1028,8 +1028,8 @@ function ReviewsTab({ cohortId }: { cohortId: string }) {
                   ))}
                 </div>
               </td>
-              <td className="px-4 py-3.5 max-w-[300px]"><p className="text-[12px] text-[#6b7280] font-body line-clamp-2">{r.comment ?? '—'}</p></td>
-              <td className="px-4 py-3.5"><p className="text-[12px] text-[#9ca3af] font-body">{formatDate(r.created_at)}</p></td>
+              <td className="px-4 py-3.5 max-w-[300px]"><p className="text-[12px] text-[#4b5563] font-body line-clamp-2">{r.comment ?? '—'}</p></td>
+              <td className="px-4 py-3.5"><p className="text-[12px] text-[#4b5563] font-body">{formatDate(r.created_at)}</p></td>
             </tr>
           ))}
         </tbody>
@@ -1043,7 +1043,7 @@ const TABS = ['Curriculum', 'People', 'Reviews'] as const
 type Tab = typeof TABS[number]
 
 const STATUS_STYLE: Record<string, string> = {
-  OPEN: 'bg-[#ecfdf3] text-[#027a48]', UPCOMING: 'bg-[#eff6ff] text-[#1d4ed8]', CLOSED: 'bg-[#f3f4f6] text-[#6b7280]',
+  OPEN: 'bg-[#ecfdf3] text-[#027a48]', UPCOMING: 'bg-[#eff6ff] text-[#1d4ed8]', CLOSED: 'bg-[#f3f4f6] text-[#4b5563]',
 }
 
 export default function CohortDetailPage() {
@@ -1121,7 +1121,7 @@ export default function CohortDetailPage() {
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <div className="flex flex-col min-w-0">
                 {cohort?.program && (
-                  <p className="text-[11px] text-[#9ca3af] font-body truncate">{cohort.program.title}</p>
+                  <p className="text-[11px] text-[#4b5563] font-body truncate">{cohort.program.title}</p>
                 )}
                 <h1 className="text-[16px] font-bold text-[#111827] font-display truncate">{cohort?.title ?? 'Cohort'}</h1>
               </div>
@@ -1134,7 +1134,7 @@ export default function CohortDetailPage() {
           )
         }
         {cohort && (
-          <div className="flex items-center gap-4 text-[12px] text-[#9ca3af] font-body ml-auto flex-shrink-0">
+          <div className="flex items-center gap-4 text-[12px] text-[#4b5563] font-body ml-auto flex-shrink-0">
             <span>Start: <span className="text-[#374151] font-medium">{formatDate(cohort.start_date ?? cohort.startDate)}</span></span>
             <span>End: <span className="text-[#374151] font-medium">{formatDate(cohort.end_date ?? cohort.endDate)}</span></span>
           </div>
@@ -1146,7 +1146,7 @@ export default function CohortDetailPage() {
         {TABS.map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             className={`flex items-center gap-1.5 px-4 py-3 text-[13px] font-semibold font-display border-b-2 transition-colors ${
-              activeTab === tab ? 'border-[#d51520] text-[#d51520]' : 'border-transparent text-[#6b7280] hover:text-[#374151]'
+              activeTab === tab ? 'border-[#d51520] text-[#d51520]' : 'border-transparent text-[#4b5563] hover:text-[#374151]'
             }`}>
             {tab === 'Curriculum' && <BookOpen01Icon  size={14} strokeWidth={1.5} />}
             {tab === 'People'     && <UserGroup02Icon size={14} strokeWidth={1.5} />}

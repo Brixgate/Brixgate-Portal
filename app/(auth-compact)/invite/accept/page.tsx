@@ -274,7 +274,7 @@ function InviteAcceptContent() {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-3 px-10 py-10">
         <Loading01Icon size={22} className="animate-spin text-[#D51520]" strokeWidth={1.5} />
-        <p className="text-[13px] text-[#6b7280] font-body">Validating your invite…</p>
+        <p className="text-[13px] text-[#4b5563] font-body">Validating your invite…</p>
       </div>
     )
   }
@@ -300,7 +300,7 @@ function InviteAcceptContent() {
           <h1 className="text-[24px] font-semibold text-[#111827] font-display mb-2">
             Invite link invalid
           </h1>
-          <p className="text-[14px] text-[#6b7280] font-body leading-[1.6] mb-6 max-w-[320px] mx-auto">
+          <p className="text-[14px] text-[#4b5563] font-body leading-[1.6] mb-6 max-w-[320px] mx-auto">
             {tokenError}
           </p>
           <Link
@@ -325,7 +325,7 @@ function InviteAcceptContent() {
         <h1 className="text-[22px] font-semibold text-[#111827] font-display text-center">
           Account created!
         </h1>
-        <p className="text-[13px] text-[#6b7280] font-body text-center">
+        <p className="text-[13px] text-[#4b5563] font-body text-center">
           Welcome to the team. Redirecting you to log in…
         </p>
       </div>
@@ -345,7 +345,7 @@ function InviteAcceptContent() {
         <h1 className="text-[22px] font-semibold text-[#111827] font-display text-center">
           Invitation declined
         </h1>
-        <p className="text-[13px] text-[#6b7280] font-body text-center max-w-[280px] leading-[1.6]">
+        <p className="text-[13px] text-[#4b5563] font-body text-center max-w-[280px] leading-[1.6]">
           You&apos;ve declined this invite. If this was a mistake, ask your team lead to send a new invitation.
         </p>
         <Link
@@ -399,7 +399,7 @@ function InviteAcceptContent() {
                   {inviteData?.organization.name ?? 'a team'}
                 </span>
               </h1>
-              <p className="text-[13px] text-[#6b7280] font-body leading-[1.6] mb-5">
+              <p className="text-[13px] text-[#4b5563] font-body leading-[1.6] mb-5">
                 Accept this invitation to access your programme and connect with your team on Brixgate.
               </p>
 

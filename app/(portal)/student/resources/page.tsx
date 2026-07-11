@@ -138,7 +138,7 @@ function ResourceRow({ resource }: { resource: Resource }) {
             </span>
           )}
         </div>
-        <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">
+        <p className="text-[11px] text-[#4b5563] font-body mt-0.5">
           {resource.fileType.toUpperCase()}
           {uploadedDate ? ` · Uploaded ${uploadedDate}` : ''}
         </p>
@@ -183,14 +183,14 @@ function CohortSwitcher({
             {selected.label}
           </p>
           {selected.cohortLabel && (
-            <p className="text-[10px] text-[#9ca3af] font-body mt-0.5 leading-none">
+            <p className="text-[10px] text-[#4b5563] font-body mt-0.5 leading-none">
               {selected.cohortLabel}
             </p>
           )}
         </div>
         <ArrowDown01Icon
           size={13}
-          color="#6b7280"
+          color="#4b5563"
           strokeWidth={1.5}
           className={`flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
         />
@@ -219,7 +219,7 @@ function CohortSwitcher({
                       {c.label}
                     </p>
                     {c.cohortLabel && (
-                      <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">{c.cohortLabel}</p>
+                      <p className="text-[11px] text-[#4b5563] font-body mt-0.5">{c.cohortLabel}</p>
                     )}
                   </div>
                   {isSelected && (
@@ -336,7 +336,7 @@ export default function ResourcesPage() {
             <h1 className="text-[24px] font-bold text-[#111827] font-display leading-tight">
               Resources
             </h1>
-            <p className="text-[14px] text-[#6b7280] font-body mt-1">
+            <p className="text-[14px] text-[#4b5563] font-body mt-1">
               Session slides, guides, and materials for your cohort.
             </p>
           </div>
@@ -351,7 +351,7 @@ export default function ResourcesPage() {
               />
             )}
             {!loading && !error && (
-              <p className="text-[13px] text-[#6b7280] font-body">
+              <p className="text-[13px] text-[#4b5563] font-body">
                 {totalCount} file{totalCount !== 1 ? 's' : ''}
               </p>
             )}
@@ -360,7 +360,7 @@ export default function ResourcesPage() {
 
         {/* Loading */}
         {loading && (
-          <div className="flex items-center justify-center py-16 gap-2 text-[#9ca3af]">
+          <div className="flex items-center justify-center py-16 gap-2 text-[#4b5563]">
             <Loading01Icon size={18} className="animate-spin" strokeWidth={1.5} />
             <span className="text-[13px] font-body">Loading resources…</span>
           </div>
@@ -398,14 +398,14 @@ export default function ResourcesPage() {
                     'px-4 h-8 rounded-full text-[13px] font-medium transition-colors disabled:opacity-60',
                     activeFilter === label
                       ? 'bg-[#d51520] text-white font-display'
-                      : 'bg-white border border-[#e5e7eb] text-[#6b7280] font-body hover:bg-[#f9fafb]'
+                      : 'bg-white border border-[#e5e7eb] text-[#4b5563] font-body hover:bg-[#f9fafb]'
                   )}
                 >
                   {label}
                 </button>
               ))}
               {filtering && (
-                <Loading01Icon size={14} className="animate-spin text-[#9ca3af]" strokeWidth={1.5} />
+                <Loading01Icon size={14} className="animate-spin text-[#4b5563]" strokeWidth={1.5} />
               )}
             </div>
 
@@ -433,10 +433,10 @@ export default function ResourcesPage() {
                             {week > 0 ? `Week ${week}` : 'General'}
                           </p>
                           {title && title !== `Week ${week}` && (
-                            <p className="text-[12px] text-[#9ca3af] font-body mt-0.5">{title}</p>
+                            <p className="text-[12px] text-[#4b5563] font-body mt-0.5">{title}</p>
                           )}
                         </div>
-                        <span className="text-[11px] text-[#9ca3af] font-body">
+                        <span className="text-[11px] text-[#4b5563] font-body">
                           {items.length} file{items.length !== 1 ? 's' : ''}
                         </span>
                       </div>

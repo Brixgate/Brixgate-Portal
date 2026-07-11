@@ -99,7 +99,7 @@ function TutorDetailPanel({ expert, onClose }: { expert: Expert; onClose: () => 
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#f3f4f6] flex-shrink-0">
           <h2 className="text-[15px] font-bold text-[#111827] font-display">Tutor Profile</h2>
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f3f4f6] transition-colors">
-            <Cancel01Icon size={16} color="#6b7280" strokeWidth={1.5} />
+            <Cancel01Icon size={16} color="#4b5563" strokeWidth={1.5} />
           </button>
         </div>
 
@@ -117,11 +117,11 @@ function TutorDetailPanel({ expert, onClose }: { expert: Expert; onClose: () => 
               }
               <div className="flex-1 min-w-0 pt-1">
                 <p className="text-[17px] font-bold text-[#111827] font-display leading-tight">{name}</p>
-                {occupation && <p className="text-[13px] text-[#6b7280] font-body mt-0.5">{occupation}</p>}
+                {occupation && <p className="text-[13px] text-[#4b5563] font-body mt-0.5">{occupation}</p>}
                 {spec && <p className="text-[12px] text-[#d51520] font-body mt-1">{spec}</p>}
                 {expert.status && (
                   <span className={`inline-flex items-center mt-2 px-2.5 py-0.5 rounded-full text-[11px] font-semibold font-display ${
-                    expert.status.toUpperCase() === 'ACTIVE' ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#f3f4f6] text-[#6b7280]'
+                    expert.status.toUpperCase() === 'ACTIVE' ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#f3f4f6] text-[#4b5563]'
                   }`}>{expert.status}</span>
                 )}
               </div>
@@ -132,7 +132,7 @@ function TutorDetailPanel({ expert, onClose }: { expert: Expert; onClose: () => 
 
             {/* Contact */}
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9ca3af] font-display mb-3">Contact</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#4b5563] font-display mb-3">Contact</p>
               <div className="space-y-2.5">
                 {expert.email && (
                   <div className="flex items-center gap-3">
@@ -199,34 +199,34 @@ function TutorDetailPanel({ expert, onClose }: { expert: Expert; onClose: () => 
             {/* Professional */}
             <div className="h-px bg-[#f3f4f6]" />
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9ca3af] font-display mb-3">Professional</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#4b5563] font-display mb-3">Professional</p>
               <div className="space-y-2.5">
                 {spec && (
                   <div className="flex justify-between gap-4">
-                    <p className="text-[12px] text-[#9ca3af] font-body flex-shrink-0">Expertise</p>
+                    <p className="text-[12px] text-[#4b5563] font-body flex-shrink-0">Expertise</p>
                     <p className="text-[13px] font-medium text-[#111827] font-body text-right">{spec}</p>
                   </div>
                 )}
                 {occupation && (
                   <div className="flex justify-between gap-4">
-                    <p className="text-[12px] text-[#9ca3af] font-body flex-shrink-0">Occupation</p>
+                    <p className="text-[12px] text-[#4b5563] font-body flex-shrink-0">Occupation</p>
                     <p className="text-[13px] font-medium text-[#111827] font-body text-right">{occupation}</p>
                   </div>
                 )}
                 {org && (
                   <div className="flex justify-between gap-4">
-                    <p className="text-[12px] text-[#9ca3af] font-body flex-shrink-0">Organisation</p>
+                    <p className="text-[12px] text-[#4b5563] font-body flex-shrink-0">Organisation</p>
                     <p className="text-[13px] font-medium text-[#111827] font-body text-right">{org}</p>
                   </div>
                 )}
                 {yoe != null && (
                   <div className="flex justify-between gap-4">
-                    <p className="text-[12px] text-[#9ca3af] font-body flex-shrink-0">Experience</p>
+                    <p className="text-[12px] text-[#4b5563] font-body flex-shrink-0">Experience</p>
                     <p className="text-[13px] font-medium text-[#111827] font-body text-right">{yoe} year{yoe !== 1 ? 's' : ''}</p>
                   </div>
                 )}
                 <div className="flex justify-between gap-4">
-                  <p className="text-[12px] text-[#9ca3af] font-body flex-shrink-0">Date Added</p>
+                  <p className="text-[12px] text-[#4b5563] font-body flex-shrink-0">Date Added</p>
                   <p className="text-[13px] font-medium text-[#111827] font-body text-right">{formatDate(expert.createdAt ?? expert.created_at)}</p>
                 </div>
               </div>
@@ -237,7 +237,7 @@ function TutorDetailPanel({ expert, onClose }: { expert: Expert; onClose: () => 
               <>
                 <div className="h-px bg-[#f3f4f6]" />
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9ca3af] font-display mb-2">Biography</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#4b5563] font-display mb-2">Biography</p>
                   <p className="text-[13px] text-[#374151] font-body leading-[1.8]">{bio}</p>
                 </div>
               </>
@@ -295,7 +295,7 @@ function CreateTutorModal({ onClose, onCreated }: { onClose: () => void; onCreat
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-[#f3f4f6]">
           <h2 className="text-[15px] font-bold text-[#111827] font-display">Add Tutor</h2>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f3f4f6] transition-colors">
-            <Cancel01Icon size={15} color="#6b7280" strokeWidth={1.5} />
+            <Cancel01Icon size={15} color="#4b5563" strokeWidth={1.5} />
           </button>
         </div>
 
@@ -304,44 +304,44 @@ function CreateTutorModal({ onClose, onCreated }: { onClose: () => void; onCreat
             <div>
               <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">First Name <span className="text-[#d51520]">*</span></label>
               <input value={form.first_name} onChange={set('first_name')} placeholder="Adunola"
-                className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#9ca3af] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10" />
+                className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#4b5563] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10" />
             </div>
             <div>
               <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Last Name</label>
               <input value={form.last_name} onChange={set('last_name')} placeholder="Okafor"
-                className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#9ca3af] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10" />
+                className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#4b5563] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10" />
             </div>
           </div>
 
           <div>
             <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Email Address <span className="text-[#d51520]">*</span></label>
             <input type="email" value={form.email} onChange={set('email')} placeholder="adunola@example.com"
-              className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#9ca3af] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10" />
+              className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#4b5563] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10" />
           </div>
 
           <div>
             <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Phone Number</label>
             <input value={form.phone} onChange={set('phone')} placeholder="+234 801 234 5678"
-              className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#9ca3af] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10" />
+              className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#4b5563] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10" />
           </div>
 
           <div>
             <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Expertise</label>
             <input value={form.expertise} onChange={set('expertise')} placeholder="AI & Machine Learning, Prompt Engineering"
-              className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#9ca3af] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10" />
+              className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#4b5563] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10" />
           </div>
 
           <div>
             <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Website / LinkedIn</label>
             <input value={form.website} onChange={set('website')} placeholder="https://linkedin.com/in/adunola"
-              className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#9ca3af] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10" />
+              className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#4b5563] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10" />
           </div>
 
           <div>
             <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Bio</label>
             <textarea value={form.bio} onChange={set('bio')} rows={3}
               placeholder="Brief professional background and areas of expertise…"
-              className="w-full px-3 py-2.5 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#9ca3af] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 resize-none" />
+              className="w-full px-3 py-2.5 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#4b5563] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 resize-none" />
           </div>
 
           {error && (
@@ -433,7 +433,7 @@ export default function AdminTutorsPage() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-[24px] font-bold text-[#111827] font-display">Tutors</h1>
-          <p className="text-[14px] text-[#6b7280] font-body mt-0.5">
+          <p className="text-[14px] text-[#4b5563] font-body mt-0.5">
             {loading ? 'Loading…' : `${total.toLocaleString()} tutor${total !== 1 ? 's' : ''}`}
           </p>
         </div>
@@ -446,17 +446,17 @@ export default function AdminTutorsPage() {
       {/* Toolbar */}
       <div className="flex items-center gap-3 mb-6">
         <div className="relative flex-1 max-w-[360px]">
-          <Search01Icon size={14} color="#9ca3af" strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <Search01Icon size={14} color="#4b5563" strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search by name, email, or expertise…"
-            className="w-full h-9 pl-8 pr-3 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body text-[#111827] placeholder:text-[#9ca3af] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10" />
+            className="w-full h-9 pl-8 pr-3 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body text-[#111827] placeholder:text-[#4b5563] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10" />
         </div>
 
         <div className="flex items-center border border-[#e5e7eb] rounded-[8px] overflow-hidden">
           {(['list', 'grid'] as const).map(v => (
             <button key={v} onClick={() => setView(v)}
               className={`h-9 px-3 text-[12px] font-medium font-body transition-colors ${
-                view === v ? 'bg-[#fef2f2] text-[#d51520]' : 'text-[#6b7280] hover:bg-[#f9fafb]'
+                view === v ? 'bg-[#fef2f2] text-[#d51520]' : 'text-[#4b5563] hover:bg-[#f9fafb]'
               }`}>
               {v.charAt(0).toUpperCase() + v.slice(1)}
             </button>
@@ -465,7 +465,7 @@ export default function AdminTutorsPage() {
 
         <button onClick={fetchExperts}
           className="h-9 w-9 flex items-center justify-center border border-[#e5e7eb] rounded-[8px] hover:bg-[#f9fafb] transition-colors">
-          <Refresh01Icon size={14} color="#6b7280" strokeWidth={1.5} />
+          <Refresh01Icon size={14} color="#4b5563" strokeWidth={1.5} />
         </button>
       </div>
 
@@ -509,7 +509,7 @@ export default function AdminTutorsPage() {
           <p className="text-[15px] font-semibold text-[#111827] font-display mb-2">
             {search ? 'No tutors match your search' : 'No tutors yet'}
           </p>
-          <p className="text-[13px] text-[#9ca3af] font-body max-w-[280px]">
+          <p className="text-[13px] text-[#4b5563] font-body max-w-[280px]">
             {search ? 'Try a different name, email, or expertise.' : 'Add your first tutor to get started.'}
           </p>
           {!search && (
@@ -526,7 +526,7 @@ export default function AdminTutorsPage() {
             <thead>
               <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
                 {['Tutor', 'Occupation', 'Email', 'Location', 'Status', 'Added'].map(h => (
-                  <th key={h} className="text-left px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6b7280] font-display">{h}</th>
+                  <th key={h} className="text-left px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -546,15 +546,15 @@ export default function AdminTutorsPage() {
                         <p className="text-[13px] font-medium text-[#111827] font-body">{name}</p>
                       </div>
                     </td>
-                    <td className="px-5 py-3.5"><p className="text-[13px] text-[#6b7280] font-body">{expertOccupation(e) || '—'}</p></td>
-                    <td className="px-5 py-3.5"><p className="text-[13px] text-[#6b7280] font-body">{e.email ?? '—'}</p></td>
-                    <td className="px-5 py-3.5"><p className="text-[13px] text-[#6b7280] font-body">{expertLocation(e) || '—'}</p></td>
+                    <td className="px-5 py-3.5"><p className="text-[13px] text-[#4b5563] font-body">{expertOccupation(e) || '—'}</p></td>
+                    <td className="px-5 py-3.5"><p className="text-[13px] text-[#4b5563] font-body">{e.email ?? '—'}</p></td>
+                    <td className="px-5 py-3.5"><p className="text-[13px] text-[#4b5563] font-body">{expertLocation(e) || '—'}</p></td>
                     <td className="px-5 py-3.5">
                       {e.status
-                        ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold font-display ${e.status.toUpperCase() === 'ACTIVE' ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#f3f4f6] text-[#6b7280]'}`}>{e.status}</span>
+                        ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold font-display ${e.status.toUpperCase() === 'ACTIVE' ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#f3f4f6] text-[#4b5563]'}`}>{e.status}</span>
                         : <span className="text-[#d1d5db]">—</span>}
                     </td>
-                    <td className="px-5 py-3.5"><p className="text-[12px] text-[#9ca3af] font-body">{formatDate(e.createdAt ?? e.created_at)}</p></td>
+                    <td className="px-5 py-3.5"><p className="text-[12px] text-[#4b5563] font-body">{formatDate(e.createdAt ?? e.created_at)}</p></td>
                   </tr>
                 )
               })}
@@ -563,7 +563,7 @@ export default function AdminTutorsPage() {
 
           {totalPages > 1 && (
             <div className="px-5 py-3 flex items-center justify-between border-t border-[#f3f4f6]">
-              <p className="text-[12px] text-[#6b7280] font-body">
+              <p className="text-[12px] text-[#4b5563] font-body">
                 Showing {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, total)} of {total.toLocaleString()}
               </p>
               <div className="flex items-center gap-1">
@@ -598,23 +598,23 @@ export default function AdminTutorsPage() {
                     {spec !== '—' && <p className="text-[12px] text-[#d51520] font-body truncate mt-0.5">{spec}</p>}
                   </div>
                   {e.status && (
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display flex-shrink-0 ${e.status.toUpperCase() === 'ACTIVE' ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#f3f4f6] text-[#6b7280]'}`}>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display flex-shrink-0 ${e.status.toUpperCase() === 'ACTIVE' ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#f3f4f6] text-[#4b5563]'}`}>
                       {e.status}
                     </span>
                   )}
                 </div>
-                {bio && <p className="text-[12px] text-[#6b7280] font-body line-clamp-2 mb-4">{bio}</p>}
+                {bio && <p className="text-[12px] text-[#4b5563] font-body line-clamp-2 mb-4">{bio}</p>}
                 <div className="flex flex-col gap-1.5 border-t border-[#f3f4f6] pt-4">
                   {e.email && (
                     <div className="flex items-center gap-2">
-                      <Mail01Icon size={12} color="#9ca3af" strokeWidth={1.5} />
-                      <span className="text-[12px] text-[#6b7280] font-body truncate">{e.email}</span>
+                      <Mail01Icon size={12} color="#4b5563" strokeWidth={1.5} />
+                      <span className="text-[12px] text-[#4b5563] font-body truncate">{e.email}</span>
                     </div>
                   )}
                   {phone !== '—' && (
                     <div className="flex items-center gap-2">
-                      <CallIcon size={12} color="#9ca3af" strokeWidth={1.5} />
-                      <span className="text-[12px] text-[#6b7280] font-body">{phone}</span>
+                      <CallIcon size={12} color="#4b5563" strokeWidth={1.5} />
+                      <span className="text-[12px] text-[#4b5563] font-body">{phone}</span>
                     </div>
                   )}
                 </div>

@@ -150,7 +150,7 @@ function ConfirmDeleteModal({
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4">
       <div className="bg-white rounded-[14px] shadow-xl w-full max-w-[340px] p-6">
         <p className="text-[15px] font-semibold text-[#111827] font-display mb-1">Delete invite?</p>
-        <p className="text-[13px] text-[#6b7280] font-body leading-[1.6] mb-5">
+        <p className="text-[13px] text-[#4b5563] font-body leading-[1.6] mb-5">
           The invite for{' '}
           <span className="font-medium text-[#374151]">{email}</span>{' '}
           will be permanently deleted. This cannot be undone.
@@ -246,11 +246,11 @@ function InviteeRow({
       <div className="flex items-center gap-3 py-2.5 px-1 group">
         {/* Avatar — initials when accepted, mail icon when pending */}
         <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold font-display ${
-          hasName ? 'bg-[#d51520] text-white' : 'bg-[#f3f4f6] text-[#9ca3af]'
+          hasName ? 'bg-[#d51520] text-white' : 'bg-[#f3f4f6] text-[#4b5563]'
         }`}>
           {hasName
             ? initials.toUpperCase()
-            : <Mail01Icon size={12} color="#9ca3af" strokeWidth={1.5} />
+            : <Mail01Icon size={12} color="#4b5563" strokeWidth={1.5} />
           }
         </div>
 
@@ -259,7 +259,7 @@ function InviteeRow({
             {display.primary}
           </p>
           {display.secondary && (
-            <p className="text-[11px] text-[#9ca3af] font-body truncate">{display.secondary}</p>
+            <p className="text-[11px] text-[#4b5563] font-body truncate">{display.secondary}</p>
           )}
           {resendSuccess && (
             <p className="text-[11px] text-[#16A34A] font-body flex items-center gap-1 mt-0.5">
@@ -279,8 +279,8 @@ function InviteeRow({
             className="w-6 h-6 flex items-center justify-center rounded-[4px] hover:bg-[#f3f4f6] transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-50"
           >
             {actionLoading
-              ? <Loading01Icon size={11} className="animate-spin text-[#9ca3af]" strokeWidth={2} />
-              : <ArrowDown01Icon size={12} color="#6b7280" strokeWidth={2} />
+              ? <Loading01Icon size={11} className="animate-spin text-[#4b5563]" strokeWidth={2} />
+              : <ArrowDown01Icon size={12} color="#4b5563" strokeWidth={2} />
             }
           </button>
 
@@ -466,7 +466,7 @@ function PlanCard({
             <p className="text-[17px] font-bold text-[#d51520] font-display leading-tight">
               Custom Pricing
             </p>
-            <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">
+            <p className="text-[11px] text-[#4b5563] font-body mt-0.5">
               Tailored to your organisation
             </p>
           </div>
@@ -475,7 +475,7 @@ function PlanCard({
             <p className="text-[22px] font-bold text-[#111827] font-display leading-none">
               {formatPrice(price, currency)}
             </p>
-            <p className="text-[11px] text-[#9ca3af] font-body mt-1">
+            <p className="text-[11px] text-[#4b5563] font-body mt-1">
               {seats !== null && seats > 1
                 ? `per seat · ${seats} seats included`
                 : 'one-time payment'}
@@ -483,12 +483,12 @@ function PlanCard({
           </div>
         ) : (
           <div className="mb-2">
-            <p className="text-[17px] font-bold text-[#9ca3af] font-display">—</p>
+            <p className="text-[17px] font-bold text-[#4b5563] font-display">—</p>
           </div>
         )}
 
         {/* Description */}
-        <p className="text-[11px] text-[#6b7280] font-body leading-[1.6] mb-3 mt-1">
+        <p className="text-[11px] text-[#4b5563] font-body leading-[1.6] mb-3 mt-1">
           {content.description}
         </p>
 
@@ -510,7 +510,7 @@ function PlanCard({
           disabled={isCurrentPlan}
           className={`w-full h-8 rounded-full text-[11px] font-semibold font-display transition-colors ${
             isCurrentPlan
-              ? 'bg-[#f3f4f6] text-[#9ca3af] cursor-default'
+              ? 'bg-[#f3f4f6] text-[#4b5563] cursor-default'
               : isTeam
               ? 'bg-[#d51520] text-white hover:bg-[#b81119]'
               : isCorp
@@ -570,7 +570,7 @@ function PricingModal({ onClose }: { onClose: () => void }) {
         <div className="flex items-center justify-between px-5 py-3.5 bg-white border-b border-[#f3f4f6]">
           <div>
             <h2 className="text-[14px] font-bold text-[#111827] font-display">Choose a Plan</h2>
-            <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">
+            <p className="text-[11px] text-[#4b5563] font-body mt-0.5">
               Upgrade your Brixgate experience
             </p>
           </div>
@@ -584,7 +584,7 @@ function PricingModal({ onClose }: { onClose: () => void }) {
                   className={`px-3 py-1 rounded-full text-[10px] font-semibold font-display transition-all ${
                     currency === c
                       ? 'bg-white text-[#111827] shadow-sm'
-                      : 'text-[#9ca3af] hover:text-[#374151]'
+                      : 'text-[#4b5563] hover:text-[#374151]'
                   }`}
                 >
                   {c === 'NGN' ? '₦ NGN' : '$ USD'}
@@ -595,14 +595,14 @@ function PricingModal({ onClose }: { onClose: () => void }) {
               onClick={onClose}
               className="w-7 h-7 rounded-full flex items-center justify-center hover:bg-[#f3f4f6] transition-colors"
             >
-              <Cancel01Icon size={14} color="#6b7280" strokeWidth={1.5} />
+              <Cancel01Icon size={14} color="#4b5563" strokeWidth={1.5} />
             </button>
           </div>
         </div>
 
         {/* Loading */}
         {loading && (
-          <div className="flex items-center justify-center py-16 gap-2 text-[#9ca3af]">
+          <div className="flex items-center justify-center py-16 gap-2 text-[#4b5563]">
             <Loading01Icon size={18} className="animate-spin" strokeWidth={1.5} />
             <span className="text-[13px] font-body">Loading plans…</span>
           </div>
@@ -627,7 +627,7 @@ function PricingModal({ onClose }: { onClose: () => void }) {
                     className={`flex-shrink-0 px-3 h-6 rounded-full text-[10px] font-semibold font-display transition-all ${
                       activeTab === i
                         ? 'bg-[#d51520] text-white'
-                        : 'bg-white border border-[#e5e7eb] text-[#6b7280] hover:text-[#374151]'
+                        : 'bg-white border border-[#e5e7eb] text-[#4b5563] hover:text-[#374151]'
                     }`}
                   >
                     {g.programName}
@@ -645,7 +645,7 @@ function PricingModal({ onClose }: { onClose: () => void }) {
           </>
         )}
 
-        <p className="text-center text-[10px] text-[#9ca3af] font-body pb-3">
+        <p className="text-center text-[10px] text-[#4b5563] font-body pb-3">
           All prices exclude applicable local taxes.
         </p>
       </div>
@@ -676,7 +676,7 @@ function TeamUpgradeModal({ onClose }: { onClose: () => void }) {
         <h2 className="text-[20px] font-bold text-[#111827] font-display mb-2">
           Unlock Team Access
         </h2>
-        <p className="text-[13px] text-[#6b7280] font-body leading-[1.7] max-w-[300px] mx-auto mb-6">
+        <p className="text-[13px] text-[#4b5563] font-body leading-[1.7] max-w-[300px] mx-auto mb-6">
           Invite colleagues, manage seats, and collaborate on your Brixgate programme together.
         </p>
         <button
@@ -687,7 +687,7 @@ function TeamUpgradeModal({ onClose }: { onClose: () => void }) {
         </button>
         <button
           onClick={onClose}
-          className="mt-3 block w-full text-[12px] text-[#9ca3af] font-body hover:text-[#6b7280] transition-colors"
+          className="mt-3 block w-full text-[12px] text-[#4b5563] font-body hover:text-[#4b5563] transition-colors"
         >
           Maybe later
         </button>
@@ -710,13 +710,13 @@ function TeamMemberModal({ team, onClose }: { team: TeamData; onClose: () => voi
         <div className="px-6 pt-6 pb-4 flex items-start justify-between border-b border-[#f3f4f6]">
           <div>
             <p className="text-[16px] font-bold text-[#111827] font-display">Team Membership</p>
-            <p className="text-[12px] text-[#9ca3af] font-body mt-0.5">{team.cohortTitle}</p>
+            <p className="text-[12px] text-[#4b5563] font-body mt-0.5">{team.cohortTitle}</p>
           </div>
           <button
             onClick={onClose}
             className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#f3f4f6] transition-colors"
           >
-            <Cancel01Icon size={15} color="#6b7280" strokeWidth={1.5} />
+            <Cancel01Icon size={15} color="#4b5563" strokeWidth={1.5} />
           </button>
         </div>
 
@@ -726,25 +726,25 @@ function TeamMemberModal({ team, onClose }: { team: TeamData; onClose: () => voi
             <p className="text-[13px] font-semibold text-[#111827] font-display">
               You&apos;re part of a team
             </p>
-            <p className="text-[12px] text-[#6b7280] font-body mt-1 leading-[1.6]">
+            <p className="text-[12px] text-[#4b5563] font-body mt-1 leading-[1.6]">
               You were added to this programme as part of a team. Contact your team lead to manage seat access.
             </p>
           </div>
           <div className="space-y-2.5">
             <div className="flex items-center justify-between text-[13px]">
-              <span className="text-[#6b7280] font-body">Programme</span>
+              <span className="text-[#4b5563] font-body">Programme</span>
               <span className="text-[#111827] font-semibold font-display truncate ml-4">
                 {team.programTitle}
               </span>
             </div>
             <div className="flex items-center justify-between text-[13px]">
-              <span className="text-[#6b7280] font-body">Cohort</span>
+              <span className="text-[#4b5563] font-body">Cohort</span>
               <span className="text-[#111827] font-semibold font-display truncate ml-4">
                 {team.cohortTitle}
               </span>
             </div>
             <div className="flex items-center justify-between text-[13px]">
-              <span className="text-[#6b7280] font-body">Enrolment type</span>
+              <span className="text-[#4b5563] font-body">Enrolment type</span>
               <span className="text-[#111827] font-semibold font-display">Team</span>
             </div>
           </div>
@@ -839,13 +839,13 @@ function TeamLeadModal({ team, onClose }: { team: TeamData; onClose: () => void 
         <div className="px-5 sm:px-6 pt-3 sm:pt-6 pb-4 border-b border-[#f3f4f6] flex items-start justify-between flex-shrink-0">
           <div>
             <p className="text-[16px] font-bold text-[#111827] font-display">Manage Team</p>
-            <p className="text-[12px] text-[#9ca3af] font-body mt-0.5">{team.cohortTitle}</p>
+            <p className="text-[12px] text-[#4b5563] font-body mt-0.5">{team.cohortTitle}</p>
           </div>
           <button
             onClick={onClose}
             className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#f3f4f6] transition-colors"
           >
-            <Cancel01Icon size={15} color="#6b7280" strokeWidth={1.5} />
+            <Cancel01Icon size={15} color="#4b5563" strokeWidth={1.5} />
           </button>
         </div>
 
@@ -854,7 +854,7 @@ function TeamLeadModal({ team, onClose }: { team: TeamData; onClose: () => void 
           {/* Seat usage bar */}
           <div className="bg-[#f9fafb] rounded-[10px] p-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[12px] text-[#6b7280] font-body">Seats used</span>
+              <span className="text-[12px] text-[#4b5563] font-body">Seats used</span>
               <span className="text-[13px] font-bold text-[#111827] font-display">
                 {team.seatsUsed} / {team.seatsPurchased}
               </span>
@@ -870,7 +870,7 @@ function TeamLeadModal({ team, onClose }: { team: TeamData; onClose: () => void 
                 }}
               />
             </div>
-            <p className="text-[11px] text-[#9ca3af] font-body mt-1.5">
+            <p className="text-[11px] text-[#4b5563] font-body mt-1.5">
               {seatsAvailable > 0
                 ? `${seatsAvailable} seat${seatsAvailable !== 1 ? 's' : ''} available`
                 : 'All seats used — no more invites can be sent'}
@@ -887,7 +887,7 @@ function TeamLeadModal({ team, onClose }: { team: TeamData; onClose: () => void 
               <div className="flex-1 relative">
                 <Mail01Icon
                   size={14}
-                  color="#9ca3af"
+                  color="#4b5563"
                   strokeWidth={1.5}
                   className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
                 />
@@ -901,7 +901,7 @@ function TeamLeadModal({ team, onClose }: { team: TeamData; onClose: () => void 
                   }}
                   placeholder="colleague@company.com"
                   disabled={seatsAvailable <= 0 || inviting || invitees.length >= team.seatsPurchased}
-                  className={`w-full h-[38px] pl-8 pr-3 border rounded-[8px] text-[13px] font-body text-[#111827] placeholder:text-[#9ca3af] outline-none transition-all bg-white disabled:bg-[#f9fafb] disabled:cursor-not-allowed ${
+                  className={`w-full h-[38px] pl-8 pr-3 border rounded-[8px] text-[13px] font-body text-[#111827] placeholder:text-[#4b5563] outline-none transition-all bg-white disabled:bg-[#f9fafb] disabled:cursor-not-allowed ${
                     inviteError
                       ? 'border-[#D51520] focus:ring-2 focus:ring-[#D51520]/10'
                       : 'border-[#e5e7eb] focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10'
@@ -939,21 +939,21 @@ function TeamLeadModal({ team, onClose }: { team: TeamData; onClose: () => void 
             <p className="text-[13px] font-semibold text-[#111827] font-display mb-1">
               Invitees
               {!loadingInvitees && invitees.length > 0 && (
-                <span className="ml-1.5 text-[11px] font-normal text-[#9ca3af]">
+                <span className="ml-1.5 text-[11px] font-normal text-[#4b5563]">
                   ({invitees.length})
                 </span>
               )}
             </p>
 
             {loadingInvitees ? (
-              <div className="flex items-center justify-center py-8 gap-2 text-[#9ca3af]">
+              <div className="flex items-center justify-center py-8 gap-2 text-[#4b5563]">
                 <Loading01Icon size={14} className="animate-spin" strokeWidth={1.5} />
                 <span className="text-[12px] font-body">Loading invitees…</span>
               </div>
             ) : invitees.length === 0 ? (
               <div className="py-8 text-center">
                 <Mail01Icon size={20} color="#d1d5db" strokeWidth={1.5} className="mx-auto mb-2" />
-                <p className="text-[12px] text-[#9ca3af] font-body">No invites sent yet.</p>
+                <p className="text-[12px] text-[#4b5563] font-body">No invites sent yet.</p>
                 <p className="text-[11px] text-[#d1d5db] font-body mt-0.5">
                   Invite teammates using the form above.
                 </p>
@@ -1037,7 +1037,7 @@ export default function TeamFeature({ onClose }: { onClose: () => void }) {
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
         <div className="bg-white rounded-[16px] px-8 py-6 flex items-center gap-3 shadow-xl">
           <Loading01Icon size={18} className="animate-spin text-[#d51520]" strokeWidth={1.5} />
-          <span className="text-[13px] font-body text-[#6b7280]">Loading team info…</span>
+          <span className="text-[13px] font-body text-[#4b5563]">Loading team info…</span>
         </div>
       </div>
     )
