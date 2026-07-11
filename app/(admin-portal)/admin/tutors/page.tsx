@@ -5,7 +5,8 @@ import Image from 'next/image'
 import {
   TeacherIcon, Add01Icon, Loading01Icon, Cancel01Icon,
   AlertCircleIcon, Search01Icon, Refresh01Icon, Mail01Icon,
-  CallIcon, Globe02Icon,
+  CallIcon, Globe02Icon, Location01Icon, Linkedin01Icon,
+  TwitterIcon, Building01Icon, Briefcase01Icon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 import AdminPageLoader from '@/components/admin/AdminPageLoader'
@@ -18,11 +19,15 @@ interface Expert {
   phone?: string; phone_number?: string; phoneNumber?: string
   bio?: string; about?: string; description?: string
   specialty?: string; expertise?: string; specialization?: string
+  occupation?: string; job_title?: string; jobTitle?: string
+  location?: string; city?: string; country?: string
+  organization?: string; company?: string
   profile_image?: string; profileImage?: string; avatar?: string; photo?: string
   website?: string
   status?: string
   linkedin?: string; linkedin_url?: string; linkedinUrl?: string
-  years_experience?: number; yearsExperience?: number
+  twitter?: string; twitter_url?: string; twitterUrl?: string; twitter_handle?: string
+  years_experience?: number; yearsExperience?: number; years_of_experience?: number
   created_at?: string; createdAt?: string
 }
 
@@ -37,14 +42,22 @@ function expertName(e: Expert): string {
   if (e.name) return e.name
   return `${e.firstName ?? e.first_name ?? ''} ${e.lastName ?? e.last_name ?? ''}`.trim() || e.email || '—'
 }
-function expertPhone(e: Expert): string  { return e.phone ?? e.phone_number ?? e.phoneNumber ?? '—' }
-function expertBio(e: Expert): string    { return e.bio ?? e.about ?? e.description ?? '' }
-function expertSpecialty(e: Expert): string { return e.expertise ?? e.specialty ?? e.specialization ?? '—' }
+function expertPhone(e: Expert): string     { return e.phone ?? e.phone_number ?? e.phoneNumber ?? '' }
+function expertBio(e: Expert): string       { return e.bio ?? e.about ?? e.description ?? '' }
+function expertSpecialty(e: Expert): string { return e.expertise ?? e.specialty ?? e.specialization ?? '' }
+function expertOccupation(e: Expert): string { return e.occupation ?? e.job_title ?? e.jobTitle ?? '' }
+function expertLocation(e: Expert): string  {
+  if (e.location) return e.location
+  return [e.city, e.country].filter(Boolean).join(', ')
+}
+function expertOrg(e: Expert): string       { return e.organization ?? e.company ?? '' }
+function expertLinkedin(e: Expert): string  { return e.linkedin ?? e.linkedin_url ?? e.linkedinUrl ?? '' }
+function expertTwitter(e: Expert): string   { return e.twitter ?? e.twitter_url ?? e.twitterUrl ?? e.twitter_handle ?? '' }
 function expertAvatar(e: Expert): string | null {
   return e.profile_image ?? e.profileImage ?? e.avatar ?? e.photo ?? null
 }
-function expertLink(e: Expert): string | null {
-  return e.website ?? e.linkedin ?? e.linkedin_url ?? e.linkedinUrl ?? null
+function expertYoe(e: Expert): number | null {
+  return e.years_experience ?? e.yearsExperience ?? e.years_of_experience ?? null
 }
 function formatDate(d?: string) {
   if (!d) return '—'
@@ -64,113 +77,172 @@ function Initials({ name, size = 10 }: { name: string; size?: number }) {
 
 // ── Detail side panel ─────────────────────────────────────────────────────────
 function TutorDetailPanel({ expert, onClose }: { expert: Expert; onClose: () => void }) {
-  const name    = expertName(expert)
-  const avatar  = expertAvatar(expert)
-  const bio     = expertBio(expert)
-  const spec    = expertSpecialty(expert)
-  const phone   = expertPhone(expert)
-  const link    = expertLink(expert)
+  const name       = expertName(expert)
+  const avatar     = expertAvatar(expert)
+  const bio        = expertBio(expert)
+  const spec       = expertSpecialty(expert)
+  const occupation = expertOccupation(expert)
+  const location   = expertLocation(expert)
+  const org        = expertOrg(expert)
+  const phone      = expertPhone(expert)
+  const linkedin   = expertLinkedin(expert)
+  const twitter    = expertTwitter(expert)
+  const yoe        = expertYoe(expert)
+
+  const initials = name.split(' ').map(p => p[0]).filter(Boolean).join('').slice(0, 2).toUpperCase()
 
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/20" onClick={onClose} />
-      <div className="fixed right-0 top-0 h-screen w-[420px] z-50 bg-white shadow-2xl flex flex-col overflow-hidden">
+      <div className="fixed right-0 top-0 h-screen w-[440px] z-50 bg-white shadow-2xl flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-[#f3f4f6] flex-shrink-0">
-          <h2 className="text-[16px] font-bold text-[#111827] font-display">Tutor Details</h2>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#f3f4f6] flex-shrink-0">
+          <h2 className="text-[15px] font-bold text-[#111827] font-display">Tutor Profile</h2>
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f3f4f6] transition-colors">
             <Cancel01Icon size={16} color="#6b7280" strokeWidth={1.5} />
           </button>
         </div>
 
-        {/* Body */}
         <div className="flex-1 overflow-y-auto">
-          {/* Profile banner */}
-          <div className="px-6 py-6 flex items-center gap-4 border-b border-[#f3f4f6]">
-            {avatar
-              ? <Image src={avatar} alt={name} width={56} height={56} className="w-14 h-14 rounded-full object-cover flex-shrink-0" unoptimized />
-              : (
-                <div className="w-14 h-14 rounded-full bg-[#fef2f2] flex items-center justify-center flex-shrink-0">
-                  <span className="text-[18px] font-bold text-[#d51520] font-display uppercase">
-                    {name.split(' ').map(p => p[0]).join('').slice(0, 2)}
-                  </span>
-                </div>
-              )
-            }
-            <div className="flex-1 min-w-0">
-              <p className="text-[16px] font-bold text-[#111827] font-display truncate">{name}</p>
-              {spec !== '—' && <p className="text-[13px] text-[#d51520] font-body mt-0.5 truncate">{spec}</p>}
-              {expert.status && (
-                <span className={`inline-flex items-center mt-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold font-display ${
-                  expert.status.toUpperCase() === 'ACTIVE' ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#f3f4f6] text-[#6b7280]'
-                }`}>{expert.status}</span>
-              )}
+          {/* Profile hero */}
+          <div className="px-6 pt-6 pb-5 border-b border-[#f3f4f6]">
+            <div className="flex items-start gap-4">
+              {avatar
+                ? <Image src={avatar} alt={name} width={64} height={64} className="w-16 h-16 rounded-full object-cover flex-shrink-0" unoptimized />
+                : (
+                  <div className="w-16 h-16 rounded-full bg-[#fef2f2] flex items-center justify-center flex-shrink-0">
+                    <span className="text-[20px] font-bold text-[#d51520] font-display">{initials}</span>
+                  </div>
+                )
+              }
+              <div className="flex-1 min-w-0 pt-1">
+                <p className="text-[17px] font-bold text-[#111827] font-display leading-tight">{name}</p>
+                {occupation && <p className="text-[13px] text-[#6b7280] font-body mt-0.5">{occupation}</p>}
+                {spec && <p className="text-[12px] text-[#d51520] font-body mt-1">{spec}</p>}
+                {expert.status && (
+                  <span className={`inline-flex items-center mt-2 px-2.5 py-0.5 rounded-full text-[11px] font-semibold font-display ${
+                    expert.status.toUpperCase() === 'ACTIVE' ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#f3f4f6] text-[#6b7280]'
+                  }`}>{expert.status}</span>
+                )}
+              </div>
             </div>
           </div>
 
           <div className="px-6 py-5 space-y-6">
+
             {/* Contact */}
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display mb-3">Contact</p>
-              <div className="space-y-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9ca3af] font-display mb-3">Contact</p>
+              <div className="space-y-2.5">
                 {expert.email && (
                   <div className="flex items-center gap-3">
-                    <div className="w-7 h-7 rounded-[6px] bg-[#f3f4f6] flex items-center justify-center flex-shrink-0">
-                      <Mail01Icon size={13} color="#6b7280" strokeWidth={1.5} />
+                    <div className="w-8 h-8 rounded-[8px] flex items-center justify-center flex-shrink-0" style={{ background: '#EFF6FF' }}>
+                      <Mail01Icon size={14} color="#1d4ed8" strokeWidth={1.5} />
                     </div>
                     <p className="text-[13px] text-[#374151] font-body">{expert.email}</p>
                   </div>
                 )}
-                {phone !== '—' && (
+                {phone && (
                   <div className="flex items-center gap-3">
-                    <div className="w-7 h-7 rounded-[6px] bg-[#f3f4f6] flex items-center justify-center flex-shrink-0">
-                      <CallIcon size={13} color="#6b7280" strokeWidth={1.5} />
+                    <div className="w-8 h-8 rounded-[8px] flex items-center justify-center flex-shrink-0" style={{ background: '#ECFDF3' }}>
+                      <CallIcon size={14} color="#027a48" strokeWidth={1.5} />
                     </div>
                     <p className="text-[13px] text-[#374151] font-body">{phone}</p>
                   </div>
                 )}
-                {link && (
+                {location && (
                   <div className="flex items-center gap-3">
-                    <div className="w-7 h-7 rounded-[6px] bg-[#f3f4f6] flex items-center justify-center flex-shrink-0">
-                      <Globe02Icon size={13} color="#6b7280" strokeWidth={1.5} />
+                    <div className="w-8 h-8 rounded-[8px] flex items-center justify-center flex-shrink-0" style={{ background: '#FFF7ED' }}>
+                      <Location01Icon size={14} color="#ea580c" strokeWidth={1.5} />
                     </div>
-                    <a href={link} target="_blank" rel="noopener noreferrer"
-                      className="text-[13px] text-[#d51520] font-body hover:underline truncate">
-                      {link.replace(/^https?:\/\//, '')}
+                    <p className="text-[13px] text-[#374151] font-body">{location}</p>
+                  </div>
+                )}
+                {linkedin && (
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-[8px] flex items-center justify-center flex-shrink-0" style={{ background: '#EFF6FF' }}>
+                      <Linkedin01Icon size={14} color="#0a66c2" strokeWidth={1.5} />
+                    </div>
+                    <a href={linkedin.startsWith('http') ? linkedin : `https://${linkedin}`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="text-[13px] text-[#0a66c2] font-body hover:underline truncate">
+                      {linkedin.replace(/^https?:\/\/(www\.)?/, '')}
+                    </a>
+                  </div>
+                )}
+                {twitter && (
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-[8px] flex items-center justify-center flex-shrink-0" style={{ background: '#F0F9FF' }}>
+                      <TwitterIcon size={14} color="#0ea5e9" strokeWidth={1.5} />
+                    </div>
+                    <a href={twitter.startsWith('http') ? twitter : `https://twitter.com/${twitter.replace('@', '')}`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="text-[13px] text-[#0ea5e9] font-body hover:underline truncate">
+                      {twitter.startsWith('@') ? twitter : `@${twitter.replace(/^https?:\/\/(www\.)?(twitter|x)\.com\//, '')}`}
+                    </a>
+                  </div>
+                )}
+                {expert.website && (
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-[8px] flex items-center justify-center flex-shrink-0" style={{ background: '#F5F3FF' }}>
+                      <Globe02Icon size={14} color="#7c3aed" strokeWidth={1.5} />
+                    </div>
+                    <a href={expert.website} target="_blank" rel="noopener noreferrer"
+                      className="text-[13px] text-[#7c3aed] font-body hover:underline truncate">
+                      {expert.website.replace(/^https?:\/\//, '')}
                     </a>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Bio */}
+            {/* Professional */}
+            <div className="h-px bg-[#f3f4f6]" />
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9ca3af] font-display mb-3">Professional</p>
+              <div className="space-y-2.5">
+                {spec && (
+                  <div className="flex justify-between gap-4">
+                    <p className="text-[12px] text-[#9ca3af] font-body flex-shrink-0">Expertise</p>
+                    <p className="text-[13px] font-medium text-[#111827] font-body text-right">{spec}</p>
+                  </div>
+                )}
+                {occupation && (
+                  <div className="flex justify-between gap-4">
+                    <p className="text-[12px] text-[#9ca3af] font-body flex-shrink-0">Occupation</p>
+                    <p className="text-[13px] font-medium text-[#111827] font-body text-right">{occupation}</p>
+                  </div>
+                )}
+                {org && (
+                  <div className="flex justify-between gap-4">
+                    <p className="text-[12px] text-[#9ca3af] font-body flex-shrink-0">Organisation</p>
+                    <p className="text-[13px] font-medium text-[#111827] font-body text-right">{org}</p>
+                  </div>
+                )}
+                {yoe != null && (
+                  <div className="flex justify-between gap-4">
+                    <p className="text-[12px] text-[#9ca3af] font-body flex-shrink-0">Experience</p>
+                    <p className="text-[13px] font-medium text-[#111827] font-body text-right">{yoe} year{yoe !== 1 ? 's' : ''}</p>
+                  </div>
+                )}
+                <div className="flex justify-between gap-4">
+                  <p className="text-[12px] text-[#9ca3af] font-body flex-shrink-0">Date Added</p>
+                  <p className="text-[13px] font-medium text-[#111827] font-body text-right">{formatDate(expert.createdAt ?? expert.created_at)}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Biography */}
             {bio && (
               <>
                 <div className="h-px bg-[#f3f4f6]" />
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display mb-2">Bio</p>
-                  <p className="text-[13px] text-[#374151] font-body leading-[1.75]">{bio}</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9ca3af] font-display mb-2">Biography</p>
+                  <p className="text-[13px] text-[#374151] font-body leading-[1.8]">{bio}</p>
                 </div>
               </>
             )}
 
-            {/* Meta */}
-            <div className="h-px bg-[#f3f4f6]" />
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display mb-3">Details</p>
-              <div className="space-y-2.5">
-                {(expert.years_experience ?? expert.yearsExperience) != null && (
-                  <div className="flex justify-between">
-                    <p className="text-[12px] text-[#9ca3af] font-body">Years of Experience</p>
-                    <p className="text-[13px] font-medium text-[#111827] font-body">{expert.years_experience ?? expert.yearsExperience} yrs</p>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <p className="text-[12px] text-[#9ca3af] font-body">Date Added</p>
-                  <p className="text-[13px] font-medium text-[#111827] font-body">{formatDate(expert.createdAt ?? expert.created_at)}</p>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -453,7 +525,7 @@ export default function AdminTutorsPage() {
           <table className="w-full">
             <thead>
               <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
-                {['Tutor', 'Expertise', 'Email', 'Phone', 'Status', 'Added'].map(h => (
+                {['Tutor', 'Occupation', 'Email', 'Location', 'Status', 'Added'].map(h => (
                   <th key={h} className="text-left px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6b7280] font-display">{h}</th>
                 ))}
               </tr>
@@ -474,9 +546,9 @@ export default function AdminTutorsPage() {
                         <p className="text-[13px] font-medium text-[#111827] font-body">{name}</p>
                       </div>
                     </td>
-                    <td className="px-5 py-3.5"><p className="text-[13px] text-[#6b7280] font-body">{expertSpecialty(e)}</p></td>
+                    <td className="px-5 py-3.5"><p className="text-[13px] text-[#6b7280] font-body">{expertOccupation(e) || '—'}</p></td>
                     <td className="px-5 py-3.5"><p className="text-[13px] text-[#6b7280] font-body">{e.email ?? '—'}</p></td>
-                    <td className="px-5 py-3.5"><p className="text-[13px] text-[#6b7280] font-body">{expertPhone(e)}</p></td>
+                    <td className="px-5 py-3.5"><p className="text-[13px] text-[#6b7280] font-body">{expertLocation(e) || '—'}</p></td>
                     <td className="px-5 py-3.5">
                       {e.status
                         ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold font-display ${e.status.toUpperCase() === 'ACTIVE' ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#f3f4f6] text-[#6b7280]'}`}>{e.status}</span>
