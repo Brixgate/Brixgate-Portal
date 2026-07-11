@@ -81,15 +81,30 @@ export default function PollsPage() {
       setInitLoading(true)
       try {
         const res  = await apiClient.get('/admin/questionnaires')
-        const data = unwrap<{ data?: Questionnaire[]; questionnaires?: Questionnaire[]; results?: Questionnaire[] }>(res.data)
-        const list: Questionnaire[] = Array.isArray(data)
-          ? (data as unknown as Questionnaire[])
-          : data?.data ?? data?.questionnaires ?? data?.results ?? []
+        const data = unwrap<Record<string, unknown>>(res.data)
+        let list: Questionnaire[] = []
+        if (Array.isArray(data)) {
+          list = data as Questionnaire[]
+        } else if (data && typeof data === 'object') {
+          const d = data as Record<string, unknown>
+          // Try every common paginated / plain-list key
+          const candidates = [
+            d.questionnaires, d.data, d.results, d.content,
+            d.items, d.list, d.rows, d.records,
+          ]
+          for (const c of candidates) {
+            if (Array.isArray(c) && c.length > 0) { list = c as Questionnaire[]; break }
+          }
+        }
         setQs(list)
-        if (list.length > 0) setActiveQId(list[0].id)
-        else setInitLoading(false)
-      } catch {
-        setError('Could not load questionnaire list.')
+        if (list.length > 0) setActiveQId(list[0].id ?? (list[0] as Record<string, unknown>).questionnaire_id as number)
+        else {
+          setError('No questionnaires found. Please check the API response.')
+          setInitLoading(false)
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Unknown error'
+        setError(`Could not load questionnaire list: ${msg}`)
         setInitLoading(false)
       }
     }
