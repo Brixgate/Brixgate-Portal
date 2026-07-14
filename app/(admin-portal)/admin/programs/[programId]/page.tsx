@@ -662,8 +662,21 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
 }
 
 // ── Cohort types (for cohorts tab) ────────────────────────────────────────────
-interface ApiCohort { id: number; title: string; status?: string; start_date?: string; end_date?: string; max_students?: number; enrolled_count?: number }
-interface ApiCohortCreate { program_id: string; title: string; start_date: string; end_date: string; status: string; max_students: string }
+interface ApiCohort {
+  id: number; title: string; status?: string
+  start_date?: string; startDate?: string
+  end_date?: string;   endDate?: string
+  max_students?: number; maxStudents?: number
+  enrolled_count?: number; enrolledCount?: number
+  learning_format?: string; learningFormat?: string
+  frequency?: string
+}
+interface ApiCohortCreate {
+  program_id: string; title: string
+  start_date: string; end_date: string
+  status: string; max_students: string
+  learning_format: string; frequency: string
+}
 
 const COHORT_STATUS_STYLE: Record<string, string> = {
   OPEN:     'bg-[#ecfdf3] text-[#027a48]',
@@ -683,7 +696,7 @@ function CohortsTab({ programId }: { programId: string }) {
   const [showCreate, setShowCreate]   = useState(false)
   const [editCohort, setEditCohort]   = useState<ApiCohort | null>(null)
   const [deleteCohort, setDeleteCohort] = useState<ApiCohort | null>(null)
-  const [form, setForm]               = useState<ApiCohortCreate>({ program_id: programId, title: '', start_date: '', end_date: '', status: 'UPCOMING', max_students: '30' })
+  const [form, setForm]               = useState<ApiCohortCreate>({ program_id: programId, title: '', start_date: '', end_date: '', status: 'UPCOMING', max_students: '30', learning_format: '', frequency: '' })
   const [saving, setSaving]           = useState(false)
   const [deleting, setDeleting]       = useState(false)
   const [formError, setFormError]     = useState('')
@@ -710,11 +723,18 @@ function CohortsTab({ programId }: { programId: string }) {
     setSaving(true)
     try {
       await apiClient.post(`/admin/programs/${programId}/cohorts`, {
-        title: form.title.trim(), start_date: form.start_date, end_date: form.end_date,
-        status: form.status, max_students: parseInt(form.max_students) || 30,
+        title:           form.title.trim(),
+        startDate:       form.start_date,  start_date:   form.start_date,
+        endDate:         form.end_date,    end_date:     form.end_date,
+        status:          form.status,
+        maxStudents:     parseInt(form.max_students) || 30,
+        max_students:    parseInt(form.max_students) || 30,
+        learningFormat:  form.learning_format || undefined,
+        learning_format: form.learning_format || undefined,
+        frequency:       form.frequency       || undefined,
       })
       setShowCreate(false)
-      setForm({ program_id: programId, title: '', start_date: '', end_date: '', status: 'UPCOMING', max_students: '30' })
+      setForm({ program_id: programId, title: '', start_date: '', end_date: '', status: 'UPCOMING', max_students: '30', learning_format: '', frequency: '' })
       load()
     } catch (err) { setFormError(getApiError(err)) } finally { setSaving(false) }
   }
@@ -725,11 +745,15 @@ function CohortsTab({ programId }: { programId: string }) {
     setSaving(true)
     try {
       await apiClient.patch(`/admin/cohorts/${editCohort.id}`, {
-        title:        form.title.trim(),
-        start_date:   form.start_date,
-        end_date:     form.end_date,
-        status:       form.status,
-        max_students: parseInt(form.max_students) || 30,
+        title:           form.title.trim(),
+        startDate:       form.start_date,  start_date:   form.start_date,
+        endDate:         form.end_date,    end_date:     form.end_date,
+        status:          form.status,
+        maxStudents:     parseInt(form.max_students) || 30,
+        max_students:    parseInt(form.max_students) || 30,
+        learningFormat:  form.learning_format || undefined,
+        learning_format: form.learning_format || undefined,
+        frequency:       form.frequency       || undefined,
       })
       setEditCohort(null)
       load()
@@ -748,12 +772,14 @@ function CohortsTab({ programId }: { programId: string }) {
 
   function openEdit(c: ApiCohort) {
     setForm({
-      program_id:   programId,
-      title:        c.title,
-      start_date:   c.start_date ?? '',
-      end_date:     c.end_date   ?? '',
-      status:       c.status     ?? 'UPCOMING',
-      max_students: String(c.max_students ?? 30),
+      program_id:      programId,
+      title:           c.title,
+      start_date:      c.start_date      ?? c.startDate      ?? '',
+      end_date:        c.end_date        ?? c.endDate        ?? '',
+      status:          c.status          ?? 'UPCOMING',
+      max_students:    String(c.max_students ?? c.maxStudents ?? 30),
+      learning_format: c.learning_format ?? c.learningFormat ?? '',
+      frequency:       c.frequency       ?? '',
     })
     setFormError('')
     setEditCohort(c)
@@ -794,6 +820,25 @@ function CohortsTab({ programId }: { programId: string }) {
             <div>
               <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Max Students</label>
               <input type="number" value={form.max_students} onChange={e => setF('max_students', e.target.value)} placeholder="30" className={clsInput} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Learning Format</label>
+              <select value={form.learning_format} onChange={e => setF('learning_format', e.target.value)} className={clsInput}>
+                <option value="">Select format…</option>
+                <option value="LIVE">Live Session</option>
+                <option value="ONLINE">Online</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Frequency</label>
+              <select value={form.frequency} onChange={e => setF('frequency', e.target.value)} className={clsInput}>
+                <option value="">Select frequency…</option>
+                <option value="DAILY">Daily</option>
+                <option value="WEEKLY">Weekly</option>
+                <option value="MONTHLY">Monthly</option>
+              </select>
             </div>
           </div>
           {formError && (
