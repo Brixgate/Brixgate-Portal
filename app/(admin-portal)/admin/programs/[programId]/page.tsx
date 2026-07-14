@@ -866,7 +866,7 @@ function CohortsTab({ programId }: { programId: string }) {
         <p className="text-[13px] text-[#4b5563] font-body">
           {loading ? 'Loading…' : `${cohorts.length} cohort${cohorts.length !== 1 ? 's' : ''}`}
         </p>
-        <button onClick={() => { setForm({ program_id: programId, title: '', start_date: '', end_date: '', status: 'UPCOMING', max_students: '30' }); setFormError(''); setShowCreate(true) }}
+        <button onClick={() => { setForm({ program_id: programId, title: '', start_date: '', end_date: '', status: 'UPCOMING', max_students: '30', learning_format: '', frequency: '' }); setFormError(''); setShowCreate(true) }}
           className="flex items-center gap-1.5 h-9 px-4 bg-[#d51520] text-white rounded-[8px] text-[12px] font-semibold font-display hover:bg-[#b81119] transition-colors">
           <Add01Icon size={13} strokeWidth={2} /> New Cohort
         </button>
