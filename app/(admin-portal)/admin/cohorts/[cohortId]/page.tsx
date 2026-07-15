@@ -136,15 +136,45 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
     try {
       let resolvedProgramId = programId ?? effectiveProgramIdRef.current
 
-      // Step 1: Load assigned modules (shows count in read header + seeds cohortModuleIds)
-      const cohortModRes = await apiClient.get(`/cohorts/${cohortId}/modules`).catch(() => null)
-      if (cohortModRes) {
-        const d = unwrap<{ modules?: CohortModule[] } | CohortModule[]>(cohortModRes.data)
-        const mods: CohortModule[] = Array.isArray(d) ? d : ((d as { modules?: CohortModule[] })?.modules ?? [])
-        setCohortModuleIds(new Set(mods.map(m => m.program_module_id ?? m.programModuleId ?? 0).filter(Boolean)))
-        if (!resolvedProgramId && mods.length > 0) {
-          const fromMod = mods[0].program_id ?? mods[0].programId ?? null
-          if (fromMod) { resolvedProgramId = fromMod; setEffectiveProgramId(fromMod); onProgramIdResolved?.(fromMod) }
+      // Step 1: Try the admin cohort detail endpoint first — it may embed assigned modules
+      // in its response (the student endpoint is enrollment-gated and returns nothing for admins)
+      let foundModulesFromAdmin = false
+      const adminCohortRes = await apiClient.get(`/admin/cohorts/${cohortId}`).catch(() => null)
+      if (adminCohortRes) {
+        const ad = unwrap<Record<string, unknown>>(adminCohortRes.data)
+        const rawMods =
+          (ad?.modules as CohortModule[] | undefined) ??
+          (ad?.cohort_modules as CohortModule[] | undefined) ??
+          ((ad?.content as Record<string, unknown>)?.modules as CohortModule[] | undefined) ??
+          []
+        if (Array.isArray(rawMods) && rawMods.length > 0) {
+          foundModulesFromAdmin = true
+          setCohortModuleIds(new Set(rawMods.map((m: CohortModule) => m.program_module_id ?? m.programModuleId ?? 0).filter(Boolean)))
+          if (!resolvedProgramId) {
+            const fromMod = rawMods[0].program_id ?? rawMods[0].programId ?? null
+            if (fromMod) { resolvedProgramId = fromMod; setEffectiveProgramId(fromMod); onProgramIdResolved?.(fromMod) }
+          }
+          const pid = ad?.program_id ?? ad?.programId ?? (ad?.program as Record<string, unknown>)?.id ?? null
+          if (!resolvedProgramId && pid) { resolvedProgramId = pid as number; setEffectiveProgramId(pid as number); onProgramIdResolved?.(pid as number) }
+        }
+        // Also extract programId from the cohort record itself even if no modules embedded
+        if (!resolvedProgramId) {
+          const pid = ad?.program_id ?? ad?.programId ?? (ad?.program as Record<string, unknown>)?.id ?? null
+          if (pid) { resolvedProgramId = pid as number; setEffectiveProgramId(pid as number); onProgramIdResolved?.(pid as number) }
+        }
+      }
+
+      // Step 1b: Fallback to student endpoint if admin endpoint returned no embedded modules
+      if (!foundModulesFromAdmin) {
+        const cohortModRes = await apiClient.get(`/cohorts/${cohortId}/modules`).catch(() => null)
+        if (cohortModRes) {
+          const d = unwrap<{ modules?: CohortModule[] } | CohortModule[]>(cohortModRes.data)
+          const mods: CohortModule[] = Array.isArray(d) ? d : ((d as { modules?: CohortModule[] })?.modules ?? [])
+          setCohortModuleIds(new Set(mods.map(m => m.program_module_id ?? m.programModuleId ?? 0).filter(Boolean)))
+          if (!resolvedProgramId && mods.length > 0) {
+            const fromMod = mods[0].program_id ?? mods[0].programId ?? null
+            if (fromMod) { resolvedProgramId = fromMod; setEffectiveProgramId(fromMod); onProgramIdResolved?.(fromMod) }
+          }
         }
       }
 
@@ -299,11 +329,13 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
           })
           .filter((l): l is { programLessonId: number; programModuleId: number; visibilityStatus: string } => l !== null),
       })
+      // Update cohortModuleIds directly from saved state — don't re-fetch via the student
+      // endpoint which is enrollment-gated and returns nothing for admin users
+      setCohortModuleIds(new Set(selectedModules.map(m => m.id)))
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
       setMode('read')
       setExpandedModuleId(null)
-      load()
     } catch (err) { setError(getApiError(err)) } finally { setSaving(false) }
   }
 
