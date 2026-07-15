@@ -288,13 +288,16 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
         lessons.forEach(l => lessonModuleMap.set(l.id, parseInt(moduleId)))
       })
       await apiClient.post(`/admin/cohorts/${cohortId}/content/selection`, {
-        modules: selectedModules.map(m => ({ programModuleId: m.id })),
+        modules: selectedModules.map(m => ({
+          programModuleId:  m.id,
+          visibilityStatus: 'PUBLISHED',
+        })),
         lessons: Array.from(selectedLessonIds)
           .map(lid => {
             const mid = lessonModuleMap.get(lid)
-            return mid ? { programLessonId: lid, programModuleId: mid } : null
+            return mid ? { programLessonId: lid, programModuleId: mid, visibilityStatus: 'PUBLISHED' } : null
           })
-          .filter((l): l is { programLessonId: number; programModuleId: number } => l !== null),
+          .filter((l): l is { programLessonId: number; programModuleId: number; visibilityStatus: string } => l !== null),
       })
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
