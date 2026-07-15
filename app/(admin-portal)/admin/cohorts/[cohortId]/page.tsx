@@ -255,8 +255,8 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
     try {
       const selectedModules = allModules.filter(m => getModuleState(m.id) !== 'none')
       await apiClient.post(`/admin/cohorts/${cohortId}/content/selection`, {
-        modules: selectedModules.map(m => m.id),
-        lessons: Array.from(selectedLessonIds),
+        modules: selectedModules.map(m => ({ id: m.id })),
+        lessons: Array.from(selectedLessonIds).map(id => ({ id })),
       })
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
