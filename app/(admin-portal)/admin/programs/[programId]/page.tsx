@@ -918,9 +918,6 @@ function PricingTab({ programId }: { programId: string }) {
       ) : (
         <div className="flex flex-col gap-3">
           {plans.map(plan => {
-            const ngn = getBd(plan, 'NGN')
-            const usd = getBd(plan, 'USD')
-            const gbp = getBd(plan, 'GBP')
             const pt  = plan.planType ?? plan.plan_type ?? 'INDIVIDUAL'
             const st  = plan.status ?? 'ACTIVE'
             const bds = plan.breakdowns ?? []

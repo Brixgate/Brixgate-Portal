@@ -212,7 +212,7 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
     try {
       const assignedModules = allModules.filter(m => cohortModuleIds.has(m.id))
       const toFetch = assignedModules.filter(m => getLessons(m.id).length === 0)
-      let mergedCache = { ...lessonsCache }
+      const mergedCache = { ...lessonsCache }
 
       if (toFetch.length > 0 && programId) {
         const results = await Promise.allSettled(

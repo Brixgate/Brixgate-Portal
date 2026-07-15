@@ -6,7 +6,7 @@ import {
   TeacherIcon, Add01Icon, Loading01Icon, Cancel01Icon,
   AlertCircleIcon, Search01Icon, Refresh01Icon, Mail01Icon,
   CallIcon, Globe02Icon, Location01Icon, Linkedin01Icon,
-  TwitterIcon, Building01Icon, Briefcase01Icon,
+  TwitterIcon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 import AdminPageLoader from '@/components/admin/AdminPageLoader'

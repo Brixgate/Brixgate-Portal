@@ -258,7 +258,7 @@ function PublishProgramModal({
           {willCloseOther && (
             <div className="bg-[#fffaeb] border border-[#fed7aa] rounded-[8px] px-4 py-3">
               <p className="text-[12px] text-[#b45309] font-body">
-                <span className="font-semibold">"{openCohort!.title}"</span> is currently open — it will be set to Closed automatically.
+                <span className="font-semibold">&ldquo;{openCohort!.title}&rdquo;</span> is currently open — it will be set to Closed automatically.
               </p>
             </div>
           )}
