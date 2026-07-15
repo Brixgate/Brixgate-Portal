@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   BookOpen01Icon, Add01Icon, Loading01Icon, Cancel01Icon,
-  AlertCircleIcon, PencilEdit01Icon, Delete01Icon,
+  AlertCircleIcon, PencilEdit01Icon, Delete01Icon, CheckmarkCircle01Icon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 
@@ -52,15 +52,24 @@ function EditProgramModal({
     type:        program.type ?? 'BOOTCAMP',
     status:      program.status ?? 'DRAFT',
   })
-  const [saving, setSaving] = useState(false)
-  const [error,  setError]  = useState('')
+  const [saving, setSaving]       = useState(false)
+  const [error,  setError]        = useState('')
+  // Confirmation step when status changes in a significant way
+  const [confirming, setConfirming] = useState<'publish' | 'offline' | null>(null)
 
   function set(k: string, v: string) { setForm(p => ({ ...p, [k]: v })) }
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setError('')
     if (!form.title.trim()) { setError('Title is required.'); return }
-    setSaving(true)
+    const statusChanged = form.status !== (program.status ?? 'DRAFT')
+    if (statusChanged && form.status === 'PUBLISHED') { setConfirming('publish'); return }
+    if (statusChanged && form.status === 'DRAFT' && program.status === 'PUBLISHED') { setConfirming('offline'); return }
+    doSave()
+  }
+
+  async function doSave() {
+    setSaving(true); setConfirming(null); setError('')
     try {
       await apiClient.patch(`/admin/programs/${program.id}`, {
         title:       form.title.trim(),
@@ -82,6 +91,48 @@ function EditProgramModal({
             <Cancel01Icon size={15} color="#4b5563" strokeWidth={1.5} />
           </button>
         </div>
+
+        {/* ── Confirmation step ── */}
+        {confirming && (
+          <div className="px-6 py-6 flex flex-col gap-4">
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${confirming === 'publish' ? 'bg-[#ecfdf3]' : 'bg-[#fffaeb]'}`}>
+              {confirming === 'publish'
+                ? <CheckmarkCircle01Icon size={20} color="#027a48" strokeWidth={1.5} />
+                : <AlertCircleIcon size={20} color="#b45309" strokeWidth={1.5} />}
+            </div>
+            <div>
+              <h3 className="text-[14px] font-bold text-[#111827] font-display mb-1">
+                {confirming === 'publish' ? 'Publish this programme?' : 'Take programme offline?'}
+              </h3>
+              <p className="text-[13px] text-[#4b5563] font-body leading-[1.6]">
+                {confirming === 'publish'
+                  ? <><span className="font-semibold text-[#374151]">{form.title}</span> will go live on the website. Students will be able to see and enrol.</>
+                  : <><span className="font-semibold text-[#374151]">{form.title}</span> will be set back to Draft and hidden from the website. Existing enrolments are not affected.</>}
+              </p>
+            </div>
+            {error && (
+              <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body">
+                <AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} /> {error}
+              </p>
+            )}
+            <div className="flex gap-2 pt-1">
+              <button type="button" onClick={() => setConfirming(null)}
+                className="flex-1 h-10 rounded-[8px] border border-[#e5e7eb] text-[13px] font-medium font-body hover:bg-[#f9fafb] transition-colors">
+                Go Back
+              </button>
+              <button type="button" onClick={doSave} disabled={saving}
+                className={`flex-1 h-10 rounded-[8px] text-[13px] font-semibold text-white font-display disabled:opacity-60 flex items-center justify-center gap-2 transition-colors ${
+                  confirming === 'publish' ? 'bg-[#027a48] hover:bg-[#065f46]' : 'bg-[#b45309] hover:bg-[#92400e]'
+                }`}>
+                {saving && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
+                {confirming === 'publish' ? 'Yes, Publish' : 'Yes, Take Offline'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Main form ── */}
+        {!confirming && (
         <form onSubmit={handleSubmit} className="px-6 py-5 flex flex-col gap-4">
           <div>
             <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Programme Title</label>
@@ -117,6 +168,12 @@ function EditProgramModal({
               className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body outline-none focus:border-[#d51520] bg-white">
               {STATUSES.map(s => <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</option>)}
             </select>
+            {form.status !== (program.status ?? 'DRAFT') && (
+              <p className="text-[11px] text-[#b45309] font-body mt-1.5 flex items-center gap-1">
+                <AlertCircleIcon size={11} color="#b45309" strokeWidth={1.5} />
+                Status will change from {((program.status ?? 'DRAFT').charAt(0) + (program.status ?? 'DRAFT').slice(1).toLowerCase())} to {form.status.charAt(0) + form.status.slice(1).toLowerCase()} — you&apos;ll be asked to confirm.
+              </p>
+            )}
           </div>
           {error && (
             <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body">
@@ -135,6 +192,7 @@ function EditProgramModal({
             </button>
           </div>
         </form>
+        )}
       </div>
     </div>
   )

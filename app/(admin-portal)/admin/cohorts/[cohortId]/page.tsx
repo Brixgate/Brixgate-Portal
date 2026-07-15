@@ -135,17 +135,42 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
     setLoading(true)
     try {
       let resolvedProgramId = programId ?? effectiveProgramIdRef.current
+
+      // Step 1: Load assigned modules (shows count in read header + seeds cohortModuleIds)
       const cohortModRes = await apiClient.get(`/cohorts/${cohortId}/modules`).catch(() => null)
       if (cohortModRes) {
         const d = unwrap<{ modules?: CohortModule[] } | CohortModule[]>(cohortModRes.data)
         const mods: CohortModule[] = Array.isArray(d) ? d : ((d as { modules?: CohortModule[] })?.modules ?? [])
         setCohortModuleIds(new Set(mods.map(m => m.program_module_id ?? m.programModuleId ?? 0).filter(Boolean)))
-        // Try to recover programId from modules if the cohort endpoint didn't return it
         if (!resolvedProgramId && mods.length > 0) {
           const fromMod = mods[0].program_id ?? mods[0].programId ?? null
           if (fromMod) { resolvedProgramId = fromMod; setEffectiveProgramId(fromMod); onProgramIdResolved?.(fromMod) }
         }
       }
+
+      // Step 2: If programId still unknown, search all programmes to find which one owns this cohort
+      if (!resolvedProgramId) {
+        const progsRes = await apiClient.get('/admin/programs?size=100').catch(() => null)
+        if (progsRes) {
+          const pd = unwrap<{ programs?: { id: number }[] } | { id: number }[]>(progsRes.data)
+          const progs: { id: number }[] = Array.isArray(pd) ? pd : (pd as { programs?: { id: number }[] })?.programs ?? []
+          for (const prog of progs) {
+            try {
+              const cRes = await apiClient.get(`/admin/programs/${prog.id}/cohorts?size=100`)
+              const cd = unwrap<{ cohorts?: { id: number }[]; content?: { id: number }[] } | { id: number }[]>(cRes.data)
+              const cohorts: { id: number }[] = Array.isArray(cd) ? cd : (cd as { cohorts?: { id: number }[]; content?: { id: number }[] })?.cohorts ?? (cd as { cohorts?: { id: number }[]; content?: { id: number }[] })?.content ?? []
+              if (cohorts.some(c => c.id === Number(cohortId))) {
+                resolvedProgramId = prog.id
+                setEffectiveProgramId(prog.id)
+                onProgramIdResolved?.(prog.id)
+                break
+              }
+            } catch { /* ignore */ }
+          }
+        }
+      }
+
+      // Step 3: Load programme modules (the pool to pick from in edit mode)
       if (resolvedProgramId) {
         const progModRes = await apiClient.get(`/admin/programs/${resolvedProgramId}/modules`).catch(() => null)
         if (progModRes) {
