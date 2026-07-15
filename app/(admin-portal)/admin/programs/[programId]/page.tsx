@@ -6,7 +6,7 @@ import {
   Add01Icon, Cancel01Icon, Loading01Icon, AlertCircleIcon,
   Delete01Icon, ArrowDown01Icon, ArrowRight01Icon,
   ArrowLeft01Icon, File01Icon, BookOpen01Icon, VideoReplayIcon,
-  Upload01Icon, Link01Icon, PencilEdit01Icon,
+  Upload01Icon, Link01Icon, PencilEdit01Icon, Invoice01Icon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 
@@ -22,6 +22,37 @@ interface Program  { id: number; title: string; level?: string; status?: string;
 const CONTENT_TYPES   = ['VIDEO', 'ARTICLE', 'QUIZ']
 const RESOURCE_TYPES  = ['PDF', 'VIDEO', 'ARTICLE', 'IMAGE', 'PRESENTATION', 'LECTURE']
 const MODULE_STATUSES = ['DRAFT', 'PUBLISHED']
+
+// ── Pricing types ─────────────────────────────────────────────────────────────
+interface PricingBreakdown {
+  id: number; currency: string
+  basePrice?: number; base_price?: number
+  finalPrice?: number; final_price?: number
+}
+interface PricingPlan {
+  id: number; title?: string
+  planType?: string; plan_type?: string
+  status?: string; billingCycle?: string
+  breakdowns?: PricingBreakdown[]
+}
+type PricingFormKey = 'title' | 'planType' | 'status' | 'ngn_base' | 'ngn_final' | 'usd_base' | 'usd_final' | 'gbp_base' | 'gbp_final'
+type PricingForm = Record<PricingFormKey, string>
+
+const PLAN_TYPE_BADGE: Record<string, string> = {
+  INDIVIDUAL: 'bg-[#eff6ff] text-[#1d4ed8]',
+  TEAM:       'bg-[#f5f3ff] text-[#6d28d9]',
+  CORPORATE:  'bg-[#fffbeb] text-[#b45309]',
+}
+const PLAN_STATUS_BADGE: Record<string, string> = {
+  ACTIVE:   'bg-[#ecfdf3] text-[#027a48]',
+  INACTIVE: 'bg-[#f3f4f6] text-[#4b5563]',
+  ARCHIVED: 'bg-[#f3f4f6] text-[#9ca3af]',
+}
+function fmtAmt(amount: number | undefined, currency: string) {
+  if (amount === undefined || amount === null) return '—'
+  const sym: Record<string, string> = { NGN: '₦', USD: '$', GBP: '£' }
+  return `${sym[currency] ?? ''}${amount.toLocaleString('en-NG')}`
+}
 
 // ── Resource type badge ───────────────────────────────────────────────────────
 function ResourceTypeIcon({ type }: { type: string }) {
@@ -661,6 +692,327 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
   )
 }
 
+// ── Pricing plan modal (create / edit) ────────────────────────────────────────
+const CURRENCY_ROWS = [
+  { code: 'NGN', label: '₦ NGN', bk: 'ngn_base' as PricingFormKey, fk: 'ngn_final' as PricingFormKey },
+  { code: 'USD', label: '$ USD', bk: 'usd_base' as PricingFormKey, fk: 'usd_final' as PricingFormKey },
+  { code: 'GBP', label: '£ GBP', bk: 'gbp_base' as PricingFormKey, fk: 'gbp_final' as PricingFormKey },
+] as const
+
+function getBd(plan: PricingPlan | null, currency: string): { id?: number; base: string; final: string } {
+  const bd = (plan?.breakdowns ?? []).find(b => b.currency === currency)
+  return {
+    id:    bd?.id,
+    base:  String(bd?.basePrice  ?? bd?.base_price  ?? ''),
+    final: String(bd?.finalPrice ?? bd?.final_price ?? ''),
+  }
+}
+
+function PricingPlanModal({
+  programId, plan, onClose, onSaved,
+}: { programId: string; plan: PricingPlan | null; onClose: () => void; onSaved: () => void }) {
+  const isEdit = plan !== null
+  const ngn = getBd(plan, 'NGN')
+  const usd = getBd(plan, 'USD')
+  const gbp = getBd(plan, 'GBP')
+
+  const [form, setForm] = useState<PricingForm>({
+    title: plan?.title ?? '', planType: plan?.planType ?? plan?.plan_type ?? 'INDIVIDUAL',
+    status: plan?.status ?? 'ACTIVE',
+    ngn_base: ngn.base, ngn_final: ngn.final,
+    usd_base: usd.base, usd_final: usd.final,
+    gbp_base: gbp.base, gbp_final: gbp.final,
+  })
+  const [saving, setSaving] = useState(false)
+  const [error,  setError]  = useState('')
+
+  function setF(k: PricingFormKey, v: string) { setForm(p => ({ ...p, [k]: v })) }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault(); setError('')
+    if (!form.title.trim()) { setError('Plan title is required.'); return }
+    setSaving(true)
+    try {
+      let planId: number
+      if (isEdit) {
+        await apiClient.patch(`/admin/pricing-plans/${plan!.id}`, {
+          title: form.title.trim(), planType: form.planType, status: form.status,
+        })
+        planId = plan!.id
+      } else {
+        const res   = await apiClient.post('/admin/pricing-plans', {
+          programId: parseInt(programId), title: form.title.trim(),
+          planType: form.planType, status: form.status, billingCycle: 'ONEOFF',
+        })
+        const raw   = res.data as Record<string, unknown>
+        const inner = (raw?.data ?? raw) as Record<string, unknown>
+        planId = inner?.id as number
+        if (!planId) throw new Error('Plan created but ID not returned')
+      }
+
+      const bdMap: Record<string, { id?: number; base: string; final: string }> = {
+        NGN: ngn, USD: usd, GBP: gbp,
+      }
+      await Promise.all(CURRENCY_ROWS.map(c => {
+        const base  = form[c.bk]  ? parseFloat(form[c.bk])  : undefined
+        const final = form[c.fk]  ? parseFloat(form[c.fk])  : undefined
+        if (base === undefined && final === undefined) return Promise.resolve()
+        const payload = { currency: c.code, basePrice: base, base_price: base, finalPrice: final, final_price: final }
+        const existing = bdMap[c.code]
+        return existing.id
+          ? apiClient.patch(`/admin/pricing-plans/${planId}/breakdowns/${existing.id}`, payload)
+          : apiClient.post(`/admin/pricing-plans/${planId}/breakdowns`, payload)
+      }))
+      onSaved()
+    } catch (err) { setError(getApiError(err)) } finally { setSaving(false) }
+  }
+
+  const clsIn = 'w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10'
+
+  return (
+    <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/40 px-4" onClick={onClose}>
+      <div className="bg-white rounded-[14px] shadow-xl w-full max-w-[480px] max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-[#f3f4f6] flex-shrink-0">
+          <h2 className="text-[15px] font-bold text-[#111827] font-display">{isEdit ? 'Edit Pricing Plan' : 'New Pricing Plan'}</h2>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f3f4f6]">
+            <Cancel01Icon size={15} color="#4b5563" strokeWidth={1.5} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="px-6 py-5 flex flex-col gap-4 overflow-y-auto">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Plan Title</label>
+              <input value={form.title} onChange={e => setF('title', e.target.value)}
+                placeholder="Individual Plan" className={clsIn} />
+            </div>
+            <div>
+              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Plan Type</label>
+              <select value={form.planType} onChange={e => setF('planType', e.target.value)} className={`${clsIn} bg-white`}>
+                <option value="INDIVIDUAL">Individual</option>
+                <option value="TEAM">Team</option>
+                <option value="CORPORATE">Corporate</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Status</label>
+            <select value={form.status} onChange={e => setF('status', e.target.value)} className={`${clsIn} bg-white`}>
+              <option value="ACTIVE">Active</option>
+              <option value="INACTIVE">Inactive</option>
+              <option value="ARCHIVED">Archived</option>
+            </select>
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#374151] font-display mb-2">Prices by Currency</p>
+            <div className="rounded-[8px] border border-[#e5e7eb] overflow-hidden">
+              <div className="grid grid-cols-[100px_1fr_1fr] bg-[#f9fafb] border-b border-[#e5e7eb]">
+                <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-[0.06em] text-[#4b5563] font-display">Currency</div>
+                <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-[0.06em] text-[#4b5563] font-display border-l border-[#e5e7eb]">Base Price</div>
+                <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-[0.06em] text-[#4b5563] font-display border-l border-[#e5e7eb]">Final Price</div>
+              </div>
+              {CURRENCY_ROWS.map((c, i) => (
+                <div key={c.code} className={`grid grid-cols-[100px_1fr_1fr] ${i < 2 ? 'border-b border-[#e5e7eb]' : ''}`}>
+                  <div className="px-3 py-2.5 flex items-center">
+                    <span className="text-[12px] font-semibold text-[#111827] font-body">{c.label}</span>
+                  </div>
+                  <div className="border-l border-[#e5e7eb] px-2 py-1.5">
+                    <input type="number" min="0" value={form[c.bk]} onChange={e => setF(c.bk, e.target.value)}
+                      placeholder="0.00" className="w-full h-8 px-2 text-[12px] font-body text-[#111827] outline-none rounded-[4px] bg-transparent focus:bg-[#f9fafb]" />
+                  </div>
+                  <div className="border-l border-[#e5e7eb] px-2 py-1.5">
+                    <input type="number" min="0" value={form[c.fk]} onChange={e => setF(c.fk, e.target.value)}
+                      placeholder="0.00" className="w-full h-8 px-2 text-[12px] font-body text-[#111827] outline-none rounded-[4px] bg-transparent focus:bg-[#f9fafb]" />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-[11px] text-[#4b5563] font-body mt-1">Leave a row empty to skip that currency. Billing is One-off.</p>
+          </div>
+          {error && (
+            <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body">
+              <AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} /> {error}
+            </p>
+          )}
+          <div className="flex gap-2 pt-1">
+            <button type="button" onClick={onClose}
+              className="flex-1 h-10 rounded-[8px] border border-[#e5e7eb] text-[13px] font-body hover:bg-[#f9fafb]">Cancel</button>
+            <button type="submit" disabled={saving}
+              className="flex-1 h-10 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-60 flex items-center justify-center gap-2">
+              {saving && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
+              {isEdit ? 'Save Changes' : 'Create Plan'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ── Pricing tab ────────────────────────────────────────────────────────────────
+function PricingTab({ programId }: { programId: string }) {
+  const [plans, setPlans]           = useState<PricingPlan[]>([])
+  const [loading, setLoading]       = useState(true)
+  const [showCreate, setShowCreate] = useState(false)
+  const [editPlan, setEditPlan]     = useState<PricingPlan | null>(null)
+  const [deletePlan, setDeletePlan] = useState<PricingPlan | null>(null)
+  const [deleting, setDeleting]     = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await apiClient.get(`/admin/pricing-plans?program_id=${programId}`)
+      const raw = unwrap<Record<string, PricingPlan[]> | PricingPlan[]>(res.data)
+      const list: PricingPlan[] = []
+      if (Array.isArray(raw)) {
+        list.push(...raw)
+      } else if (raw && typeof raw === 'object') {
+        Object.values(raw as Record<string, unknown>).forEach(v => {
+          if (Array.isArray(v)) list.push(...(v as PricingPlan[]))
+        })
+      }
+      setPlans(list)
+    } catch { setPlans([]) } finally { setLoading(false) }
+  }, [programId])
+
+  useEffect(() => { load() }, [load])
+
+  async function doDelete() {
+    if (!deletePlan) return
+    setDeleting(true); setDeleteError('')
+    try {
+      await apiClient.delete(`/admin/pricing-plans/${deletePlan.id}`)
+      setPlans(prev => prev.filter(p => p.id !== deletePlan.id))
+      setDeletePlan(null)
+    } catch (err) { setDeleteError(getApiError(err)) } finally { setDeleting(false) }
+  }
+
+  return (
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-5">
+        <p className="text-[13px] text-[#4b5563] font-body">
+          {loading ? 'Loading…' : `${plans.length} pricing plan${plans.length !== 1 ? 's' : ''}`}
+        </p>
+        <button onClick={() => setShowCreate(true)}
+          className="flex items-center gap-1.5 h-9 px-4 bg-[#d51520] text-white rounded-[8px] text-[12px] font-semibold font-display hover:bg-[#b81119] transition-colors">
+          <Add01Icon size={13} strokeWidth={2} /> New Plan
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="flex flex-col gap-3">
+          {Array.from({ length: 2 }).map((_, i) => <div key={i} className="h-[88px] bg-[#f9fafb] rounded-[10px] animate-pulse" />)}
+        </div>
+      ) : plans.length === 0 ? (
+        <div className="text-center py-16">
+          <div className="w-14 h-14 rounded-[12px] bg-[#f3f4f6] flex items-center justify-center mx-auto mb-4">
+            <Invoice01Icon size={28} color="#9ca3af" strokeWidth={1.5} />
+          </div>
+          <p className="text-[14px] font-semibold text-[#111827] font-display mb-1">No pricing plans yet</p>
+          <p className="text-[13px] text-[#4b5563] font-body max-w-[280px] mx-auto">Set up pricing so students can enrol in this programme</p>
+          <button onClick={() => setShowCreate(true)}
+            className="mt-4 h-9 px-4 bg-[#d51520] text-white rounded-[8px] text-[12px] font-semibold font-display hover:bg-[#b81119] transition-colors">
+            Add Pricing Plan
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {plans.map(plan => {
+            const ngn = getBd(plan, 'NGN')
+            const usd = getBd(plan, 'USD')
+            const gbp = getBd(plan, 'GBP')
+            const pt  = plan.planType ?? plan.plan_type ?? 'INDIVIDUAL'
+            const st  = plan.status ?? 'ACTIVE'
+            const bds = plan.breakdowns ?? []
+            return (
+              <div key={plan.id} className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <p className="text-[14px] font-semibold text-[#111827] font-display">{plan.title ?? '—'}</p>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display flex-shrink-0 ${PLAN_TYPE_BADGE[pt] ?? 'bg-[#f3f4f6] text-[#374151]'}`}>
+                        {pt.charAt(0) + pt.slice(1).toLowerCase()}
+                      </span>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display flex-shrink-0 ${PLAN_STATUS_BADGE[st] ?? 'bg-[#f3f4f6] text-[#374151]'}`}>
+                        {st.charAt(0) + st.slice(1).toLowerCase()}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-5 flex-wrap">
+                      {bds.length === 0 ? (
+                        <span className="text-[12px] text-[#9ca3af] font-body">No prices set</span>
+                      ) : bds.map(bd => {
+                        const base  = bd.basePrice  ?? bd.base_price
+                        const final = bd.finalPrice ?? bd.final_price
+                        return (
+                          <div key={bd.id} className="flex items-center gap-1.5">
+                            <span className="text-[11px] font-semibold text-[#4b5563] font-body">{bd.currency}</span>
+                            <span className="text-[14px] font-bold text-[#111827] font-display">{fmtAmt(final, bd.currency)}</span>
+                            {base !== undefined && base !== final && (
+                              <span className="text-[11px] text-[#9ca3af] font-body line-through">{fmtAmt(base, bd.currency)}</span>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <p className="text-[11px] text-[#9ca3af] font-body mt-2">One-off billing</p>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button onClick={() => setEditPlan(plan)}
+                      className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#f3f4f6] transition-colors" title="Edit plan">
+                      <PencilEdit01Icon size={13} color="#4b5563" strokeWidth={1.5} />
+                    </button>
+                    <button onClick={() => { setDeleteError(''); setDeletePlan(plan) }}
+                      className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#fef2f2] transition-colors" title="Delete plan">
+                      <Delete01Icon size={13} color="#d51520" strokeWidth={1.5} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {(showCreate || editPlan !== null) && (
+        <PricingPlanModal
+          programId={programId}
+          plan={editPlan}
+          onClose={() => { setShowCreate(false); setEditPlan(null) }}
+          onSaved={() => { setShowCreate(false); setEditPlan(null); load() }}
+        />
+      )}
+
+      {deletePlan && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/40 px-4" onClick={() => setDeletePlan(null)}>
+          <div className="bg-white rounded-[14px] shadow-xl w-full max-w-[400px] p-6" onClick={e => e.stopPropagation()}>
+            <div className="w-10 h-10 rounded-full bg-[#fef2f2] flex items-center justify-center mb-4">
+              <Delete01Icon size={18} color="#d51520" strokeWidth={1.5} />
+            </div>
+            <h2 className="text-[15px] font-bold text-[#111827] font-display mb-1">Delete Pricing Plan?</h2>
+            <p className="text-[13px] text-[#4b5563] font-body mb-5">
+              <span className="font-semibold text-[#374151]">{deletePlan.title}</span> and all its price breakdowns will be permanently deleted.
+            </p>
+            {deleteError && (
+              <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body mb-3">
+                <AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} /> {deleteError}
+              </p>
+            )}
+            <div className="flex gap-2">
+              <button onClick={() => setDeletePlan(null)}
+                className="flex-1 h-10 rounded-[8px] border border-[#e5e7eb] text-[13px] font-medium font-body hover:bg-[#f9fafb] transition-colors">Cancel</button>
+              <button onClick={doDelete} disabled={deleting}
+                className="flex-1 h-10 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-60 flex items-center justify-center gap-2">
+                {deleting && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Cohort types (for cohorts tab) ────────────────────────────────────────────
 interface ApiCohort {
   id: number; title: string; status?: string
@@ -979,7 +1331,7 @@ function CohortsTab({ programId }: { programId: string }) {
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
-type PageTab = 'Cohorts' | 'General Curriculum'
+type PageTab = 'Cohorts' | 'Pricing' | 'General Curriculum'
 
 export default function ProgramDetailPage() {
   const params    = useParams()
@@ -1060,12 +1412,13 @@ export default function ProgramDetailPage() {
 
       {/* Tab bar */}
       <div className="flex items-center gap-1 px-6 bg-white border-b border-[#f3f4f6] flex-shrink-0">
-        {(['Cohorts', 'General Curriculum'] as PageTab[]).map(tab => (
+        {(['Cohorts', 'Pricing', 'General Curriculum'] as PageTab[]).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             className={`flex items-center gap-1.5 px-4 py-3 text-[13px] font-semibold font-display border-b-2 transition-colors ${
               activeTab === tab ? 'border-[#d51520] text-[#d51520]' : 'border-transparent text-[#4b5563] hover:text-[#374151]'
             }`}>
             {tab === 'Cohorts'            && <BookOpen01Icon size={14} strokeWidth={1.5} />}
+            {tab === 'Pricing'            && <Invoice01Icon  size={14} strokeWidth={1.5} />}
             {tab === 'General Curriculum' && <File01Icon     size={14} strokeWidth={1.5} />}
             {tab}
           </button>
@@ -1076,6 +1429,12 @@ export default function ProgramDetailPage() {
       {activeTab === 'Cohorts' && (
         <div className="flex-1 overflow-y-auto bg-[#f9fafb]">
           <CohortsTab programId={programId} />
+        </div>
+      )}
+
+      {activeTab === 'Pricing' && (
+        <div className="flex-1 overflow-y-auto bg-[#f9fafb]">
+          <PricingTab programId={programId} />
         </div>
       )}
 

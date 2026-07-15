@@ -380,113 +380,228 @@ function TakeOfflineModal({
   )
 }
 
-// ── Create programme modal ────────────────────────────────────────────────────
+// ── Create programme modal (2-step: details → pricing) ───────────────────────
+type PricingKey = 'title' | 'planType' | 'ngn_base' | 'ngn_final' | 'usd_base' | 'usd_final' | 'gbp_base' | 'gbp_final'
+type PlanForm   = Record<PricingKey, string>
+
+const EMPTY_PLAN: PlanForm = {
+  title: '', planType: 'INDIVIDUAL',
+  ngn_base: '', ngn_final: '', usd_base: '', usd_final: '', gbp_base: '', gbp_final: '',
+}
+
+const CLS_IN  = 'w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10'
+const CLS_SEL = `${CLS_IN} bg-white`
+
 function CreateProgramModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [form, setForm] = useState({
-    title: '', type: 'BOOTCAMP', level: 'BEGINNER',
-    main_price: '', final_price: '', status: 'DRAFT', description: '',
-  })
+  const [step, setStep]               = useState<1 | 2>(1)
+  const [newProgramId, setNewProgramId] = useState<number | null>(null)
+  const [programTitle, setProgramTitle] = useState('')
+
+  const [form, setForm]     = useState({ title: '', type: 'BOOTCAMP', level: 'BEGINNER', status: 'DRAFT', description: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState('')
 
-  function set(k: string, v: string) { setForm(p => ({ ...p, [k]: v })) }
+  const [plan, setPlan]         = useState<PlanForm>(EMPTY_PLAN)
+  const [planSaving, setPlanSaving] = useState(false)
+  const [planError, setPlanError]   = useState('')
 
-  async function handleSubmit(e: React.FormEvent) {
+  function set(k: string, v: string)       { setForm(p => ({ ...p, [k]: v })) }
+  function setP(k: PricingKey, v: string)  { setPlan(p => ({ ...p, [k]: v })) }
+
+  async function handleStep1(e: React.FormEvent) {
     e.preventDefault(); setError('')
     if (!form.title.trim()) { setError('Title is required.'); return }
-    if (!form.main_price)   { setError('Main price is required.'); return }
-    if (!form.final_price)  { setError('Final price is required.'); return }
     setSaving(true)
     try {
-      await apiClient.post('/admin/programs', {
-        title: form.title.trim(),
-        type: form.type,
-        level: form.level,
-        main_price: parseFloat(form.main_price),
-        final_price: parseFloat(form.final_price),
-        status: form.status,
-        description: form.description.trim() || undefined,
+      const res   = await apiClient.post('/admin/programs', {
+        title: form.title.trim(), type: form.type, level: form.level,
+        status: form.status, description: form.description.trim() || undefined,
       })
-      onCreated()
+      const raw   = res.data as Record<string, unknown>
+      const inner = (raw?.data ?? raw) as Record<string, unknown>
+      const id    = inner?.id as number
+      if (!id) throw new Error('Programme created but ID not returned')
+      setNewProgramId(id); setProgramTitle(form.title.trim()); setStep(2)
     } catch (err) { setError(getApiError(err)) } finally { setSaving(false) }
+  }
+
+  async function handleStep2(e: React.FormEvent) {
+    e.preventDefault(); setPlanError('')
+    if (!plan.title.trim()) { setPlanError('Plan title is required.'); return }
+    setPlanSaving(true)
+    try {
+      const planRes   = await apiClient.post('/admin/pricing-plans', {
+        programId: newProgramId, title: plan.title.trim(),
+        planType: plan.planType, status: 'ACTIVE', billingCycle: 'ONEOFF',
+      })
+      const planRaw   = planRes.data as Record<string, unknown>
+      const planInner = (planRaw?.data ?? planRaw) as Record<string, unknown>
+      const planId    = planInner?.id as number
+      if (!planId) throw new Error('Plan created but ID not returned')
+
+      const currencies = [
+        { code: 'NGN', base: plan.ngn_base, final: plan.ngn_final },
+        { code: 'USD', base: plan.usd_base, final: plan.usd_final },
+        { code: 'GBP', base: plan.gbp_base, final: plan.gbp_final },
+      ].filter(c => c.base || c.final)
+
+      await Promise.all(currencies.map(c =>
+        apiClient.post(`/admin/pricing-plans/${planId}/breakdowns`, {
+          currency:   c.code,
+          basePrice:  c.base  ? parseFloat(c.base)  : undefined,
+          finalPrice: c.final ? parseFloat(c.final) : undefined,
+        })
+      ))
+      onCreated()
+    } catch (err) { setPlanError(getApiError(err)) } finally { setPlanSaving(false) }
   }
 
   return (
     <div className="fixed inset-0 z-[999] flex items-start justify-center bg-black/40 px-4 overflow-y-auto py-10" onClick={onClose}>
       <div className="bg-white rounded-[14px] shadow-xl w-full max-w-[520px] my-auto" onClick={e => e.stopPropagation()}>
+
+        {/* Header + step indicator */}
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-[#f3f4f6]">
-          <h2 className="text-[15px] font-bold text-[#111827] font-display">New Programme</h2>
+          <div>
+            <h2 className="text-[15px] font-bold text-[#111827] font-display">New Programme</h2>
+            <div className="flex items-center gap-2 mt-1.5">
+              <div className="h-1.5 w-10 rounded-full bg-[#d51520]" />
+              <div className={`h-1.5 w-10 rounded-full transition-colors ${step === 2 ? 'bg-[#d51520]' : 'bg-[#e5e7eb]'}`} />
+              <span className="text-[11px] text-[#4b5563] font-body">Step {step} of 2</span>
+            </div>
+          </div>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f3f4f6]">
             <Cancel01Icon size={15} color="#4b5563" strokeWidth={1.5} />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="px-6 py-5 flex flex-col gap-4">
-          <div>
-            <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Programme Title</label>
-            <input value={form.title} onChange={e => set('title', e.target.value)}
-              placeholder="AI in Software Engineering"
-              className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10" />
-          </div>
-          <div>
-            <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Description</label>
-            <textarea value={form.description} onChange={e => set('description', e.target.value)}
-              rows={3} placeholder="Brief description of the programme…"
-              className="w-full px-3 py-2 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 resize-none" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
+
+        {/* ── Step 1: Programme details ── */}
+        {step === 1 && (
+          <form onSubmit={handleStep1} className="px-6 py-5 flex flex-col gap-4">
             <div>
-              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Level</label>
-              <select value={form.level} onChange={e => set('level', e.target.value)}
-                className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body outline-none focus:border-[#d51520] bg-white">
-                {LEVELS.map(l => <option key={l} value={l}>{l.charAt(0) + l.slice(1).toLowerCase()}</option>)}
+              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Programme Title</label>
+              <input value={form.title} onChange={e => set('title', e.target.value)}
+                placeholder="AI in Software Engineering" className={CLS_IN} />
+            </div>
+            <div>
+              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Description</label>
+              <textarea value={form.description} onChange={e => set('description', e.target.value)}
+                rows={3} placeholder="Brief description of the programme…"
+                className="w-full px-3 py-2 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 resize-none" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Level</label>
+                <select value={form.level} onChange={e => set('level', e.target.value)} className={CLS_SEL}>
+                  {LEVELS.map(l => <option key={l} value={l}>{l.charAt(0) + l.slice(1).toLowerCase()}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Format</label>
+                <select value={form.type} onChange={e => set('type', e.target.value)} className={CLS_SEL}>
+                  {TYPES.map(t => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Status</label>
+              <select value={form.status} onChange={e => set('status', e.target.value)} className={CLS_SEL}>
+                {STATUSES.map(s => <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</option>)}
               </select>
             </div>
-            <div>
-              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Format</label>
-              <select value={form.type} onChange={e => set('type', e.target.value)}
-                className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body outline-none focus:border-[#d51520] bg-white">
-                {TYPES.map(t => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
-              </select>
+            {error && (
+              <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body">
+                <AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} /> {error}
+              </p>
+            )}
+            <div className="flex gap-2 pt-1">
+              <button type="button" onClick={onClose}
+                className="flex-1 h-10 rounded-[8px] border border-[#e5e7eb] text-[13px] font-medium font-body hover:bg-[#f9fafb] transition-colors">
+                Cancel
+              </button>
+              <button type="submit" disabled={saving}
+                className="flex-1 h-10 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-60 flex items-center justify-center gap-2">
+                {saving && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
+                Next: Set Up Pricing
+              </button>
             </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Main Price (₦)</label>
-              <input type="number" value={form.main_price} onChange={e => set('main_price', e.target.value)}
-                placeholder="250000"
-                className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10" />
+          </form>
+        )}
+
+        {/* ── Step 2: Pricing plan ── */}
+        {step === 2 && (
+          <form onSubmit={handleStep2} className="px-6 py-5 flex flex-col gap-4">
+            <div className="bg-[#f9fafb] rounded-[8px] px-4 py-3">
+              <p className="text-[12px] text-[#4b5563] font-body">
+                Set up pricing for <span className="font-semibold text-[#111827]">{programTitle}</span>. You can add more plans from the programme page.
+              </p>
             </div>
-            <div>
-              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Final Price (₦)</label>
-              <input type="number" value={form.final_price} onChange={e => set('final_price', e.target.value)}
-                placeholder="200000"
-                className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10" />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Plan Title</label>
+                <input value={plan.title} onChange={e => setP('title', e.target.value)}
+                  placeholder="Individual Plan" className={CLS_IN} />
+              </div>
+              <div>
+                <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Plan Type</label>
+                <select value={plan.planType} onChange={e => setP('planType', e.target.value)} className={CLS_SEL}>
+                  <option value="INDIVIDUAL">Individual</option>
+                  <option value="TEAM">Team</option>
+                  <option value="CORPORATE">Corporate</option>
+                </select>
+              </div>
             </div>
-          </div>
-          <div>
-            <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Status</label>
-            <select value={form.status} onChange={e => set('status', e.target.value)}
-              className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body outline-none focus:border-[#d51520] bg-white">
-              {STATUSES.map(s => <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</option>)}
-            </select>
-          </div>
-          {error && (
-            <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body">
-              <AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} /> {error}
-            </p>
-          )}
-          <div className="flex gap-2 pt-1">
-            <button type="button" onClick={onClose}
-              className="flex-1 h-10 rounded-[8px] border border-[#e5e7eb] text-[13px] font-medium font-body hover:bg-[#f9fafb] transition-colors">
-              Cancel
-            </button>
-            <button type="submit" disabled={saving}
-              className="flex-1 h-10 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-60 flex items-center justify-center gap-2">
-              {saving && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
-              Create Programme
-            </button>
-          </div>
-        </form>
+
+            {/* Currency price grid */}
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#374151] font-display mb-2">Prices by Currency</p>
+              <div className="rounded-[8px] border border-[#e5e7eb] overflow-hidden">
+                <div className="grid grid-cols-[100px_1fr_1fr] bg-[#f9fafb] border-b border-[#e5e7eb]">
+                  <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-[0.06em] text-[#4b5563] font-display">Currency</div>
+                  <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-[0.06em] text-[#4b5563] font-display border-l border-[#e5e7eb]">Base Price</div>
+                  <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-[0.06em] text-[#4b5563] font-display border-l border-[#e5e7eb]">Final Price</div>
+                </div>
+                {([
+                  { code: 'NGN', label: '₦ NGN', bk: 'ngn_base' as PricingKey, fk: 'ngn_final' as PricingKey },
+                  { code: 'USD', label: '$ USD', bk: 'usd_base' as PricingKey, fk: 'usd_final' as PricingKey },
+                  { code: 'GBP', label: '£ GBP', bk: 'gbp_base' as PricingKey, fk: 'gbp_final' as PricingKey },
+                ] as const).map((c, i) => (
+                  <div key={c.code} className={`grid grid-cols-[100px_1fr_1fr] ${i < 2 ? 'border-b border-[#e5e7eb]' : ''}`}>
+                    <div className="px-3 py-2.5 flex items-center">
+                      <span className="text-[12px] font-semibold text-[#111827] font-body">{c.label}</span>
+                    </div>
+                    <div className="border-l border-[#e5e7eb] px-2 py-1.5">
+                      <input type="number" min="0" value={plan[c.bk]} onChange={e => setP(c.bk, e.target.value)}
+                        placeholder="0.00" className="w-full h-8 px-2 text-[12px] font-body text-[#111827] outline-none rounded-[4px] bg-transparent focus:bg-[#f9fafb]" />
+                    </div>
+                    <div className="border-l border-[#e5e7eb] px-2 py-1.5">
+                      <input type="number" min="0" value={plan[c.fk]} onChange={e => setP(c.fk, e.target.value)}
+                        placeholder="0.00" className="w-full h-8 px-2 text-[12px] font-body text-[#111827] outline-none rounded-[4px] bg-transparent focus:bg-[#f9fafb]" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[11px] text-[#4b5563] font-body mt-1">Leave a row empty to skip that currency. Billing is One-off.</p>
+            </div>
+
+            {planError && (
+              <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body">
+                <AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} /> {planError}
+              </p>
+            )}
+            <div className="flex gap-2 pt-1">
+              <button type="button" onClick={onCreated}
+                className="flex-1 h-10 rounded-[8px] border border-[#e5e7eb] text-[13px] font-medium font-body hover:bg-[#f9fafb] transition-colors">
+                Skip for Now
+              </button>
+              <button type="submit" disabled={planSaving}
+                className="flex-1 h-10 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-60 flex items-center justify-center gap-2">
+                {planSaving && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
+                Save &amp; Finish
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   )
