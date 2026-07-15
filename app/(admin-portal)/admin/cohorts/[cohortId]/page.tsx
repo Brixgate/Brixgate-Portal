@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft01Icon, Loading01Icon, UserGroup02Icon,
@@ -127,11 +127,14 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
   const [mode, setMode]                           = useState<'read' | 'edit'>('read')
   // Holds the resolved program ID — may differ from prop if recovered from modules response
   const [effectiveProgramId, setEffectiveProgramId] = useState<number | null>(programId)
+  // Ref so load() can read the latest resolved ID without adding it to deps (avoids infinite loop)
+  const effectiveProgramIdRef = useRef<number | null>(programId)
+  useEffect(() => { effectiveProgramIdRef.current = effectiveProgramId }, [effectiveProgramId])
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      let resolvedProgramId = programId
+      let resolvedProgramId = programId ?? effectiveProgramIdRef.current
       const cohortModRes = await apiClient.get(`/cohorts/${cohortId}/modules`).catch(() => null)
       if (cohortModRes) {
         const d = unwrap<{ modules?: CohortModule[] } | CohortModule[]>(cohortModRes.data)
@@ -254,9 +257,19 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
     setSaving(true); setError('')
     try {
       const selectedModules = allModules.filter(m => getModuleState(m.id) !== 'none')
+      // Build reverse map: lessonId → moduleId so each lesson can include its programModuleId
+      const lessonModuleMap = new Map<number, number>()
+      Object.entries(lessonsCache).forEach(([moduleId, lessons]) => {
+        lessons.forEach(l => lessonModuleMap.set(l.id, parseInt(moduleId)))
+      })
       await apiClient.post(`/admin/cohorts/${cohortId}/content/selection`, {
-        modules: selectedModules.map(m => ({ id: m.id })),
-        lessons: Array.from(selectedLessonIds).map(id => ({ id })),
+        modules: selectedModules.map(m => ({ programModuleId: m.id })),
+        lessons: Array.from(selectedLessonIds)
+          .map(lid => {
+            const mid = lessonModuleMap.get(lid)
+            return mid ? { programLessonId: lid, programModuleId: mid } : null
+          })
+          .filter((l): l is { programLessonId: number; programModuleId: number } => l !== null),
       })
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
