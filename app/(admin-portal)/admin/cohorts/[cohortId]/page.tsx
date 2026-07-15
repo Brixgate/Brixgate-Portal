@@ -16,10 +16,13 @@ import { useSidebar } from '@/lib/sidebar-context'
 interface Cohort {
   id: number; title: string; status?: string
   start_date?: string; end_date?: string
-  startDate?: string; endDate?: string       // camelCase fallbacks
+  startDate?: string; endDate?: string
   max_students?: number
+  // Programme linkage — broad naming variants to survive API inconsistencies
   program_id?: number; programId?: number
+  programme_id?: number; programmeId?: number
   program?: { id: number; title: string }
+  programme?: { id: number; title: string }
 }
 interface ProgramModuleLesson   { id: number; title: string; content_type: string; duration?: number }
 interface ProgramModuleResource { id: number; title: string; type: string; link?: string }
@@ -28,7 +31,7 @@ interface ProgramModule {
   lessons?: ProgramModuleLesson[]
   resources?: ProgramModuleResource[]
 }
-interface CohortModule  { id: number; program_module_id?: number; programModuleId?: number; title?: string }
+interface CohortModule  { id: number; program_module_id?: number; programModuleId?: number; title?: string; program_id?: number; programId?: number }
 
 interface Member {
   id: number
@@ -108,7 +111,7 @@ function ResourceTypeChip({ type }: { type: string }) {
 }
 
 // ── Tab: Curriculum ───────────────────────────────────────────────────────────
-function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: number | null }) {
+function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId: string; programId: number | null; onProgramIdResolved?: (id: number) => void }) {
   const [allModules, setAllModules]               = useState<ProgramModule[]>([])
   const [cohortModuleIds, setCohortModuleIds]     = useState<Set<number>>(new Set())
   const [selectedLessonIds, setSelectedLessonIds] = useState<Set<number>>(new Set())
@@ -122,18 +125,26 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
   const [error, setError]                         = useState('')
   const [success, setSuccess]                     = useState(false)
   const [mode, setMode]                           = useState<'read' | 'edit'>('read')
+  // Holds the resolved program ID — may differ from prop if recovered from modules response
+  const [effectiveProgramId, setEffectiveProgramId] = useState<number | null>(programId)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
+      let resolvedProgramId = programId
       const cohortModRes = await apiClient.get(`/cohorts/${cohortId}/modules`).catch(() => null)
       if (cohortModRes) {
         const d = unwrap<{ modules?: CohortModule[] } | CohortModule[]>(cohortModRes.data)
         const mods: CohortModule[] = Array.isArray(d) ? d : ((d as { modules?: CohortModule[] })?.modules ?? [])
         setCohortModuleIds(new Set(mods.map(m => m.program_module_id ?? m.programModuleId ?? 0).filter(Boolean)))
+        // Try to recover programId from modules if the cohort endpoint didn't return it
+        if (!resolvedProgramId && mods.length > 0) {
+          const fromMod = mods[0].program_id ?? mods[0].programId ?? null
+          if (fromMod) { resolvedProgramId = fromMod; setEffectiveProgramId(fromMod); onProgramIdResolved?.(fromMod) }
+        }
       }
-      if (programId) {
-        const progModRes = await apiClient.get(`/admin/programs/${programId}/modules`).catch(() => null)
+      if (resolvedProgramId) {
+        const progModRes = await apiClient.get(`/admin/programs/${resolvedProgramId}/modules`).catch(() => null)
         if (progModRes) {
           const d = unwrap<{ modules?: ProgramModule[] } | ProgramModule[]>(progModRes.data)
           const mods: ProgramModule[] = Array.isArray(d) ? d : ((d as { modules?: ProgramModule[] })?.modules ?? [])
@@ -146,7 +157,7 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
         }
       }
     } finally { setLoading(false) }
-  }, [cohortId, programId])
+  }, [cohortId, programId, onProgramIdResolved])
 
   useEffect(() => { load() }, [load])
 
@@ -167,10 +178,10 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
   async function fetchLessons(module: ProgramModule): Promise<ProgramModuleLesson[]> {
     const cached = getLessons(module.id)
     if (cached.length > 0) return cached
-    if (!programId) return []
+    if (!effectiveProgramId) return []
     setLoadingModuleId(module.id)
     try {
-      const res = await apiClient.get(`/admin/programs/${programId}/modules/${module.id}/lessons`)
+      const res = await apiClient.get(`/admin/programs/${effectiveProgramId}/modules/${module.id}/lessons`)
       const d = unwrap<{ lessons?: ProgramModuleLesson[] } | ProgramModuleLesson[]>(res.data)
       const lessons: ProgramModuleLesson[] = Array.isArray(d) ? d : ((d as { lessons?: ProgramModuleLesson[] })?.lessons ?? [])
       setLessonsCache(prev => ({ ...prev, [module.id]: lessons }))
@@ -214,10 +225,10 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
       const toFetch = assignedModules.filter(m => getLessons(m.id).length === 0)
       const mergedCache = { ...lessonsCache }
 
-      if (toFetch.length > 0 && programId) {
+      if (toFetch.length > 0 && effectiveProgramId) {
         const results = await Promise.allSettled(
           toFetch.map(m =>
-            apiClient.get(`/admin/programs/${programId}/modules/${m.id}/lessons`).then(res => {
+            apiClient.get(`/admin/programs/${effectiveProgramId}/modules/${m.id}/lessons`).then(res => {
               const d = unwrap<{ lessons?: ProgramModuleLesson[] } | ProgramModuleLesson[]>(res.data)
               const lessons: ProgramModuleLesson[] = Array.isArray(d) ? d : ((d as { lessons?: ProgramModuleLesson[] })?.lessons ?? [])
               return { moduleId: m.id, lessons }
@@ -405,7 +416,7 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
             <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#4b5563] font-display">Programme Pool</p>
           </div>
           <p className="text-[12px] text-[#4b5563] font-body mt-0.5">
-            {programId
+            {effectiveProgramId
               ? `${allModules.length} module${allModules.length !== 1 ? 's' : ''} available — tick to include`
               : 'No programme linked to this cohort'}
           </p>
@@ -421,7 +432,7 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
                 </div>
               </div>
             ))
-          ) : !programId ? (
+          ) : !effectiveProgramId ? (
             <div className="text-center py-12 px-4">
               <p className="text-[13px] text-[#4b5563] font-body">Link a programme to this cohort to see the module pool</p>
             </div>
@@ -1067,7 +1078,7 @@ export default function CohortDetailPage() {
         setCohort(c)
 
         // Supplement dates from the program cohorts list if the single endpoint doesn't return them
-        const pId = c?.programId ?? c?.program_id ?? c?.program?.id ?? null
+        const pId = c?.programId ?? c?.program_id ?? c?.programmeId ?? c?.programme_id ?? c?.program?.id ?? c?.programme?.id ?? null
         if (pId) {
           try {
             const listRes = await apiClient.get(`/admin/programs/${pId}/cohorts?size=50`)
@@ -1094,7 +1105,7 @@ export default function CohortDetailPage() {
     loadCohort()
   }, [cohortId])
 
-  const programId = cohort?.programId ?? cohort?.program_id ?? cohort?.program?.id ?? null
+  const programId = cohort?.programId ?? cohort?.program_id ?? cohort?.programmeId ?? cohort?.programme_id ?? cohort?.program?.id ?? cohort?.programme?.id ?? null
 
   function goBack() {
     if (programId) {
@@ -1158,7 +1169,7 @@ export default function CohortDetailPage() {
         className="flex-1 bg-white"
         style={activeTab === 'Curriculum' ? { display: 'flex', flexDirection: 'column', overflow: 'hidden' } : { overflowY: 'auto' }}
       >
-        {activeTab === 'Curriculum' && <CurriculumTab cohortId={cohortId} programId={programId} />}
+        {activeTab === 'Curriculum' && <CurriculumTab cohortId={cohortId} programId={programId} onProgramIdResolved={id => setCohort(prev => prev ? { ...prev, program_id: id } : prev)} />}
         {activeTab === 'People'     && <PeopleTab     cohortId={cohortId} />}
         {activeTab === 'Reviews'    && <ReviewsTab    cohortId={cohortId} />}
       </div>
