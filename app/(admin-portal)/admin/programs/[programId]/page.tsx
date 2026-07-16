@@ -1150,11 +1150,11 @@ function CohortsTab({ programId }: { programId: string }) {
   }
 
   const cohortFormModal = (isEdit: boolean) => (
-    <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/40 px-4" onClick={() => { setConfirmOpenCohort(null); isEdit ? setEditCohort(null) : setShowCreate(false) }}>
+    <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/40 px-4" onClick={() => { setConfirmOpenCohort(null); if (isEdit) { setEditCohort(null) } else { setShowCreate(false) } }}>
       <div className="bg-white rounded-[14px] shadow-xl w-full max-w-[480px] overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-[#f3f4f6]">
           <h2 className="text-[15px] font-bold text-[#111827] font-display">{isEdit ? 'Edit Cohort' : 'New Cohort'}</h2>
-          <button type="button" onClick={() => { setConfirmOpenCohort(null); isEdit ? setEditCohort(null) : setShowCreate(false) }} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f3f4f6]">
+          <button type="button" onClick={() => { setConfirmOpenCohort(null); if (isEdit) { setEditCohort(null) } else { setShowCreate(false) } }} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f3f4f6]">
             <Cancel01Icon size={15} color="#4b5563" strokeWidth={1.5} />
           </button>
         </div>
@@ -1237,7 +1237,7 @@ function CohortsTab({ programId }: { programId: string }) {
             </p>
           )}
           <div className="flex gap-2 pt-1">
-            <button type="button" onClick={() => { setConfirmOpenCohort(null); isEdit ? setEditCohort(null) : setShowCreate(false) }}
+            <button type="button" onClick={() => { setConfirmOpenCohort(null); if (isEdit) { setEditCohort(null) } else { setShowCreate(false) } }}
               className="flex-1 h-10 rounded-[8px] border border-[#e5e7eb] text-[13px] font-body hover:bg-[#f9fafb]">Cancel</button>
             <button type="submit" disabled={saving}
               className="flex-1 h-10 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-60 flex items-center justify-center gap-2">
