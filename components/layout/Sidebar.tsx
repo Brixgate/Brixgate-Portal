@@ -189,9 +189,9 @@ export default function Sidebar() {
                 forceCollapsed ? 'justify-center' : 'justify-center lg:justify-start max-lg:justify-start'
               )}
             >
-              <ArrowLeft01Icon size={20} color="#9ca3af" strokeWidth={1.5} />
+              <ArrowLeft01Icon size={20} color="#4b5563" strokeWidth={1.5} />
               <span className={cn(
-                'text-[14px] leading-[20px] font-display font-medium text-[#9ca3af] whitespace-nowrap',
+                'text-[14px] leading-[20px] font-display font-medium text-[#4b5563] whitespace-nowrap',
                 forceCollapsed ? 'hidden' : 'hidden lg:inline max-lg:inline'
               )}>
                 Back to Website
@@ -217,14 +217,14 @@ export default function Sidebar() {
                   <p className="text-[13px] font-semibold text-[#111827] font-display leading-[18px] truncate">
                     {displayName}
                   </p>
-                  <p className="text-[11px] text-[#6b7280] font-body leading-[14px] capitalize">
+                  <p className="text-[11px] text-[#4b5563] font-body leading-[14px] capitalize">
                     {user?.role?.toLowerCase() ?? 'student'}
                   </p>
                 </div>
                 <button
                   aria-label="Logout"
                   onClick={handleLogout}
-                  className="text-[#9ca3af] hover:text-[#d51520] transition-colors flex-shrink-0"
+                  className="text-[#4b5563] hover:text-[#d51520] transition-colors flex-shrink-0"
                 >
                   <Logout01Icon size={18} color="currentColor" strokeWidth={1.5} />
                 </button>

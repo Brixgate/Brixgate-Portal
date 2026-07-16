@@ -22,7 +22,7 @@ const STATUS_STYLE: Record<string, string> = {
   IN_DISCUSSION: 'bg-[#f0f9ff] text-[#0369a1]', PROPOSAL_SENT: 'bg-[#f5f3ff] text-[#7c3aed]',
   NEGOTIATING:   'bg-[#fff7ed] text-[#c2410c]', APPROVED:      'bg-[#ecfdf3] text-[#027a48]',
   REJECTED:      'bg-[#fef2f2] text-[#d51520]', ONBOARDED:     'bg-[#f0fdf4] text-[#15803d]',
-  CLOSED:        'bg-[#f3f4f6] text-[#6b7280]',
+  CLOSED:        'bg-[#f3f4f6] text-[#4b5563]',
 }
 
 function formatDate(d?: string) {
@@ -58,7 +58,7 @@ export default function AdminOrgRequestsPage() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-[24px] font-bold text-[#111827] font-display">Organisation Requests</h1>
-          <p className="text-[14px] text-[#6b7280] font-body mt-0.5">
+          <p className="text-[14px] text-[#4b5563] font-body mt-0.5">
             {pagination ? `${(pagination.totalElements ?? pagination.total_elements ?? pagination.total ?? 0).toLocaleString()} requests` : 'Enterprise enquiries'}
           </p>
         </div>
@@ -68,7 +68,7 @@ export default function AdminOrgRequestsPage() {
         {[{ v: '', l: 'All' }, ...STATUSES.filter(Boolean).map(s => ({ v: s, l: s.replace('_', ' ') }))].map(({ v, l }) => (
           <button key={v} onClick={() => { setStatus(v); setPage(1) }}
             className={`px-3 h-7 rounded-full text-[11px] font-semibold font-display transition-all ${
-              status === v ? 'bg-[#d51520] text-white' : 'bg-white border border-[#e5e7eb] text-[#6b7280] hover:text-[#374151]'
+              status === v ? 'bg-[#d51520] text-white' : 'bg-white border border-[#e5e7eb] text-[#4b5563] hover:text-[#374151]'
             }`}>
             {l}
           </button>
@@ -81,7 +81,7 @@ export default function AdminOrgRequestsPage() {
             <thead>
               <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
                 {['Organisation', 'Contact', 'Email', 'Programme Interest', 'Status', 'Date', ''].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6b7280] font-display">{h}</th>
+                  <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -102,8 +102,8 @@ export default function AdminOrgRequestsPage() {
                   className="border-b border-[#f3f4f6] hover:bg-[#fafafa] cursor-pointer">
                   <td className="px-4 py-3.5"><p className="text-[13px] font-semibold text-[#111827] font-display">{r.organizationName ?? r.organization_name ?? '—'}</p></td>
                   <td className="px-4 py-3.5"><p className="text-[13px] text-[#374151] font-body">{r.contactName ?? r.contact_name ?? '—'}</p></td>
-                  <td className="px-4 py-3.5"><p className="text-[12px] text-[#6b7280] font-body">{r.contactEmail ?? r.contact_email ?? '—'}</p></td>
-                  <td className="px-4 py-3.5"><p className="text-[12px] text-[#6b7280] font-body truncate max-w-[140px]">{r.programInterest ?? r.program_interest ?? '—'}</p></td>
+                  <td className="px-4 py-3.5"><p className="text-[12px] text-[#4b5563] font-body">{r.contactEmail ?? r.contact_email ?? '—'}</p></td>
+                  <td className="px-4 py-3.5"><p className="text-[12px] text-[#4b5563] font-body truncate max-w-[140px]">{r.programInterest ?? r.program_interest ?? '—'}</p></td>
                   <td className="px-4 py-3.5">
                     {r.status && (
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold font-display ${STATUS_STYLE[r.status] ?? 'bg-[#f3f4f6] text-[#374151]'}`}>
@@ -111,8 +111,8 @@ export default function AdminOrgRequestsPage() {
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3.5"><p className="text-[12px] text-[#9ca3af] font-body">{formatDate(r.createdAt ?? r.created_at)}</p></td>
-                  <td className="px-4 py-3.5 text-right"><ArrowRight01Icon size={15} color="#9ca3af" strokeWidth={1.5} /></td>
+                  <td className="px-4 py-3.5"><p className="text-[12px] text-[#4b5563] font-body">{formatDate(r.createdAt ?? r.created_at)}</p></td>
+                  <td className="px-4 py-3.5 text-right"><ArrowRight01Icon size={15} color="#4b5563" strokeWidth={1.5} /></td>
                 </tr>
               ))}
             </tbody>
@@ -120,7 +120,7 @@ export default function AdminOrgRequestsPage() {
         </div>
         {pagination && (pagination.totalPages ?? pagination.total_pages ?? 1) > 1 && (
           <div className="px-4 py-3 flex items-center justify-between border-t border-[#f3f4f6]">
-            <p className="text-[12px] text-[#6b7280] font-body">Page {page} of {pagination.totalPages ?? pagination.total_pages ?? 1}</p>
+            <p className="text-[12px] text-[#4b5563] font-body">Page {page} of {pagination.totalPages ?? pagination.total_pages ?? 1}</p>
             <div className="flex gap-1">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="h-7 px-3 rounded-[6px] border border-[#e5e7eb] text-[12px] font-body disabled:opacity-40 hover:bg-[#f9fafb]">Prev</button>
               <button onClick={() => setPage(p => p + 1)} disabled={!(pagination.hasNext ?? pagination.has_next)} className="h-7 px-3 rounded-[6px] border border-[#e5e7eb] text-[12px] font-body disabled:opacity-40 hover:bg-[#f9fafb]">Next</button>

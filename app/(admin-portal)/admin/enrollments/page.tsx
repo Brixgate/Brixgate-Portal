@@ -56,13 +56,13 @@ function extractPagination(d: any): Pagination | null {
 
 const STATUS_STYLE: Record<string, string> = {
   ENROLLED:  'bg-[#ecfdf3] text-[#027a48]', APPLIED: 'bg-[#fffbeb] text-[#b45309]',
-  CANCELLED: 'bg-[#fef2f2] text-[#d51520]', DROPPED: 'bg-[#f3f4f6] text-[#6b7280]',
+  CANCELLED: 'bg-[#fef2f2] text-[#d51520]', DROPPED: 'bg-[#f3f4f6] text-[#4b5563]',
   REFUNDED:  'bg-[#f5f3ff] text-[#7c3aed]',
 }
 const COMP_STYLE: Record<string, string> = {
   COMPLETED:   'bg-[#ecfdf3] text-[#027a48]',
   IN_PROGRESS: 'bg-[#eff6ff] text-[#1d4ed8]',
-  NOT_STARTED: 'bg-[#f3f4f6] text-[#6b7280]',
+  NOT_STARTED: 'bg-[#f3f4f6] text-[#4b5563]',
 }
 
 export default function AdminEnrollmentsPage() {
@@ -134,7 +134,7 @@ export default function AdminEnrollmentsPage() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-[24px] font-bold text-[#111827] font-display">Enrollments</h1>
-          <p className="text-[14px] text-[#6b7280] font-body mt-0.5">
+          <p className="text-[14px] text-[#4b5563] font-body mt-0.5">
             {pagination ? `${total.toLocaleString()} total enrollments` : 'All cohort enrollments'}
           </p>
         </div>
@@ -187,7 +187,7 @@ export default function AdminEnrollmentsPage() {
             <thead>
               <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
                 {['User', 'Cohort', 'Type', 'Seats', 'Plan', 'Status', 'Completion', 'Date'].map(h => (
-                  <th key={h} className={`px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6b7280] font-display ${h === 'Seats' ? 'text-center' : 'text-left'}`}>{h}</th>
+                  <th key={h} className={`px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display ${h === 'Seats' ? 'text-center' : 'text-left'}`}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -204,7 +204,7 @@ export default function AdminEnrollmentsPage() {
                 <tr><td colSpan={8} className="px-4 py-16 text-center">
                   <File01Icon size={32} color="#d1d5db" strokeWidth={1.5} className="mx-auto mb-3" />
                   <p className="text-[14px] font-semibold text-[#111827] font-display">No enrollments found</p>
-                  <p className="text-[13px] text-[#6b7280] font-body mt-1">Try adjusting the filters above</p>
+                  <p className="text-[13px] text-[#4b5563] font-body mt-1">Try adjusting the filters above</p>
                 </td></tr>
               ) : enrollments.map(e => {
                 const type  = e.enrollmentType  ?? e.enrollment_type  ?? '—'
@@ -218,7 +218,7 @@ export default function AdminEnrollmentsPage() {
                       <p className="text-[13px] font-medium text-[#111827] font-body">{userName(e.user)}</p>
                     </td>
                     <td className="px-4 py-3.5">
-                      <p className="text-[12px] text-[#6b7280] font-body truncate max-w-[160px]">{cohortTitle}</p>
+                      <p className="text-[12px] text-[#4b5563] font-body truncate max-w-[160px]">{cohortTitle}</p>
                     </td>
                     <td className="px-4 py-3.5">
                       <span className="text-[12px] text-[#374151] font-body">{type}</span>
@@ -227,7 +227,7 @@ export default function AdminEnrollmentsPage() {
                       <span className="text-[12px] font-medium text-[#111827] font-body">{seats}</span>
                     </td>
                     <td className="px-4 py-3.5">
-                      <p className="text-[12px] text-[#6b7280] font-body truncate max-w-[120px]">{plan}</p>
+                      <p className="text-[12px] text-[#4b5563] font-body truncate max-w-[120px]">{plan}</p>
                     </td>
                     <td className="px-4 py-3.5">
                       {e.status && (
@@ -242,7 +242,7 @@ export default function AdminEnrollmentsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3.5">
-                      <p className="text-[12px] text-[#9ca3af] font-body">{formatDate(e.createdAt ?? e.created_at)}</p>
+                      <p className="text-[12px] text-[#4b5563] font-body">{formatDate(e.createdAt ?? e.created_at)}</p>
                     </td>
                   </tr>
                 )
@@ -252,7 +252,7 @@ export default function AdminEnrollmentsPage() {
         </div>
         {pagination && (pagination.totalPages ?? pagination.total_pages ?? 1) > 1 && (
           <div className="px-4 py-3 flex items-center justify-between border-t border-[#f3f4f6]">
-            <p className="text-[12px] text-[#6b7280] font-body">
+            <p className="text-[12px] text-[#4b5563] font-body">
               Showing {((page - 1) * 20) + 1}–{Math.min(page * 20, total)} of {total.toLocaleString()}
             </p>
             <div className="flex items-center gap-1">

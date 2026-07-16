@@ -89,7 +89,7 @@ function SessionRow({
       <div
         className={cn(
           'w-10 h-10 rounded-[8px] flex items-center justify-center flex-shrink-0 text-[13px] font-bold font-display',
-          isHighlighted ? 'bg-[#d51520] text-white' : 'bg-[#f3f4f6] text-[#6b7280]'
+          isHighlighted ? 'bg-[#d51520] text-white' : 'bg-[#f3f4f6] text-[#4b5563]'
         )}
       >
         {String(session.sessionNumber).padStart(2, '0')}
@@ -101,17 +101,17 @@ function SessionRow({
           {session.title}
         </p>
         <div className="flex items-center gap-3 mt-0.5">
-          <span className="flex items-center gap-1 text-[12px] text-[#9ca3af] font-body">
-            <Calendar01Icon size={12} color="#9ca3af" strokeWidth={1.5} />
+          <span className="flex items-center gap-1 text-[12px] text-[#4b5563] font-body">
+            <Calendar01Icon size={12} color="#4b5563" strokeWidth={1.5} />
             {formatDate(session.date)}
           </span>
           <span className="text-[#e5e7eb]">·</span>
-          <span className="flex items-center gap-1 text-[12px] text-[#9ca3af] font-body">
-            <Clock01Icon size={12} color="#9ca3af" strokeWidth={1.5} />
+          <span className="flex items-center gap-1 text-[12px] text-[#4b5563] font-body">
+            <Clock01Icon size={12} color="#4b5563" strokeWidth={1.5} />
             {session.time}
           </span>
           <span className="text-[#e5e7eb]">·</span>
-          <span className="text-[12px] text-[#9ca3af] font-body">{session.duration}</span>
+          <span className="text-[12px] text-[#4b5563] font-body">{session.duration}</span>
         </div>
       </div>
 
@@ -152,8 +152,8 @@ function SessionRow({
           </a>
         )}
         {session.status === 'completed' && !session.recordingLink && (
-          <span className="flex items-center gap-1.5 text-[12px] text-[#9ca3af] font-body">
-            <CheckmarkCircle01Icon size={13} color="#9ca3af" strokeWidth={1.5} />
+          <span className="flex items-center gap-1.5 text-[12px] text-[#4b5563] font-body">
+            <CheckmarkCircle01Icon size={13} color="#4b5563" strokeWidth={1.5} />
             No recording
           </span>
         )}
@@ -191,7 +191,7 @@ export default function SessionsPage() {
             <h1 className="text-[24px] font-bold text-[#111827] font-display leading-tight">
               Live Sessions
             </h1>
-            <p className="text-[14px] text-[#6b7280] font-body mt-1">
+            <p className="text-[14px] text-[#4b5563] font-body mt-1">
               Join your scheduled live classes and access past recordings.
             </p>
           </div>
@@ -229,7 +229,7 @@ export default function SessionsPage() {
                       'py-4 text-[14px] font-display transition-colors',
                       activeTab === tab
                         ? 'font-semibold text-[#d51520]'
-                        : 'font-normal text-[#6b7280] hover:text-[#374151]'
+                        : 'font-normal text-[#4b5563] hover:text-[#374151]'
                     )}
                   >
                     {tab}
@@ -239,7 +239,7 @@ export default function SessionsPage() {
                           'ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full font-display',
                           activeTab === tab
                             ? 'bg-[#fef2f2] text-[#d51520]'
-                            : 'bg-[#f3f4f6] text-[#9ca3af]'
+                            : 'bg-[#f3f4f6] text-[#4b5563]'
                         )}
                       >
                         {upcomingSessions.length}
@@ -260,12 +260,12 @@ export default function SessionsPage() {
             {displayed.length === 0 ? (
               <div className="py-16 flex flex-col items-center text-center">
                 <div className="w-14 h-14 rounded-[12px] bg-[#f3f4f6] flex items-center justify-center mb-4">
-                  <Video01Icon size={24} color="#9ca3af" strokeWidth={1.5} />
+                  <Video01Icon size={24} color="#4b5563" strokeWidth={1.5} />
                 </div>
                 <p className="text-[14px] font-semibold text-[#374151] font-display mb-1">
                   {activeTab === 'Upcoming' ? 'No upcoming sessions' : 'No past sessions'}
                 </p>
-                <p className="text-[13px] text-[#9ca3af] font-body max-w-[280px]">
+                <p className="text-[13px] text-[#4b5563] font-body max-w-[280px]">
                   {activeTab === 'Upcoming'
                     ? 'New sessions will appear here once scheduled.'
                     : 'Completed sessions and recordings will appear here.'}
@@ -286,7 +286,7 @@ export default function SessionsPage() {
             {/* Footer summary */}
             {displayed.length > 0 && (
               <div className="px-5 py-3 bg-[#f9fafb] border-t border-[#f3f4f6]">
-                <p className="text-[12px] text-[#9ca3af] font-body">
+                <p className="text-[12px] text-[#4b5563] font-body">
                   Showing {displayed.length} session{displayed.length !== 1 ? 's' : ''}
                   {activeTab === 'Past Sessions' && ' · Recordings available for watched classes'}
                 </p>

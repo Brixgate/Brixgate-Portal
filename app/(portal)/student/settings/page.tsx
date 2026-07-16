@@ -35,7 +35,7 @@ function SectionCard({
       <div className="px-6 py-5 border-b border-[#f3f4f6] rounded-t-[10px]">
         <p className="text-[16px] font-semibold text-[#111827] font-display">{title}</p>
         {description && (
-          <p className="text-[13px] text-[#6b7280] font-body mt-0.5">{description}</p>
+          <p className="text-[13px] text-[#4b5563] font-body mt-0.5">{description}</p>
         )}
       </div>
       <div className="p-6">{children}</div>
@@ -70,7 +70,7 @@ function FormField({
       <label className="text-[13px] font-medium text-[#374151] font-body">{label}</label>
       <div className="relative flex">
         {prefix && (
-          <div className="h-11 px-3 flex items-center border border-r-0 border-[#e5e7eb] rounded-l-[6px] bg-[#f9fafb] text-[13px] text-[#6b7280] font-body flex-shrink-0">
+          <div className="h-11 px-3 flex items-center border border-r-0 border-[#e5e7eb] rounded-l-[6px] bg-[#f9fafb] text-[13px] text-[#4b5563] font-body flex-shrink-0">
             {prefix}
           </div>
         )}
@@ -80,13 +80,13 @@ function FormField({
           readOnly={readOnly}
           onChange={(e) => onChange?.(e.target.value)}
           placeholder={placeholder}
-          className={`h-11 flex-1 px-3.5 border text-[13px] font-body text-[#111827] placeholder:text-[#9ca3af] outline-none transition-all ${
+          className={`h-11 flex-1 px-3.5 border text-[13px] font-body text-[#111827] placeholder:text-[#4b5563] outline-none transition-all ${
             prefix ? 'rounded-r-[6px]' : 'rounded-[6px]'
           } ${
             error
               ? 'border-[#d51520] bg-white focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10'
               : readOnly
-              ? 'border-[#e5e7eb] bg-[#f9fafb] text-[#9ca3af] cursor-not-allowed'
+              ? 'border-[#e5e7eb] bg-[#f9fafb] text-[#4b5563] cursor-not-allowed'
               : 'border-[#e5e7eb] bg-white focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10'
           }`}
         />
@@ -94,7 +94,7 @@ function FormField({
           <button
             type="button"
             onClick={() => setShowPassword((p) => !p)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9ca3af] hover:text-[#6b7280] transition-colors"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#4b5563] hover:text-[#4b5563] transition-colors"
           >
             {showPassword ? (
               <ViewOffIcon size={16} strokeWidth={1.5} />
@@ -168,7 +168,7 @@ function Toggle({
       <div>
         <p className="text-[13px] font-medium text-[#374151] font-body">{label}</p>
         {description && (
-          <p className="text-[12px] text-[#6b7280] font-body mt-0.5">{description}</p>
+          <p className="text-[12px] text-[#4b5563] font-body mt-0.5">{description}</p>
         )}
       </div>
       <button
@@ -428,7 +428,7 @@ export default function SettingsPage() {
           <h1 className="text-[24px] font-bold text-[#111827] font-display leading-tight">
             Profile Settings
           </h1>
-          <p className="text-[14px] text-[#6b7280] font-body mt-1">
+          <p className="text-[14px] text-[#4b5563] font-body mt-1">
             Manage your personal information, password, and notification preferences.
           </p>
         </div>
@@ -515,7 +515,7 @@ export default function SettingsPage() {
                   <p className="text-[14px] font-semibold text-[#111827] font-display">
                     {firstName} {lastName}
                   </p>
-                  <p className="text-[12px] text-[#9ca3af] font-body mt-0.5">Student</p>
+                  <p className="text-[12px] text-[#4b5563] font-body mt-0.5">Student</p>
                   <button
                     type="button"
                     onClick={() => !uploadingAvatar && fileInputRef.current?.click()}
@@ -524,7 +524,7 @@ export default function SettingsPage() {
                   >
                     {uploadingAvatar ? 'Uploading…' : 'Change photo'}
                   </button>
-                  <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">
+                  <p className="text-[11px] text-[#4b5563] font-body mt-0.5">
                     JPG, PNG or WebP · Max 5MB
                   </p>
                 </div>
@@ -647,7 +647,7 @@ export default function SettingsPage() {
                       value={phone}
                       onChange={e => { setPhone(e.target.value); setIsEditing(true) }}
                       placeholder="801 234 5678"
-                      className="h-11 flex-1 px-3.5 border border-[#e5e7eb] rounded-r-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#9ca3af] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 bg-white"
+                      className="h-11 flex-1 px-3.5 border border-[#e5e7eb] rounded-r-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#4b5563] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 bg-white"
                     />
                   </div>
                 </div>
@@ -680,7 +680,7 @@ export default function SettingsPage() {
                     </div>
                     <div>
                       <p className="text-[13px] font-medium text-[#111827] font-body truncate max-w-[240px]">{resume.name}</p>
-                      <p className="text-[11px] text-[#9ca3af] font-body">{resume.size}</p>
+                      <p className="text-[11px] text-[#4b5563] font-body">{resume.size}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
@@ -707,13 +707,13 @@ export default function SettingsPage() {
                   className="w-full flex flex-col items-center justify-center gap-3 py-8 border-2 border-dashed border-[#e5e7eb] rounded-[10px] hover:border-[#d51520]/40 hover:bg-[#fef2f2]/30 transition-all group"
                 >
                   <div className="w-10 h-10 rounded-[8px] bg-[#f3f4f6] group-hover:bg-[#fef2f2] flex items-center justify-center transition-colors">
-                    <Upload01Icon size={20} color="#9ca3af" strokeWidth={1.5} />
+                    <Upload01Icon size={20} color="#4b5563" strokeWidth={1.5} />
                   </div>
                   <div className="text-center">
                     <p className="text-[13px] font-medium text-[#374151] font-display">
                       Click to upload your resume
                     </p>
-                    <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">
+                    <p className="text-[11px] text-[#4b5563] font-body mt-0.5">
                       PDF or Word document · Max 10MB
                     </p>
                   </div>
@@ -736,7 +736,7 @@ export default function SettingsPage() {
                   ...(programmeStatus ? [{ label: 'Programme Status', value: programmeStatus.charAt(0) + programmeStatus.slice(1).toLowerCase() }] : []),
                 ].map(({ label, value }) => (
                   <div key={label} className="flex flex-col gap-0.5">
-                    <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">{label}</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-widest text-[#4b5563] font-display">{label}</p>
                     <p className="text-[13px] font-medium text-[#374151] font-body">{value}</p>
                   </div>
                 ))}
@@ -759,7 +759,7 @@ export default function SettingsPage() {
 
                   return (
                     <div className="flex flex-col gap-0.5">
-                      <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">Cohort Status</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-widest text-[#4b5563] font-display">Cohort Status</p>
                       <span
                         className="inline-flex w-fit text-[11px] font-semibold px-2.5 py-0.5 rounded-full border font-display"
                         style={{ color, background: bg, borderColor: border }}
@@ -778,7 +778,7 @@ export default function SettingsPage() {
               <div className="flex items-center justify-between py-1">
                 <div>
                   <p className="text-[13px] font-medium text-[#374151] font-body">Password</p>
-                  <p className="text-[12px] text-[#6b7280] font-body mt-0.5">Change your account password at any time</p>
+                  <p className="text-[12px] text-[#4b5563] font-body mt-0.5">Change your account password at any time</p>
                 </div>
                 <Link
                   href="/update-password"

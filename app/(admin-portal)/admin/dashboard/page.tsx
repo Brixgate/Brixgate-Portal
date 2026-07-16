@@ -323,7 +323,7 @@ export default function AdminDashboardPage() {
         <h1 className="text-[24px] font-bold text-[#111827] font-display leading-[32px]">
           Dashboard
         </h1>
-        <p className="text-[14px] text-[#6b7280] font-body mt-0.5">
+        <p className="text-[14px] text-[#4b5563] font-body mt-0.5">
           Overview of Brixgate operations
         </p>
       </div>
@@ -345,7 +345,7 @@ export default function AdminDashboardPage() {
             {/* Title */}
             <div className="flex-shrink-0">
               <h3 className="text-[15px] font-semibold text-[#111827] font-display">Enrollment Trend</h3>
-              <p className="text-[12px] text-[#6b7280] font-body mt-0.5">
+              <p className="text-[12px] text-[#4b5563] font-body mt-0.5">
                 {trendView === 'year'
                   ? `Jan – Dec ${new Date().getFullYear()}`
                   : `${MONTH_NAMES[trendMonth]} ${new Date().getFullYear()}`}
@@ -396,7 +396,7 @@ export default function AdminDashboardPage() {
                     className={`h-7 px-3 rounded-[6px] text-[12px] font-semibold font-display transition-colors ${
                       trendView === v
                         ? 'bg-white text-[#111827] shadow-[0px_1px_2px_rgba(16,24,40,.08)]'
-                        : 'text-[#6b7280] hover:text-[#374151]'
+                        : 'text-[#4b5563] hover:text-[#374151]'
                     }`}
                   >
                     {v.charAt(0).toUpperCase() + v.slice(1)}
@@ -411,7 +411,7 @@ export default function AdminDashboardPage() {
             ) : trendEmpty ? (
               <div className="h-full min-h-[240px] flex flex-col items-center justify-center text-center">
                 <File01Icon size={28} color="#d1d5db" strokeWidth={1.5} />
-                <p className="text-[13px] text-[#6b7280] font-body mt-3">No enrollments in the last 6 months</p>
+                <p className="text-[13px] text-[#4b5563] font-body mt-3">No enrollments in the last 6 months</p>
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
@@ -441,7 +441,7 @@ export default function AdminDashboardPage() {
         <div className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] flex flex-col">
           <div className="px-6 pt-5 pb-4 border-b border-[#f3f4f6]">
             <h3 className="text-[15px] font-semibold text-[#111827] font-display">Recent Payments</h3>
-            <p className="text-[12px] text-[#6b7280] font-body mt-0.5">Latest 4 transactions</p>
+            <p className="text-[12px] text-[#4b5563] font-body mt-0.5">Latest 4 transactions</p>
           </div>
 
           <div className="flex-1 px-6 py-3">
@@ -460,7 +460,7 @@ export default function AdminDashboardPage() {
             ) : recentPayments.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center py-8">
                 <Invoice01Icon size={28} color="#d1d5db" strokeWidth={1.5} />
-                <p className="text-[13px] text-[#6b7280] font-body mt-3">No payments yet</p>
+                <p className="text-[13px] text-[#4b5563] font-body mt-3">No payments yet</p>
               </div>
             ) : (
               <div className="flex flex-col divide-y divide-[#f3f4f6]">
@@ -473,7 +473,7 @@ export default function AdminDashboardPage() {
                         <p className="text-[13px] font-medium text-[#111827] font-body truncate">
                           {paymentDisplayName(p)}
                         </p>
-                        <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">
+                        <p className="text-[11px] text-[#4b5563] font-body mt-0.5">
                           {formatDate(p.createdAt ?? p.created_at)}
                         </p>
                       </div>
@@ -510,7 +510,7 @@ export default function AdminDashboardPage() {
         <div className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)]">
           <div className="px-6 pt-5 pb-4 border-b border-[#f3f4f6]">
             <h3 className="text-[15px] font-semibold text-[#111827] font-display">Pipeline — Pending Review</h3>
-            <p className="text-[12px] text-[#6b7280] font-body mt-0.5">Items awaiting action</p>
+            <p className="text-[12px] text-[#4b5563] font-body mt-0.5">Items awaiting action</p>
           </div>
           <div className="px-6 py-4">
             <PipelineCard label="Expert Applications"   count={metrics.expertPending} loading={loading} color="red" />
@@ -532,7 +532,7 @@ export default function AdminDashboardPage() {
         <div className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)]">
           <div className="px-6 pt-5 pb-4 border-b border-[#f3f4f6]">
             <h3 className="text-[15px] font-semibold text-[#111827] font-display">Quick Actions</h3>
-            <p className="text-[12px] text-[#6b7280] font-body mt-0.5">Common admin tasks</p>
+            <p className="text-[12px] text-[#4b5563] font-body mt-0.5">Common admin tasks</p>
           </div>
           <div className="px-6 py-4 grid grid-cols-2 gap-3">
             {[
@@ -551,7 +551,7 @@ export default function AdminDashboardPage() {
       </div>
 
       {loading && (
-        <div className="fixed bottom-6 right-6 flex items-center gap-2 bg-white border border-[#e5e7eb] rounded-full px-4 py-2 shadow-md text-[12px] text-[#6b7280] font-body">
+        <div className="fixed bottom-6 right-6 flex items-center gap-2 bg-white border border-[#e5e7eb] rounded-full px-4 py-2 shadow-md text-[12px] text-[#4b5563] font-body">
           <Loading01Icon size={13} className="animate-spin text-[#d51520]" strokeWidth={2} />
           Loading metrics…
         </div>

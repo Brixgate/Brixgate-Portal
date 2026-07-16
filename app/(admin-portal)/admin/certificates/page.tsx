@@ -58,7 +58,7 @@ export default function AdminCertificatesPage() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-[24px] font-bold text-[#111827] font-display">Certificates</h1>
-          <p className="text-[14px] text-[#6b7280] font-body mt-0.5">
+          <p className="text-[14px] text-[#4b5563] font-body mt-0.5">
             {pagination ? `${(pagination.totalElements ?? pagination.total_elements ?? pagination.total ?? 0).toLocaleString()} certificates` : 'All user certificates'}
           </p>
         </div>
@@ -77,7 +77,7 @@ export default function AdminCertificatesPage() {
             <thead>
               <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
                 {['Student', 'Email', 'Programme', 'Cohort', 'Status', 'Issued'].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6b7280] font-display">{h}</th>
+                  <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -96,9 +96,9 @@ export default function AdminCertificatesPage() {
               ) : certs.map(c => (
                 <tr key={c.id} className="border-b border-[#f3f4f6] hover:bg-[#fafafa]">
                   <td className="px-4 py-3.5"><p className="text-[13px] font-medium text-[#111827] font-body">{userName(c.user)}</p></td>
-                  <td className="px-4 py-3.5"><p className="text-[12px] text-[#6b7280] font-body">{c.user?.email ?? '—'}</p></td>
+                  <td className="px-4 py-3.5"><p className="text-[12px] text-[#4b5563] font-body">{c.user?.email ?? '—'}</p></td>
                   <td className="px-4 py-3.5"><p className="text-[13px] text-[#374151] font-body">{c.program?.title ?? '—'}</p></td>
-                  <td className="px-4 py-3.5"><p className="text-[12px] text-[#6b7280] font-body">{c.cohort?.title ?? '—'}</p></td>
+                  <td className="px-4 py-3.5"><p className="text-[12px] text-[#4b5563] font-body">{c.cohort?.title ?? '—'}</p></td>
                   <td className="px-4 py-3.5">
                     {c.status && (
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold font-display ${STATUS_STYLE[c.status] ?? 'bg-[#f3f4f6] text-[#374151]'}`}>
@@ -106,7 +106,7 @@ export default function AdminCertificatesPage() {
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3.5"><p className="text-[12px] text-[#9ca3af] font-body">{formatDate(c.issuedAt ?? c.issued_at ?? c.createdAt ?? c.created_at)}</p></td>
+                  <td className="px-4 py-3.5"><p className="text-[12px] text-[#4b5563] font-body">{formatDate(c.issuedAt ?? c.issued_at ?? c.createdAt ?? c.created_at)}</p></td>
                 </tr>
               ))}
             </tbody>
@@ -114,7 +114,7 @@ export default function AdminCertificatesPage() {
         </div>
         {pagination && (pagination.totalPages ?? pagination.total_pages ?? 1) > 1 && (
           <div className="px-4 py-3 flex items-center justify-between border-t border-[#f3f4f6]">
-            <p className="text-[12px] text-[#6b7280] font-body">Page {page} of {pagination.totalPages ?? pagination.total_pages ?? 1}</p>
+            <p className="text-[12px] text-[#4b5563] font-body">Page {page} of {pagination.totalPages ?? pagination.total_pages ?? 1}</p>
             <div className="flex gap-1">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="h-7 px-3 rounded-[6px] border border-[#e5e7eb] text-[12px] font-body disabled:opacity-40 hover:bg-[#f9fafb]">Prev</button>
               <button onClick={() => setPage(p => p + 1)} disabled={!(pagination.hasNext ?? pagination.has_next)} className="h-7 px-3 rounded-[6px] border border-[#e5e7eb] text-[12px] font-body disabled:opacity-40 hover:bg-[#f9fafb]">Next</button>

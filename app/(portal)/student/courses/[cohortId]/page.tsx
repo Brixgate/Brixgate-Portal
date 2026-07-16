@@ -173,7 +173,7 @@ function ModuleAccordion({
           <p className={`text-[13px] font-semibold font-display leading-snug ${isModuleSelected ? 'text-[#D51520]' : 'text-[#111827]'}`}>
             {module.title}
           </p>
-          <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">
+          <p className="text-[11px] text-[#4b5563] font-body mt-0.5">
             {lessonCount} lesson{lessonCount !== 1 ? 's' : ''}
             {module.duration ? ` · ${module.duration}` : ''}
           </p>
@@ -181,8 +181,8 @@ function ModuleAccordion({
 
         <div className="flex-shrink-0 mt-1">
           {isExpanded
-            ? <ArrowUp01Icon size={14} color="#9ca3af" strokeWidth={1.5} />
-            : <ArrowDown01Icon size={14} color="#9ca3af" strokeWidth={1.5} />}
+            ? <ArrowUp01Icon size={14} color="#4b5563" strokeWidth={1.5} />
+            : <ArrowDown01Icon size={14} color="#4b5563" strokeWidth={1.5} />}
         </div>
       </button>
 
@@ -219,7 +219,7 @@ function ModuleAccordion({
                       {lesson.title}
                     </p>
                     {lesson.duration > 0 && (
-                      <p className="text-[10px] text-[#9ca3af] font-body mt-0.5">
+                      <p className="text-[10px] text-[#4b5563] font-body mt-0.5">
                         {formatDuration(lesson.duration)}
                       </p>
                     )}
@@ -267,7 +267,7 @@ function ResourceRow({ resource }: { resource: ApiResource }) {
         <p className="text-[13px] font-medium text-[#111827] font-body truncate">
           {resource.title ?? 'Resource'}
         </p>
-        <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">
+        <p className="text-[11px] text-[#4b5563] font-body mt-0.5">
           {type.charAt(0) + type.slice(1).toLowerCase()}
         </p>
       </div>
@@ -297,7 +297,7 @@ function DetailPanel({ item, resources }: { item: SelectedItem | null; resources
         <p className="text-[14px] font-semibold text-[#374151] font-display mb-1">
           Select a module or lesson
         </p>
-        <p className="text-[13px] text-[#9ca3af] font-body max-w-[280px] leading-[1.6]">
+        <p className="text-[13px] text-[#4b5563] font-body max-w-[280px] leading-[1.6]">
           Click any module or lesson on the left to view its details here.
         </p>
       </div>
@@ -324,11 +324,11 @@ function DetailPanel({ item, resources }: { item: SelectedItem | null; resources
       <div className="p-8">
         {/* Eyebrow */}
         <div className="flex items-center gap-2 mb-4">
-          <span className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">
+          <span className="text-[11px] font-semibold uppercase tracking-widest text-[#4b5563] font-display">
             Module {String(index).padStart(2, '0')}
           </span>
           {mod.duration && (
-            <span className="text-[11px] font-medium text-[#6b7280] font-body bg-[#f3f4f6] px-2.5 py-1 rounded-full">
+            <span className="text-[11px] font-medium text-[#4b5563] font-body bg-[#f3f4f6] px-2.5 py-1 rounded-full">
               {mod.duration}
             </span>
           )}
@@ -345,7 +345,7 @@ function DetailPanel({ item, resources }: { item: SelectedItem | null; resources
             {mod.description ?? mod.module_description}
           </p>
         ) : (
-          <p className="text-[14px] text-[#9ca3af] font-body leading-[1.6] mb-6 italic">
+          <p className="text-[14px] text-[#4b5563] font-body leading-[1.6] mb-6 italic">
             No description provided for this module.
           </p>
         )}
@@ -353,19 +353,19 @@ function DetailPanel({ item, resources }: { item: SelectedItem | null; resources
         {/* Meta chips */}
         <div className="flex items-center gap-3 flex-wrap mb-8">
           <div className="flex items-center gap-1.5 bg-[#f3f4f6] rounded-full px-3 py-1.5">
-            <BookOpen01Icon size={12} color="#6b7280" strokeWidth={1.5} />
+            <BookOpen01Icon size={12} color="#4b5563" strokeWidth={1.5} />
             <span className="text-[12px] font-medium text-[#374151] font-body">
               {lessonCount} lesson{lessonCount !== 1 ? 's' : ''}
             </span>
           </div>
           {mod.duration && (
             <div className="flex items-center gap-1.5 bg-[#f3f4f6] rounded-full px-3 py-1.5">
-              <Time01Icon size={12} color="#6b7280" strokeWidth={1.5} />
+              <Time01Icon size={12} color="#4b5563" strokeWidth={1.5} />
               <span className="text-[12px] font-medium text-[#374151] font-body">{mod.duration}</span>
             </div>
           )}
           {mod.createdBy && (
-            <span className="text-[12px] text-[#9ca3af] font-body">
+            <span className="text-[12px] text-[#4b5563] font-body">
               by {mod.createdBy}
             </span>
           )}
@@ -374,7 +374,7 @@ function DetailPanel({ item, resources }: { item: SelectedItem | null; resources
         {/* Lessons in this module */}
         {lessonCount > 0 && (
           <>
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display mb-3">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-[#4b5563] font-display mb-3">
               Lessons in this module
             </p>
             <div className="flex flex-col gap-2">
@@ -399,7 +399,7 @@ function DetailPanel({ item, resources }: { item: SelectedItem | null; resources
                         <p className="text-[13px] font-medium text-[#111827] font-body truncate">
                           {String(i + 1).padStart(2, '0')}. {lesson.title}
                         </p>
-                        <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">
+                        <p className="text-[11px] text-[#4b5563] font-body mt-0.5">
                           {type.charAt(0) + type.slice(1).toLowerCase()}
                           {lesson.duration ? ` · ${formatDuration(lesson.duration)}` : ''}
                         </p>
@@ -414,7 +414,7 @@ function DetailPanel({ item, resources }: { item: SelectedItem | null; resources
         {/* Module resources */}
         {visibleResources.length > 0 && (
           <div className="mt-8">
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display mb-3">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-[#4b5563] font-display mb-3">
               Resources
             </p>
             <div className="flex flex-col gap-2">
@@ -438,7 +438,7 @@ function DetailPanel({ item, resources }: { item: SelectedItem | null; resources
   return (
     <div className="p-8">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-1.5 mb-5 text-[12px] text-[#9ca3af] font-body">
+      <div className="flex items-center gap-1.5 mb-5 text-[12px] text-[#4b5563] font-body">
         <span>Module {String(moduleIndex).padStart(2, '0')}</span>
         <ArrowRight01Icon size={11} color="#d1d5db" strokeWidth={1.5} />
         <span>Lesson {String(lessonIndex).padStart(2, '0')}</span>
@@ -458,8 +458,8 @@ function DetailPanel({ item, resources }: { item: SelectedItem | null; resources
       </h2>
 
       {/* Module context */}
-      <p className="text-[13px] text-[#9ca3af] font-body mb-6 leading-snug">
-        From: <span className="text-[#6b7280] font-medium">{moduleTitle}</span>
+      <p className="text-[13px] text-[#4b5563] font-body mb-6 leading-snug">
+        From: <span className="text-[#4b5563] font-medium">{moduleTitle}</span>
       </p>
 
       {/* Meta row */}
@@ -475,7 +475,7 @@ function DetailPanel({ item, resources }: { item: SelectedItem | null; resources
         </div>
         {lesson.duration > 0 && (
           <div className="flex items-center gap-1.5 bg-[#f3f4f6] rounded-full px-3 py-1.5">
-            <Time01Icon size={12} color="#6b7280" strokeWidth={1.5} />
+            <Time01Icon size={12} color="#4b5563" strokeWidth={1.5} />
             <span className="text-[12px] font-medium text-[#374151] font-body">
               {formatDuration(lesson.duration)}
             </span>
@@ -498,7 +498,7 @@ function DetailPanel({ item, resources }: { item: SelectedItem | null; resources
           <ArrowRight01Icon size={15} color="white" strokeWidth={2} />
         </a>
       ) : (
-        <div className="flex items-center gap-2 text-[13px] text-[#9ca3af] font-body">
+        <div className="flex items-center gap-2 text-[13px] text-[#4b5563] font-body">
           <Link01Icon size={14} color="#d1d5db" strokeWidth={1.5} />
           Content link not available yet.
         </div>
@@ -604,7 +604,7 @@ export default function CourseDetailPage() {
     return (
       <>
         <TopNav title="Course" breadcrumbs={['My Programs']} />
-        <div className="flex flex-col items-center justify-center h-[60vh] gap-2 text-[#9ca3af]">
+        <div className="flex flex-col items-center justify-center h-[60vh] gap-2 text-[#4b5563]">
           <Loading01Icon size={22} className="animate-spin" strokeWidth={1.5} />
           <span className="text-[13px] font-body">Loading curriculum…</span>
         </div>
@@ -622,7 +622,7 @@ export default function CourseDetailPage() {
             <BookOpen01Icon size={24} color="#d1d5db" strokeWidth={1.5} />
           </div>
           <p className="text-[15px] font-semibold text-[#374151] font-display">No content yet</p>
-          <p className="text-[13px] text-[#9ca3af] font-body max-w-[320px]">
+          <p className="text-[13px] text-[#4b5563] font-body max-w-[320px]">
             Your instructor is preparing the curriculum. Modules and lessons will appear here once they&apos;re published.
           </p>
           <button
@@ -650,13 +650,13 @@ export default function CourseDetailPage() {
               className="w-8 h-8 flex items-center justify-center rounded-[6px] hover:bg-[#f3f4f6] transition-colors flex-shrink-0"
               aria-label="Back to programs"
             >
-              <ArrowLeft01Icon size={16} color="#6b7280" strokeWidth={1.5} />
+              <ArrowLeft01Icon size={16} color="#4b5563" strokeWidth={1.5} />
             </button>
             <div className="min-w-0">
               <h1 className="text-[20px] lg:text-[24px] font-bold text-[#111827] font-display leading-tight truncate">
                 {programTitle || 'Course Curriculum'}
               </h1>
-              <p className="text-[13px] text-[#6b7280] font-body mt-0.5">
+              <p className="text-[13px] text-[#4b5563] font-body mt-0.5">
                 {modules.length} module{modules.length !== 1 ? 's' : ''} · {totalLessons} lesson{totalLessons !== 1 ? 's' : ''}
               </p>
             </div>
@@ -686,7 +686,7 @@ export default function CourseDetailPage() {
           <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] overflow-hidden flex flex-col">
             <div className="px-5 py-4 border-b border-[#f3f4f6]">
               <p className="text-[14px] font-semibold text-[#111827] font-display">Course Curriculum</p>
-              <p className="text-[12px] text-[#9ca3af] font-body mt-0.5">
+              <p className="text-[12px] text-[#4b5563] font-body mt-0.5">
                 {modules.length} modules · {totalLessons} lessons
               </p>
             </div>

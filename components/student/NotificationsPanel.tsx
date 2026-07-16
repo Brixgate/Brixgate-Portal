@@ -85,7 +85,7 @@ function NotifRow({ n }: { n: Notif }) {
             <span className="w-1.5 h-1.5 rounded-full bg-[#d51520] flex-shrink-0 mt-1.5" />
           )}
         </div>
-        <p className="text-[11px] text-[#9ca3af] font-body mt-0.5 leading-none">
+        <p className="text-[11px] text-[#4b5563] font-body mt-0.5 leading-none">
           {formatShortDate(n.createdAt)}
         </p>
       </div>
@@ -127,14 +127,14 @@ export default function NotificationsPanel() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-6 gap-2 text-[#9ca3af]">
+        <div className="flex items-center justify-center py-6 gap-2 text-[#4b5563]">
           <Loading01Icon size={14} className="animate-spin" strokeWidth={1.5} />
           <span className="text-[12px] font-body">Loading…</span>
         </div>
       ) : (
         <div className="divide-y divide-[#f7f8fa]">
           {notifications.length === 0 ? (
-            <p className="text-[12px] text-[#9ca3af] font-body text-center py-6">
+            <p className="text-[12px] text-[#4b5563] font-body text-center py-6">
               No notifications yet.
             </p>
           ) : (

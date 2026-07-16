@@ -109,11 +109,11 @@ function NotificationRow({
               )}
             </div>
             {notification.body && (
-              <p className="text-[13px] text-[#6b7280] font-body leading-relaxed">
+              <p className="text-[13px] text-[#4b5563] font-body leading-relaxed">
                 {notification.body}
               </p>
             )}
-            <p className="text-[11px] text-[#9ca3af] font-body mt-1.5">
+            <p className="text-[11px] text-[#4b5563] font-body mt-1.5">
               {formatDate(notification.createdAt)}
             </p>
           </div>
@@ -175,7 +175,7 @@ export default function NotificationsPage() {
             <h1 className="text-[24px] font-bold text-[#111827] font-display leading-tight">
               Notifications
             </h1>
-            <p className="text-[14px] text-[#6b7280] font-body mt-1">
+            <p className="text-[14px] text-[#4b5563] font-body mt-1">
               {loading
                 ? 'Loading…'
                 : unreadCount > 0
@@ -195,7 +195,7 @@ export default function NotificationsPage() {
         </div>
 
         {loading ? (
-          <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] flex items-center justify-center py-16 gap-2 text-[#9ca3af]">
+          <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] flex items-center justify-center py-16 gap-2 text-[#4b5563]">
             <Loading01Icon size={18} className="animate-spin" strokeWidth={1.5} />
             <span className="text-[14px] font-body">Loading notifications…</span>
           </div>
@@ -213,7 +213,7 @@ export default function NotificationsPage() {
             {unreadCount > 0 && (
               <>
                 <div className="px-6 py-3 bg-[#f9fafb] border-b border-[#f3f4f6]">
-                  <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-[#4b5563] font-display">
                     Unread
                   </p>
                 </div>
@@ -229,7 +229,7 @@ export default function NotificationsPage() {
             {notifications.some((n) => n.isRead) && (
               <>
                 <div className="px-6 py-3 bg-[#f9fafb] border-b border-[#f3f4f6] border-t border-t-[#f3f4f6]">
-                  <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-[#4b5563] font-display">
                     Earlier
                   </p>
                 </div>

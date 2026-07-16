@@ -31,12 +31,12 @@ export default function DashboardPage() {
             <h1 className="text-[22px] lg:text-[28px] font-semibold text-black font-display leading-tight">
               Welcome{firstName ? ` ${firstName}` : ''}!
             </h1>
-            <p className="text-[13px] lg:text-[14px] text-[#6b7280] font-body">
+            <p className="text-[13px] lg:text-[14px] text-[#4b5563] font-body">
               {isNewUser ? 'Get started by enrolling in a programme.' : "Let's learn something new today"}
             </p>
           </div>
           {/* Date — hidden on mobile */}
-          <p className="hidden lg:block text-[14px] text-[#6b7280] font-body pt-1 shrink-0">
+          <p className="hidden lg:block text-[14px] text-[#4b5563] font-body pt-1 shrink-0">
             {getTodayFormatted()}
           </p>
         </div>

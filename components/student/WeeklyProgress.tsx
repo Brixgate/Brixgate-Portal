@@ -41,7 +41,7 @@ export default function WeeklyProgress() {
         <p className="text-[15px] font-semibold text-[#111827] font-display leading-none">
           Weekly Progress
         </p>
-        <span className="text-[12px] font-medium text-[#9ca3af] font-body">
+        <span className="text-[12px] font-medium text-[#4b5563] font-body">
           {loggedDaysCount}/7 days
         </span>
       </div>
@@ -113,7 +113,7 @@ export default function WeeklyProgress() {
       </div>
 
       {/* Streak text */}
-      <p className="text-[11px] text-[#9ca3af] font-body mt-3 text-center leading-snug">
+      <p className="text-[11px] text-[#4b5563] font-body mt-3 text-center leading-snug">
         {loggedDaysCount === 0
           ? 'No activity yet — log in daily to build your streak'
           : loggedDaysCount === 7
@@ -124,7 +124,7 @@ export default function WeeklyProgress() {
       {/* Session dot legend */}
       <div className="flex items-center justify-center gap-1.5 mt-2">
         <div className="w-1.5 h-1.5 rounded-full bg-[#d51520]" />
-        <p className="text-[10px] text-[#9ca3af] font-body">Dot indicates a class day</p>
+        <p className="text-[10px] text-[#4b5563] font-body">Dot indicates a class day</p>
       </div>
     </div>
   )

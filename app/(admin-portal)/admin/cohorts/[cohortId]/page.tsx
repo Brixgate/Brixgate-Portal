@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft01Icon, Loading01Icon, UserGroup02Icon,
   StarIcon, BookOpen01Icon, CheckmarkCircle01Icon,
-  CircleIcon, AlertCircleIcon, DatabaseIcon,
+  AlertCircleIcon, DatabaseIcon,
   ArrowDown01Icon, ArrowRight01Icon, VideoReplayIcon, File01Icon,
   PencilEdit01Icon, Cancel01Icon, Building01Icon,
 } from 'hugeicons-react'
@@ -16,10 +16,13 @@ import { useSidebar } from '@/lib/sidebar-context'
 interface Cohort {
   id: number; title: string; status?: string
   start_date?: string; end_date?: string
-  startDate?: string; endDate?: string       // camelCase fallbacks
+  startDate?: string; endDate?: string
   max_students?: number
+  // Programme linkage — broad naming variants to survive API inconsistencies
   program_id?: number; programId?: number
+  programme_id?: number; programmeId?: number
   program?: { id: number; title: string }
+  programme?: { id: number; title: string }
 }
 interface ProgramModuleLesson   { id: number; title: string; content_type: string; duration?: number }
 interface ProgramModuleResource { id: number; title: string; type: string; link?: string }
@@ -28,8 +31,7 @@ interface ProgramModule {
   lessons?: ProgramModuleLesson[]
   resources?: ProgramModuleResource[]
 }
-interface CohortModule  { id: number; program_module_id?: number; programModuleId?: number; title?: string }
-interface CustomLesson  { tempId: string; title: string }
+interface CohortModule  { id: number; program_module_id?: number; programModuleId?: number; title?: string; program_id?: number; programId?: number }
 
 interface Member {
   id: number
@@ -109,163 +111,275 @@ function ResourceTypeChip({ type }: { type: string }) {
 }
 
 // ── Tab: Curriculum ───────────────────────────────────────────────────────────
-function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: number | null }) {
-  const [allModules, setAllModules]           = useState<ProgramModule[]>([])
-  const [cohortModules, setCohortModules]     = useState<CohortModule[]>([])
-  const [selectedModuleIds, setSelectedModuleIds] = useState<Set<number>>(new Set())
-  const [loading, setLoading]                 = useState(true)
-  const [saving, setSaving]                   = useState(false)
-  const [error, setError]                     = useState('')
-  const [success, setSuccess]                 = useState(false)
-  const [mode, setMode]                       = useState<'read' | 'edit'>('read')
-  const [expandedId, setExpandedId]           = useState<number | null>(null)
-
-  // Phase 2 — per-module lesson selection
-  const [editingModule, setEditingModule]     = useState<ProgramModule | null>(null)
-  const [loadingLessons, setLoadingLessons]   = useState(false)
-  const [fetchedLessons, setFetchedLessons]   = useState<ProgramModuleLesson[]>([])
-  const [selectedLessonsPerModule, setSelectedLessonsPerModule] = useState<Record<number, Set<number>>>({})
-  const [customLessonsPerModule, setCustomLessonsPerModule]     = useState<Record<number, CustomLesson[]>>({})
-  const [newLessonTitle, setNewLessonTitle]   = useState('')
+function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId: string; programId: number | null; onProgramIdResolved?: (id: number) => void }) {
+  const [allModules, setAllModules]               = useState<ProgramModule[]>([])
+  const [cohortModuleIds, setCohortModuleIds]     = useState<Set<number>>(new Set())
+  const [selectedLessonIds, setSelectedLessonIds] = useState<Set<number>>(new Set())
+  const [lessonsCache, setLessonsCache]           = useState<Record<number, ProgramModuleLesson[]>>({})
+  const [expandedModuleId, setExpandedModuleId]   = useState<number | null>(null)
+  const [readExpandedId, setReadExpandedId]       = useState<number | null>(null)
+  const [loadingModuleId, setLoadingModuleId]     = useState<number | null>(null)
+  const [loading, setLoading]                     = useState(true)
+  const [entering, setEntering]                   = useState(false)
+  const [saving, setSaving]                       = useState(false)
+  const [error, setError]                         = useState('')
+  const [success, setSuccess]                     = useState(false)
+  const [mode, setMode]                           = useState<'read' | 'edit'>('read')
+  // Holds the resolved program ID — may differ from prop if recovered from modules response
+  const [effectiveProgramId, setEffectiveProgramId] = useState<number | null>(programId)
+  // Ref so load() can read the latest resolved ID without adding it to deps (avoids infinite loop)
+  const effectiveProgramIdRef = useRef<number | null>(programId)
+  useEffect(() => { effectiveProgramIdRef.current = effectiveProgramId }, [effectiveProgramId])
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      // Always fetch the cohort's own modules — this works without programId
-      const cohortModRes = await apiClient.get(`/cohorts/${cohortId}/modules`).catch(() => null)
-      if (cohortModRes) {
-        const d = unwrap<{ modules?: CohortModule[] } | CohortModule[]>(cohortModRes.data)
-        const mods: CohortModule[] = Array.isArray(d) ? d : (d as { modules?: CohortModule[] })?.modules ?? []
-        setCohortModules(mods)
-        setSelectedModuleIds(new Set(mods.map(m => m.program_module_id ?? m.programModuleId ?? 0).filter(Boolean)))
+      let resolvedProgramId = programId ?? effectiveProgramIdRef.current
+
+      // Step 1: Try the admin cohort detail endpoint first — it may embed assigned modules
+      // in its response (the student endpoint is enrollment-gated and returns nothing for admins)
+      let foundModulesFromAdmin = false
+      const adminCohortRes = await apiClient.get(`/admin/cohorts/${cohortId}`).catch(() => null)
+      if (adminCohortRes) {
+        const adRaw = unwrap<Record<string, unknown>>(adminCohortRes.data)
+        // Handle both { id, program_id, ... } and { cohort: { id, program_id, ... } } shapes
+        const ad = (adRaw?.cohort && typeof adRaw.cohort === 'object'
+          ? adRaw.cohort
+          : adRaw) as Record<string, unknown>
+        const rawMods =
+          (ad?.modules as CohortModule[] | undefined) ??
+          (ad?.cohort_modules as CohortModule[] | undefined) ??
+          ((adRaw?.content as Record<string, unknown>)?.modules as CohortModule[] | undefined) ??
+          []
+        if (Array.isArray(rawMods) && rawMods.length > 0) {
+          foundModulesFromAdmin = true
+          setCohortModuleIds(new Set(rawMods.map((m: CohortModule) => m.program_module_id ?? m.programModuleId ?? 0).filter(Boolean)))
+          if (!resolvedProgramId) {
+            const fromMod = rawMods[0].program_id ?? rawMods[0].programId ?? null
+            if (fromMod) { resolvedProgramId = fromMod; setEffectiveProgramId(fromMod); onProgramIdResolved?.(fromMod) }
+          }
+        }
+        // Extract programId from the cohort record itself (present even when no modules are embedded)
+        if (!resolvedProgramId) {
+          const pid =
+            (ad?.program_id as number | undefined) ??
+            (ad?.programId as number | undefined) ??
+            (ad?.programme_id as number | undefined) ??
+            (ad?.programmeId as number | undefined) ??
+            ((ad?.program as Record<string, unknown>)?.id as number | undefined) ??
+            ((ad?.programme as Record<string, unknown>)?.id as number | undefined) ??
+            null
+          if (pid) { resolvedProgramId = pid; setEffectiveProgramId(pid); onProgramIdResolved?.(pid) }
+        }
       }
-      // Fetch programme pool only when we know the programId
-      if (programId) {
-        const progModRes = await apiClient.get(`/admin/programs/${programId}/modules`).catch(() => null)
+
+      // Step 1b: Fallback to student endpoint if admin endpoint returned no embedded modules
+      if (!foundModulesFromAdmin) {
+        const cohortModRes = await apiClient.get(`/cohorts/${cohortId}/modules`).catch(() => null)
+        if (cohortModRes) {
+          const d = unwrap<{ modules?: CohortModule[] } | CohortModule[]>(cohortModRes.data)
+          const mods: CohortModule[] = Array.isArray(d) ? d : ((d as { modules?: CohortModule[] })?.modules ?? [])
+          setCohortModuleIds(new Set(mods.map(m => m.program_module_id ?? m.programModuleId ?? 0).filter(Boolean)))
+          if (!resolvedProgramId && mods.length > 0) {
+            const fromMod = mods[0].program_id ?? mods[0].programId ?? null
+            if (fromMod) { resolvedProgramId = fromMod; setEffectiveProgramId(fromMod); onProgramIdResolved?.(fromMod) }
+          }
+        }
+      }
+
+      // Step 2: If programId still unknown, search all programmes to find which one owns this cohort
+      if (!resolvedProgramId) {
+        const progsRes = await apiClient.get('/admin/programs?size=100').catch(() => null)
+        if (progsRes) {
+          const pd = unwrap<{ programs?: { id: number }[] } | { id: number }[]>(progsRes.data)
+          const progs: { id: number }[] = Array.isArray(pd) ? pd : (pd as { programs?: { id: number }[] })?.programs ?? []
+          for (const prog of progs) {
+            try {
+              const cRes = await apiClient.get(`/admin/programs/${prog.id}/cohorts?size=100`)
+              const cd = unwrap<{ cohorts?: { id: number }[]; content?: { id: number }[] } | { id: number }[]>(cRes.data)
+              const cohorts: { id: number }[] = Array.isArray(cd) ? cd : (cd as { cohorts?: { id: number }[]; content?: { id: number }[] })?.cohorts ?? (cd as { cohorts?: { id: number }[]; content?: { id: number }[] })?.content ?? []
+              if (cohorts.some(c => c.id === Number(cohortId))) {
+                resolvedProgramId = prog.id
+                setEffectiveProgramId(prog.id)
+                onProgramIdResolved?.(prog.id)
+                break
+              }
+            } catch { /* ignore */ }
+          }
+        }
+      }
+
+      // Step 3: Load programme modules (the pool to pick from in edit mode)
+      if (resolvedProgramId) {
+        const progModRes = await apiClient.get(`/admin/programs/${resolvedProgramId}/modules`).catch(() => null)
         if (progModRes) {
-          const d = unwrap<{ modules?: ProgramModule[] } | ProgramModule[]>(progModRes.data)
-          setAllModules(Array.isArray(d) ? d : (d as { modules?: ProgramModule[] })?.modules ?? [])
+          const d = unwrap<{ modules?: ProgramModule[]; content?: ProgramModule[] } | ProgramModule[]>(progModRes.data)
+          const mods: ProgramModule[] = Array.isArray(d)
+            ? d
+            : ((d as { modules?: ProgramModule[]; content?: ProgramModule[] })?.modules
+               ?? (d as { modules?: ProgramModule[]; content?: ProgramModule[] })?.content
+               ?? [])
+          setAllModules(mods)
+          const seedCache: Record<number, ProgramModuleLesson[]> = {}
+          mods.forEach(m => { if (m.lessons?.length) seedCache[m.id] = m.lessons })
+          if (Object.keys(seedCache).length > 0) {
+            setLessonsCache(prev => ({ ...seedCache, ...prev }))
+          }
         }
       }
     } finally { setLoading(false) }
-  }, [cohortId, programId])
+  }, [cohortId, programId, onProgramIdResolved])
 
   useEffect(() => { load() }, [load])
 
-  function toggleModule(id: number) {
-    setSelectedModuleIds(prev => {
-      const n = new Set(prev); if (n.has(id)) { n.delete(id) } else { n.add(id) }; return n
-    })
+  // ── Helpers ──────────────────────────────────────────────────────────────────
+  function getLessons(moduleId: number): ProgramModuleLesson[] {
+    return lessonsCache[moduleId] ?? allModules.find(m => m.id === moduleId)?.lessons ?? []
   }
 
-  async function openModuleLessons(module: ProgramModule) {
-    setEditingModule(module)
-    let lessons: ProgramModuleLesson[] = module.lessons ?? []
-    if (lessons.length === 0 && programId) {
-      setLoadingLessons(true)
-      try {
-        const res = await apiClient.get(`/admin/programs/${programId}/modules/${module.id}/lessons`)
-        const d = unwrap<{ lessons?: ProgramModuleLesson[] } | ProgramModuleLesson[]>(res.data)
-        lessons = Array.isArray(d) ? d : (d as { lessons?: ProgramModuleLesson[] })?.lessons ?? []
-        setAllModules(prev => prev.map(m => m.id === module.id ? { ...m, lessons } : m))
-      } catch { lessons = [] } finally { setLoadingLessons(false) }
-    }
-    setFetchedLessons(lessons)
-    // Pre-select all lessons the first time this module is opened
-    if (!selectedLessonsPerModule[module.id]) {
-      setSelectedLessonsPerModule(prev => ({ ...prev, [module.id]: new Set(lessons.map(l => l.id)) }))
-    }
+  function getModuleState(moduleId: number): 'full' | 'partial' | 'none' {
+    const lessons = getLessons(moduleId)
+    if (lessons.length === 0) return 'none'
+    const count = lessons.filter(l => selectedLessonIds.has(l.id)).length
+    if (count === 0) return 'none'
+    if (count === lessons.length) return 'full'
+    return 'partial'
+  }
+
+  async function fetchLessons(module: ProgramModule): Promise<ProgramModuleLesson[]> {
+    const cached = getLessons(module.id)
+    if (cached.length > 0) return cached
+    if (!effectiveProgramId) return []
+    setLoadingModuleId(module.id)
+    try {
+      const res = await apiClient.get(`/admin/programs/${effectiveProgramId}/modules/${module.id}/lessons`)
+      const d = unwrap<{ lessons?: ProgramModuleLesson[] } | ProgramModuleLesson[]>(res.data)
+      const lessons: ProgramModuleLesson[] = Array.isArray(d) ? d : ((d as { lessons?: ProgramModuleLesson[] })?.lessons ?? [])
+      setLessonsCache(prev => ({ ...prev, [module.id]: lessons }))
+      return lessons
+    } catch { return [] } finally { setLoadingModuleId(null) }
+  }
+
+  async function toggleExpand(module: ProgramModule) {
+    if (expandedModuleId === module.id) { setExpandedModuleId(null); return }
+    setExpandedModuleId(module.id)
+    await fetchLessons(module)
+  }
+
+  async function toggleModule(module: ProgramModule) {
+    let lessons = getLessons(module.id)
+    if (lessons.length === 0) lessons = await fetchLessons(module)
+    const state = getModuleState(module.id)
+    setSelectedLessonIds(prev => {
+      const next = new Set(prev)
+      if (state === 'full' || state === 'partial') {
+        lessons.forEach(l => next.delete(l.id))
+      } else {
+        lessons.forEach(l => next.add(l.id))
+      }
+      return next
+    })
   }
 
   function toggleLesson(lessonId: number) {
-    if (!editingModule) return
-    setSelectedLessonsPerModule(prev => {
-      const s = new Set(prev[editingModule.id] ?? [])
-      if (s.has(lessonId)) { s.delete(lessonId) } else { s.add(lessonId) }
-      return { ...prev, [editingModule.id]: s }
+    setSelectedLessonIds(prev => {
+      const next = new Set(prev)
+      if (next.has(lessonId)) { next.delete(lessonId) } else { next.add(lessonId) }
+      return next
     })
   }
 
-  function addCustomLesson() {
-    const title = newLessonTitle.trim()
-    if (!title || !editingModule) return
-    const tempId = `custom-${Date.now()}-${Math.random().toString(36).slice(2)}`
-    setCustomLessonsPerModule(prev => ({
-      ...prev, [editingModule.id]: [...(prev[editingModule.id] ?? []), { tempId, title }],
-    }))
-    setNewLessonTitle('')
-  }
+  async function enterEditMode() {
+    setEntering(true)
+    try {
+      const assignedModules = allModules.filter(m => cohortModuleIds.has(m.id))
+      const toFetch = assignedModules.filter(m => getLessons(m.id).length === 0)
+      const mergedCache = { ...lessonsCache }
 
-  function removeCustomLesson(moduleId: number, tempId: string) {
-    setCustomLessonsPerModule(prev => ({
-      ...prev, [moduleId]: (prev[moduleId] ?? []).filter(l => l.tempId !== tempId),
-    }))
+      if (toFetch.length > 0 && effectiveProgramId) {
+        const results = await Promise.allSettled(
+          toFetch.map(m =>
+            apiClient.get(`/admin/programs/${effectiveProgramId}/modules/${m.id}/lessons`).then(res => {
+              const d = unwrap<{ lessons?: ProgramModuleLesson[] } | ProgramModuleLesson[]>(res.data)
+              const lessons: ProgramModuleLesson[] = Array.isArray(d) ? d : ((d as { lessons?: ProgramModuleLesson[] })?.lessons ?? [])
+              return { moduleId: m.id, lessons }
+            })
+          )
+        )
+        results.forEach(r => { if (r.status === 'fulfilled') mergedCache[r.value.moduleId] = r.value.lessons })
+        setLessonsCache(mergedCache)
+      }
+
+      const preSelected = new Set<number>()
+      assignedModules.forEach(m => {
+        ;(mergedCache[m.id] ?? m.lessons ?? []).forEach(l => preSelected.add(l.id))
+      })
+      setSelectedLessonIds(preSelected)
+    } finally {
+      setEntering(false)
+      setMode('edit')
+    }
   }
 
   async function saveCurriculum() {
-    setSaving(true); setError(''); setSuccess(false)
+    setSaving(true); setError('')
     try {
-      const moduleIds = Array.from(selectedModuleIds)
-      // Save module assignments — batch first, fall back to individual
-      try {
-        await apiClient.post(`/admin/cohorts/${cohortId}/modules`, { module_ids: moduleIds })
-      } catch {
-        const currentIds = new Set(cohortModules.map(m => m.program_module_id ?? m.programModuleId ?? 0))
-        const toAdd    = moduleIds.filter(id => !currentIds.has(id))
-        const toRemove = cohortModules.filter(m => !selectedModuleIds.has(m.program_module_id ?? m.programModuleId ?? 0))
-        await Promise.allSettled([
-          ...toAdd.map(id   => apiClient.post(`/admin/cohorts/${cohortId}/modules`, { program_module_id: id })),
-          ...toRemove.map(m => apiClient.delete(`/admin/cohorts/${cohortId}/modules/${m.id}`)),
-        ])
-      }
-      // Save lessons for each selected module (ignore duplicates)
-      await Promise.allSettled(
-        moduleIds.flatMap(mid => [
-          ...Array.from(selectedLessonsPerModule[mid] ?? []).map(lid =>
-            apiClient.post(`/admin/cohorts/${cohortId}/lessons`, { program_lesson_id: lid, module_id: mid })
-          ),
-          ...(customLessonsPerModule[mid] ?? []).map(cl =>
-            apiClient.post(`/admin/cohorts/${cohortId}/lessons`, { title: cl.title, module_id: mid, content_type: 'VIDEO' })
-          ),
-        ])
-      )
-      setSuccess(true); setTimeout(() => setSuccess(false), 3000)
-      setMode('read'); setEditingModule(null)
-      setSelectedLessonsPerModule({}); setCustomLessonsPerModule({})
-      load()
+      const selectedModules = allModules.filter(m => getModuleState(m.id) !== 'none')
+      // Build reverse map: lessonId → moduleId so each lesson can include its programModuleId
+      const lessonModuleMap = new Map<number, number>()
+      Object.entries(lessonsCache).forEach(([moduleId, lessons]) => {
+        lessons.forEach(l => lessonModuleMap.set(l.id, parseInt(moduleId)))
+      })
+      await apiClient.post(`/admin/cohorts/${cohortId}/content/selection`, {
+        modules: selectedModules.map(m => ({
+          programModuleId:  m.id,
+          visibilityStatus: 'PUBLISHED',
+        })),
+        lessons: Array.from(selectedLessonIds)
+          .map(lid => {
+            const mid = lessonModuleMap.get(lid)
+            return mid ? { programLessonId: lid, programModuleId: mid, visibilityStatus: 'PUBLISHED' } : null
+          })
+          .filter((l): l is { programLessonId: number; programModuleId: number; visibilityStatus: string } => l !== null),
+      })
+      // Update cohortModuleIds directly from saved state — don't re-fetch via the student
+      // endpoint which is enrollment-gated and returns nothing for admin users
+      setCohortModuleIds(new Set(selectedModules.map(m => m.id)))
+      setSuccess(true)
+      setTimeout(() => setSuccess(false), 3000)
+      setMode('read')
+      setExpandedModuleId(null)
     } catch (err) { setError(getApiError(err)) } finally { setSaving(false) }
   }
 
-  const hasChanges = (() => {
-    const cur = new Set(cohortModules.map(m => m.program_module_id ?? m.programModuleId ?? 0))
-    if (cur.size !== selectedModuleIds.size) return true
-    if (allModules.some(m => selectedModuleIds.has(m.id) !== cur.has(m.id))) return true
-    // Also dirty if the user has queued up any custom lessons
-    return Object.values(customLessonsPerModule).some(ls => ls.length > 0)
-  })()
+  const selectedModuleCount = allModules.filter(m => getModuleState(m.id) !== 'none').length
 
-  // ── READ MODE ───────────────────────────────────────────────────────────────
+  // ── READ MODE ─────────────────────────────────────────────────────────────────
   if (mode === 'read') {
-    const assignedModules = allModules.filter(m => selectedModuleIds.has(m.id))
+    const assignedModules = allModules.filter(m => cohortModuleIds.has(m.id))
     return (
       <div className="flex flex-col h-full overflow-hidden">
         <div className="px-6 py-4 border-b border-[#f3f4f6] flex items-center justify-between flex-shrink-0 bg-white">
           <div>
             <p className="text-[13px] font-semibold text-[#111827] font-display">
-              {loading ? '…' : `${selectedModuleIds.size} module${selectedModuleIds.size !== 1 ? 's' : ''} assigned to this cohort`}
+              {loading ? '…' : `${cohortModuleIds.size} module${cohortModuleIds.size !== 1 ? 's' : ''} assigned to this cohort`}
             </p>
-            <p className="text-[12px] text-[#9ca3af] font-body mt-0.5">Click &ldquo;Edit Curriculum&rdquo; to change assignments</p>
+            <p className="text-[12px] text-[#4b5563] font-body mt-0.5">Click &ldquo;Edit Curriculum&rdquo; to change assignments</p>
           </div>
-          {success && (
-            <p className="flex items-center gap-1.5 text-[12px] text-[#027a48] font-body mr-3">
-              <CheckmarkCircle01Icon size={12} color="#027a48" strokeWidth={1.5} /> Saved
-            </p>
-          )}
-          <button onClick={() => setMode('edit')}
-            className="flex items-center gap-2 h-9 px-4 border border-[#e5e7eb] rounded-[8px] text-[12px] font-medium text-[#374151] font-display hover:bg-[#f9fafb] transition-colors">
-            <PencilEdit01Icon size={13} color="#374151" strokeWidth={1.5} />
-            Edit Curriculum
-          </button>
+          <div className="flex items-center gap-3">
+            {success && (
+              <p className="flex items-center gap-1.5 text-[12px] text-[#027a48] font-body">
+                <CheckmarkCircle01Icon size={12} color="#027a48" strokeWidth={1.5} /> Saved
+              </p>
+            )}
+            <button onClick={enterEditMode} disabled={entering || loading}
+              className="flex items-center gap-2 h-9 px-4 border border-[#e5e7eb] rounded-[8px] text-[12px] font-medium text-[#374151] font-display hover:bg-[#f9fafb] transition-colors disabled:opacity-50">
+              {entering
+                ? <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />
+                : <PencilEdit01Icon size={13} color="#374151" strokeWidth={1.5} />}
+              Edit Curriculum
+            </button>
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto bg-white">
           {loading ? (
@@ -281,33 +395,38 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
                 <BookOpen01Icon size={28} color="#d1d5db" strokeWidth={1.5} />
               </div>
               <p className="text-[14px] font-semibold text-[#111827] font-display mb-1">No modules assigned</p>
-              <p className="text-[13px] text-[#6b7280] font-body max-w-[280px]">
+              <p className="text-[13px] text-[#4b5563] font-body max-w-[280px]">
                 Click &ldquo;Edit Curriculum&rdquo; to assign modules from the programme pool
               </p>
-              <button onClick={() => setMode('edit')}
-                className="mt-5 flex items-center gap-2 h-9 px-4 bg-[#d51520] text-white rounded-[8px] text-[12px] font-semibold font-display hover:bg-[#b81119] transition-colors">
-                <PencilEdit01Icon size={13} color="white" strokeWidth={1.5} />
+              <button onClick={enterEditMode} disabled={entering}
+                className="mt-5 flex items-center gap-2 h-9 px-4 bg-[#d51520] text-white rounded-[8px] text-[12px] font-semibold font-display hover:bg-[#b81119] transition-colors disabled:opacity-50">
+                {entering
+                  ? <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />
+                  : <PencilEdit01Icon size={13} color="white" strokeWidth={1.5} />}
                 Edit Curriculum
               </button>
             </div>
           ) : (
             assignedModules.map((m, idx) => {
-              const isOpen    = expandedId === m.id
-              const lessons   = m.lessons   ?? []
+              const isOpen    = readExpandedId === m.id
+              const lessons   = getLessons(m.id)
               const resources = m.resources ?? []
               return (
                 <div key={m.id} className="border-b border-[#f3f4f6] last:border-0">
-                  <button onClick={() => setExpandedId(isOpen ? null : m.id)}
-                    className="w-full flex items-center gap-3 px-6 py-4 hover:bg-[#f9fafb] transition-colors text-left">
+                  <button onClick={async () => {
+                    if (readExpandedId === m.id) { setReadExpandedId(null); return }
+                    setReadExpandedId(m.id)
+                    await fetchLessons(m)
+                  }} className="w-full flex items-center gap-3 px-6 py-4 hover:bg-[#f9fafb] transition-colors text-left">
                     {isOpen
-                      ? <ArrowDown01Icon  size={14} color="#9ca3af" strokeWidth={2} className="flex-shrink-0" />
-                      : <ArrowRight01Icon size={14} color="#9ca3af" strokeWidth={2} className="flex-shrink-0" />}
+                      ? <ArrowDown01Icon  size={14} color="#4b5563" strokeWidth={2} className="flex-shrink-0" />
+                      : <ArrowRight01Icon size={14} color="#4b5563" strokeWidth={2} className="flex-shrink-0" />}
                     <div className="w-6 h-6 rounded-full bg-[#fef2f2] flex items-center justify-center flex-shrink-0">
                       <span className="text-[10px] font-bold text-[#d51520] font-display">{idx + 1}</span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] font-semibold text-[#111827] font-display truncate">{m.title}</p>
-                      {m.description && <p className="text-[11px] text-[#9ca3af] font-body mt-0.5 truncate">{m.description}</p>}
+                      {m.description && <p className="text-[11px] text-[#4b5563] font-body mt-0.5 truncate">{m.description}</p>}
                     </div>
                     <div className="flex items-center gap-3 flex-shrink-0">
                       {m.status && (
@@ -315,41 +434,51 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
                           m.status === 'PUBLISHED' ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#fffbeb] text-[#b45309]'
                         }`}>{m.status}</span>
                       )}
-                      <span className="text-[11px] text-[#9ca3af] font-body">{lessons.length}L · {resources.length}R</span>
+                      <span className="text-[11px] text-[#4b5563] font-body">
+                        {loadingModuleId === m.id ? '…' : `${lessons.length}L · ${resources.length}R`}
+                      </span>
                     </div>
                   </button>
                   {isOpen && (
                     <div className="px-6 pb-4 pt-1 bg-[#fafafa] border-t border-[#f3f4f6]">
-                      {lessons.length > 0 && (
-                        <div className="mb-3">
-                          <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[#9ca3af] font-display mb-1.5 pl-9">Lessons</p>
-                          <div className="flex flex-col gap-0.5 pl-9">
-                            {lessons.map(l => (
-                              <div key={l.id} className="flex items-center gap-2 py-1.5">
-                                <VideoReplayIcon size={12} color="#9ca3af" strokeWidth={1.5} className="flex-shrink-0" />
-                                <span className="text-[12px] font-medium text-[#374151] font-body flex-1 truncate">{l.title}</span>
-                                <span className="text-[10px] text-[#9ca3af] font-body flex-shrink-0">{l.content_type}{l.duration ? ` · ${l.duration}min` : ''}</span>
-                              </div>
-                            ))}
-                          </div>
+                      {loadingModuleId === m.id ? (
+                        <div className="pl-9 py-3">
+                          <div className="h-3 bg-[#e5e7eb] rounded animate-pulse w-1/3" />
                         </div>
-                      )}
-                      {resources.length > 0 && (
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[#9ca3af] font-display mb-1.5 pl-9">Resources</p>
-                          <div className="flex flex-col gap-0.5 pl-9">
-                            {resources.map(r => (
-                              <div key={r.id} className="flex items-center gap-2 py-1.5">
-                                <File01Icon size={12} color="#9ca3af" strokeWidth={1.5} className="flex-shrink-0" />
-                                <span className="text-[12px] font-medium text-[#374151] font-body flex-1 truncate">{r.title}</span>
-                                <ResourceTypeChip type={r.type} />
+                      ) : (
+                        <>
+                          {lessons.length > 0 && (
+                            <div className="mb-3">
+                              <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[#4b5563] font-display mb-1.5 pl-9">Lessons</p>
+                              <div className="flex flex-col gap-0.5 pl-9">
+                                {lessons.map(l => (
+                                  <div key={l.id} className="flex items-center gap-2 py-1.5">
+                                    <VideoReplayIcon size={12} color="#4b5563" strokeWidth={1.5} className="flex-shrink-0" />
+                                    <span className="text-[12px] font-medium text-[#374151] font-body flex-1 truncate">{l.title}</span>
+                                    <span className="text-[10px] text-[#4b5563] font-body flex-shrink-0">{l.content_type}{l.duration ? ` · ${l.duration}min` : ''}</span>
+                                  </div>
+                                ))}
                               </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {lessons.length === 0 && resources.length === 0 && (
-                        <p className="text-[12px] text-[#9ca3af] font-body pl-9 py-1">No lessons or resources added yet</p>
+                            </div>
+                          )}
+                          {resources.length > 0 && (
+                            <div>
+                              <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[#4b5563] font-display mb-1.5 pl-9">Resources</p>
+                              <div className="flex flex-col gap-0.5 pl-9">
+                                {resources.map(r => (
+                                  <div key={r.id} className="flex items-center gap-2 py-1.5">
+                                    <File01Icon size={12} color="#4b5563" strokeWidth={1.5} className="flex-shrink-0" />
+                                    <span className="text-[12px] font-medium text-[#374151] font-body flex-1 truncate">{r.title}</span>
+                                    <ResourceTypeChip type={r.type} />
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {lessons.length === 0 && resources.length === 0 && (
+                            <p className="text-[12px] text-[#4b5563] font-body pl-9 py-1">No lessons or resources added yet</p>
+                          )}
+                        </>
                       )}
                     </div>
                   )}
@@ -362,156 +491,26 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
     )
   }
 
-  // ── EDIT MODE — Phase 2: lesson selection for a specific module ─────────────
-  if (editingModule) {
-    const selectedIds = selectedLessonsPerModule[editingModule.id] ?? new Set<number>()
-    const customs     = customLessonsPerModule[editingModule.id] ?? []
-    return (
-      <div className="flex flex-col h-full overflow-hidden bg-white">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-[#f3f4f6] flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setEditingModule(null)}
-              className="flex items-center gap-1.5 text-[12px] font-medium text-[#6b7280] font-body hover:text-[#374151] transition-colors">
-              <ArrowLeft01Icon size={14} color="currentColor" strokeWidth={2} />
-              Back to modules
-            </button>
-            <div className="w-px h-4 bg-[#e5e7eb]" />
-            <div>
-              <p className="text-[13px] font-semibold text-[#111827] font-display">{editingModule.title}</p>
-              <p className="text-[11px] text-[#9ca3af] font-body">Select lessons to include in this cohort</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            {error && (
-              <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body">
-                <AlertCircleIcon size={12} color="#d51520" strokeWidth={1.5} />{error}
-              </p>
-            )}
-            <button onClick={() => setEditingModule(null)}
-              className="h-9 px-4 rounded-[8px] border border-[#e5e7eb] text-[12px] font-medium text-[#374151] font-body hover:bg-[#f9fafb] transition-colors">
-              Back
-            </button>
-            <button onClick={saveCurriculum} disabled={saving || !hasChanges}
-              className="h-9 px-4 rounded-[8px] bg-[#d51520] text-[12px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-50 flex items-center gap-2">
-              {saving && <Loading01Icon size={12} className="animate-spin" strokeWidth={2} />}
-              Save Curriculum
-            </button>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-6">
-          {loadingLessons ? (
-            <div className="flex flex-col gap-2">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-14 bg-[#f9fafb] rounded-[10px] animate-pulse" />
-              ))}
-            </div>
-          ) : (
-            <>
-              {/* Programme lessons */}
-              <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#9ca3af] font-display mb-3">
-                Lessons from programme ({fetchedLessons.length})
-              </p>
-              {fetchedLessons.length === 0 ? (
-                <p className="text-[13px] text-[#9ca3af] font-body mb-6">No lessons found in this module</p>
-              ) : (
-                <div className="flex flex-col gap-2 mb-6">
-                  {fetchedLessons.map(lesson => {
-                    const checked = selectedIds.has(lesson.id)
-                    return (
-                      <button key={lesson.id} onClick={() => toggleLesson(lesson.id)}
-                        className={`flex items-center gap-3 rounded-[10px] border px-4 py-3 text-left transition-all ${
-                          checked ? 'border-[#d51520] bg-[#fef2f2]' : 'border-[#e5e7eb] bg-white hover:border-[#d1d5db]'
-                        }`}>
-                        <div className={`w-5 h-5 rounded-[5px] border-2 flex-shrink-0 flex items-center justify-center transition-all ${
-                          checked ? 'bg-[#d51520] border-[#d51520]' : 'border-[#d1d5db] bg-white'
-                        }`}>
-                          {checked && (
-                            <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                              <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                          )}
-                        </div>
-                        <VideoReplayIcon size={13} color={checked ? '#d51520' : '#9ca3af'} strokeWidth={1.5} className="flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-[13px] font-semibold font-display ${checked ? 'text-[#d51520]' : 'text-[#111827]'}`}>{lesson.title}</p>
-                          <p className="text-[11px] text-[#9ca3af] font-body">{lesson.content_type}{lesson.duration ? ` · ${lesson.duration}min` : ''}</p>
-                        </div>
-                        {checked
-                          ? <CheckmarkCircle01Icon size={14} color="#d51520" strokeWidth={1.5} className="flex-shrink-0" />
-                          : <CircleIcon           size={14} color="#d1d5db" strokeWidth={1.5} className="flex-shrink-0" />}
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-
-              {/* Custom lessons */}
-              {customs.length > 0 && (
-                <div className="mb-6">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#9ca3af] font-display mb-3">
-                    Custom lessons ({customs.length})
-                  </p>
-                  <div className="flex flex-col gap-2">
-                    {customs.map(cl => (
-                      <div key={cl.tempId} className="flex items-center gap-3 rounded-[10px] border border-[#d51520] bg-[#fef2f2] px-4 py-3">
-                        <VideoReplayIcon size={13} color="#d51520" strokeWidth={1.5} className="flex-shrink-0" />
-                        <p className="flex-1 text-[13px] font-semibold text-[#d51520] font-display truncate">{cl.title}</p>
-                        <span className="flex-shrink-0 text-[9px] font-bold uppercase text-[#d51520] font-display border border-[#d51520] px-1.5 py-0.5 rounded-[4px]">Custom</span>
-                        <button onClick={() => removeCustomLesson(editingModule.id, cl.tempId)}
-                          className="w-6 h-6 flex items-center justify-center rounded-[4px] hover:bg-[#fecdca] transition-colors flex-shrink-0">
-                          <Cancel01Icon size={12} color="#d51520" strokeWidth={1.5} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Add custom lesson */}
-              <div className="border-t border-[#f3f4f6] pt-5">
-                <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#9ca3af] font-display mb-3">Add custom lesson</p>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newLessonTitle}
-                    onChange={e => setNewLessonTitle(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustomLesson() } }}
-                    placeholder="Lesson title…"
-                    className="flex-1 h-9 px-3 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body text-[#111827] placeholder:text-[#9ca3af] focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 outline-none transition-all"
-                  />
-                  <button onClick={addCustomLesson} disabled={!newLessonTitle.trim()}
-                    className="h-9 px-4 rounded-[8px] bg-[#d51520] text-[12px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-50 transition-colors flex-shrink-0">
-                    Add
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    )
-  }
-
-  // ── EDIT MODE — Phase 1: module selection (two panels) ─────────────────────
+  // ── EDIT MODE — single dual panel ─────────────────────────────────────────────
   return (
     <div className="flex h-full overflow-hidden">
       {/* Left panel: programme pool */}
-      <div className="w-[300px] flex-shrink-0 border-r border-[#f3f4f6] flex flex-col bg-[#f9fafb]">
-        <div className="px-5 py-4 border-b border-[#f3f4f6] bg-white">
+      <div className="w-[320px] flex-shrink-0 border-r border-[#f3f4f6] flex flex-col">
+        <div className="px-5 py-4 border-b border-[#f3f4f6] bg-white flex-shrink-0">
           <div className="flex items-center gap-2">
-            <DatabaseIcon size={14} color="#6b7280" strokeWidth={1.5} />
-            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#6b7280] font-display">Programme Pool</p>
+            <DatabaseIcon size={14} color="#4b5563" strokeWidth={1.5} />
+            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#4b5563] font-display">Programme Pool</p>
           </div>
-          <p className="text-[12px] text-[#9ca3af] font-body mt-0.5">
-            {programId ? `All modules (${allModules.length}) — click to select` : 'No programme linked to this cohort'}
+          <p className="text-[12px] text-[#4b5563] font-body mt-0.5">
+            {effectiveProgramId
+              ? `${allModules.length} module${allModules.length !== 1 ? 's' : ''} available — tick to include`
+              : 'No programme linked to this cohort'}
           </p>
         </div>
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto bg-[#fafafa]">
           {loading ? (
             Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="flex items-start gap-3 px-5 py-3.5 border-b border-[#f3f4f6]">
+              <div key={i} className="flex items-start gap-3 px-5 py-3.5 border-b border-[#f3f4f6] bg-white">
                 <div className="w-5 h-5 rounded bg-[#e5e7eb] animate-pulse flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <div className="h-3.5 bg-[#e5e7eb] rounded animate-pulse w-3/4 mb-1.5" />
@@ -519,103 +518,198 @@ function CurriculumTab({ cohortId, programId }: { cohortId: string; programId: n
                 </div>
               </div>
             ))
-          ) : !programId ? (
+          ) : !effectiveProgramId ? (
             <div className="text-center py-12 px-4">
-              <p className="text-[13px] text-[#9ca3af] font-body">Link a programme to this cohort to see the module pool</p>
+              <p className="text-[13px] text-[#4b5563] font-body">Link a programme to this cohort to see the module pool</p>
             </div>
           ) : allModules.length === 0 ? (
             <div className="text-center py-12 px-4">
-              <p className="text-[13px] text-[#9ca3af] font-body">No modules in programme</p>
+              <p className="text-[13px] text-[#4b5563] font-body">No modules in programme</p>
             </div>
           ) : (
-            allModules.map(m => (
-              <div key={m.id}
-                className={`flex items-center gap-3 px-5 py-3.5 border-b border-[#f3f4f6] cursor-pointer transition-colors ${
-                  selectedModuleIds.has(m.id) ? 'bg-[#fef2f2]' : 'bg-white hover:bg-[#f9fafb]'
-                }`}
-                onClick={() => toggleModule(m.id)}
-              >
-                <div className={`w-5 h-5 rounded-[5px] border-2 flex-shrink-0 flex items-center justify-center transition-all ${
-                  selectedModuleIds.has(m.id) ? 'bg-[#d51520] border-[#d51520]' : 'border-[#d1d5db] bg-white'
-                }`}>
-                  {selectedModuleIds.has(m.id) && (
-                    <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                      <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
+            allModules.map(m => {
+              const state      = getModuleState(m.id)
+              const isExpanded = expandedModuleId === m.id
+              const isLoading  = loadingModuleId === m.id
+              const lessons    = getLessons(m.id)
+              return (
+                <div key={m.id} className="border-b border-[#f3f4f6] last:border-0 bg-white">
+                  <div className={`flex items-center gap-2.5 px-4 py-3 transition-colors ${
+                    state !== 'none' ? 'bg-[#fef9f9]' : 'hover:bg-[#f9fafb]'
+                  }`}>
+                    {/* 3-state checkbox */}
+                    <button
+                      onClick={() => toggleModule(m)}
+                      className={`w-5 h-5 rounded-[5px] border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+                        state === 'full'
+                          ? 'bg-[#d51520] border-[#d51520]'
+                          : state === 'partial'
+                          ? 'bg-white border-[#d51520]'
+                          : 'border-[#d1d5db] bg-white hover:border-[#9ca3af]'
+                      }`}
+                    >
+                      {state === 'full' && (
+                        <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                          <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                      {state === 'partial' && (
+                        <div className="w-2.5 h-[2px] bg-[#d51520] rounded-full" />
+                      )}
+                    </button>
+                    {/* Title — click to toggle */}
+                    <button onClick={() => toggleModule(m)} className="flex-1 min-w-0 text-left">
+                      <p className={`text-[13px] font-semibold font-display leading-tight truncate ${
+                        state !== 'none' ? 'text-[#d51520]' : 'text-[#111827]'
+                      }`}>{m.title}</p>
+                      {m.description && (
+                        <p className="text-[11px] text-[#6b7280] font-body mt-0.5 truncate">{m.description}</p>
+                      )}
+                    </button>
+                    {/* Expand toggle */}
+                    <button
+                      onClick={() => toggleExpand(m)}
+                      className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#f3f4f6] transition-colors flex-shrink-0"
+                    >
+                      {isLoading
+                        ? <Loading01Icon size={13} className="animate-spin" color="#6b7280" strokeWidth={2} />
+                        : isExpanded
+                        ? <ArrowDown01Icon  size={13} color="#6b7280" strokeWidth={2} />
+                        : <ArrowRight01Icon size={13} color="#9ca3af" strokeWidth={2} />
+                      }
+                    </button>
+                  </div>
+                  {/* Expanded lessons */}
+                  {isExpanded && (
+                    <div className="bg-[#f9fafb] border-t border-[#f3f4f6] px-4 py-2">
+                      {isLoading ? (
+                        <div className="py-3 pl-11">
+                          <div className="h-3 bg-[#e5e7eb] rounded animate-pulse w-1/2 mb-2" />
+                          <div className="h-3 bg-[#e5e7eb] rounded animate-pulse w-2/3" />
+                        </div>
+                      ) : lessons.length === 0 ? (
+                        <p className="text-[12px] text-[#9ca3af] font-body py-3 pl-11">No lessons in this module</p>
+                      ) : (
+                        <div className="py-1">
+                          {lessons.map(l => {
+                            const checked = selectedLessonIds.has(l.id)
+                            return (
+                              <button key={l.id} onClick={() => toggleLesson(l.id)}
+                                className="w-full flex items-center gap-2.5 py-2 px-1 rounded-[6px] hover:bg-[#f0f0f2] transition-colors text-left group">
+                                <div className={`w-4 h-4 rounded-[4px] border-2 flex-shrink-0 flex items-center justify-center transition-all ml-8 ${
+                                  checked ? 'bg-[#d51520] border-[#d51520]' : 'border-[#d1d5db] bg-white group-hover:border-[#9ca3af]'
+                                }`}>
+                                  {checked && (
+                                    <svg width="8" height="6" viewBox="0 0 8 6" fill="none">
+                                      <path d="M1 3l2 2 4-4" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                                    </svg>
+                                  )}
+                                </div>
+                                <VideoReplayIcon size={11} color={checked ? '#d51520' : '#9ca3af'} strokeWidth={1.5} className="flex-shrink-0" />
+                                <span className={`flex-1 text-[12px] font-medium font-body truncate min-w-0 ${checked ? 'text-[#d51520]' : 'text-[#374151]'}`}>
+                                  {l.title}
+                                </span>
+                                {l.content_type && (
+                                  <span className="text-[10px] text-[#9ca3af] font-body flex-shrink-0">
+                                    {l.content_type}{l.duration ? ` · ${l.duration}m` : ''}
+                                  </span>
+                                )}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className={`text-[13px] font-semibold font-display leading-tight ${selectedModuleIds.has(m.id) ? 'text-[#d51520]' : 'text-[#111827]'}`}>{m.title}</p>
-                  {m.description && <p className="text-[11px] text-[#9ca3af] font-body mt-0.5 truncate">{m.description}</p>}
-                </div>
-              </div>
-            ))
+              )
+            })
           )}
         </div>
       </div>
 
-      {/* Right panel: cohort curriculum */}
+      {/* Right panel: cohort curriculum preview */}
       <div className="flex-1 flex flex-col overflow-hidden bg-white">
-        <div className="px-6 py-4 border-b border-[#f3f4f6] flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-[#f3f4f6] flex items-center justify-between flex-shrink-0">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 mb-0.5">
               <BookOpen01Icon size={14} color="#d51520" strokeWidth={1.5} />
               <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#d51520] font-display">Cohort Curriculum</p>
             </div>
-            <p className="text-[12px] text-[#9ca3af] font-body mt-0.5">
-              {selectedModuleIds.size} of {allModules.length} modules selected — click a module to configure its lessons
+            <p className="text-[12px] text-[#6b7280] font-body">
+              {selectedModuleCount} module{selectedModuleCount !== 1 ? 's' : ''} · {selectedLessonIds.size} lesson{selectedLessonIds.size !== 1 ? 's' : ''} selected
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             {error && (
-              <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body">
+              <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body max-w-[200px] truncate">
                 <AlertCircleIcon size={12} color="#d51520" strokeWidth={1.5} />{error}
               </p>
             )}
-            <button onClick={() => { setMode('read'); load() }}
+            <button onClick={() => { setMode('read'); setExpandedModuleId(null); load() }}
               className="h-9 px-4 rounded-[8px] border border-[#e5e7eb] text-[12px] font-medium text-[#374151] font-body hover:bg-[#f9fafb] transition-colors">
               Cancel
             </button>
-            <button onClick={saveCurriculum} disabled={saving || !hasChanges}
-              className="h-9 px-4 rounded-[8px] bg-[#d51520] text-[12px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-50 flex items-center gap-2">
+            <button onClick={saveCurriculum} disabled={saving}
+              className="h-9 px-4 rounded-[8px] bg-[#d51520] text-[12px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-50 flex items-center gap-2 transition-colors">
               {saving && <Loading01Icon size={12} className="animate-spin" strokeWidth={2} />}
               Save Curriculum
             </button>
           </div>
         </div>
         <div className="flex-1 overflow-y-auto p-6">
-          {selectedModuleIds.size === 0 ? (
+          {selectedModuleCount === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <div className="w-14 h-14 rounded-[12px] bg-[#f3f4f6] flex items-center justify-center mb-4">
                 <BookOpen01Icon size={24} color="#d1d5db" strokeWidth={1.5} />
               </div>
               <p className="text-[14px] font-semibold text-[#111827] font-display mb-1">No modules selected</p>
-              <p className="text-[13px] text-[#6b7280] font-body max-w-[280px]">Select modules from the programme pool on the left</p>
+              <p className="text-[13px] text-[#6b7280] font-body max-w-[280px]">
+                Tick modules and lessons from the programme pool on the left
+              </p>
             </div>
           ) : (
-            <div className="flex flex-col gap-2">
-              {allModules.filter(m => selectedModuleIds.has(m.id)).map((m, idx) => {
-                const configuredCount = selectedLessonsPerModule[m.id]?.size ?? null
-                const customCount     = customLessonsPerModule[m.id]?.length ?? 0
-                const programCount    = m.lessons?.length ?? 0
+            <div className="flex flex-col gap-2.5">
+              {allModules.filter(m => getModuleState(m.id) !== 'none').map((m, idx) => {
+                const lessons       = getLessons(m.id)
+                const selectedForMe = lessons.filter(l => selectedLessonIds.has(l.id))
+                const state         = getModuleState(m.id)
                 return (
-                  <button key={m.id} onClick={() => openModuleLessons(m)}
-                    className="flex items-center gap-3 rounded-[10px] border border-[#d51520] bg-[#fef2f2] px-4 py-3.5 text-left hover:bg-[#fde8e8] transition-all">
-                    <div className="w-6 h-6 rounded-full bg-[#d51520] flex items-center justify-center flex-shrink-0">
-                      <span className="text-[10px] font-bold text-white font-display">{idx + 1}</span>
+                  <div key={m.id} className={`rounded-[10px] border px-4 py-3.5 transition-colors ${
+                    state === 'full' ? 'border-[#fecdca] bg-[#fef2f2]' : 'border-[#e5e7eb] bg-[#f9fafb]'
+                  }`}>
+                    <div className="flex items-center gap-3">
+                      <div className="w-6 h-6 rounded-full bg-[#d51520] flex items-center justify-center flex-shrink-0">
+                        <span className="text-[10px] font-bold text-white font-display">{idx + 1}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-[13px] font-semibold font-display truncate ${
+                          state === 'full' ? 'text-[#d51520]' : 'text-[#111827]'
+                        }`}>{m.title}</p>
+                        <p className="text-[11px] text-[#6b7280] font-body mt-0.5">
+                          {selectedForMe.length} of {lessons.length} lesson{lessons.length !== 1 ? 's' : ''} included
+                        </p>
+                      </div>
+                      {state === 'partial' && (
+                        <span className="text-[9px] font-bold font-display px-1.5 py-0.5 rounded-[4px] uppercase bg-[#fffbeb] text-[#b45309] border border-[#fde68a] flex-shrink-0">
+                          Partial
+                        </span>
+                      )}
+                      {state === 'full' && (
+                        <CheckmarkCircle01Icon size={14} color="#d51520" strokeWidth={1.5} className="flex-shrink-0" />
+                      )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-semibold text-[#d51520] font-display truncate">{m.title}</p>
-                      <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">
-                        {configuredCount !== null
-                          ? `${configuredCount + customCount} lesson${configuredCount + customCount !== 1 ? 's' : ''} selected`
-                          : programCount > 0
-                          ? `${programCount} lesson${programCount !== 1 ? 's' : ''} available — click to configure`
-                          : 'Click to add lessons'}
-                      </p>
-                    </div>
-                    <ArrowRight01Icon size={14} color="#d51520" strokeWidth={1.5} className="flex-shrink-0" />
-                  </button>
+                    {state === 'partial' && selectedForMe.length > 0 && (
+                      <div className="mt-2.5 pt-2.5 border-t border-[#e5e7eb] pl-9 flex flex-col gap-1">
+                        {selectedForMe.map(l => (
+                          <div key={l.id} className="flex items-center gap-2">
+                            <VideoReplayIcon size={11} color="#9ca3af" strokeWidth={1.5} className="flex-shrink-0" />
+                            <span className="text-[11px] text-[#374151] font-body truncate">{l.title}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 )
               })}
             </div>
@@ -695,7 +789,7 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
   const COMP_STYLE: Record<string, string> = {
     'COMPLETED':    'bg-[#ecfdf3] text-[#027a48]',
     'IN PROGRESS':  'bg-[#eff6ff] text-[#1d4ed8]',
-    'NOT STARTED':  'bg-[#f3f4f6] text-[#6b7280]',
+    'NOT STARTED':  'bg-[#f3f4f6] text-[#4b5563]',
   }
   const STATUS_STYLE: Record<string, string> = {
     ENROLLED:   'bg-[#ecfdf3] text-[#027a48]',
@@ -731,7 +825,7 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
             <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
               {['Name', 'Email', 'Role', 'Plan', 'Seats', 'Status', 'Progress', 'Joined'].map(h => (
                 <th key={h}
-                  className={`px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6b7280] font-display ${
+                  className={`px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display ${
                     h === 'Seats' ? 'text-center' : 'text-left'
                   }`}>
                   {h}
@@ -742,7 +836,7 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-12 text-center text-[13px] text-[#9ca3af] font-body">
+                <td colSpan={8} className="px-4 py-12 text-center text-[13px] text-[#4b5563] font-body">
                   No people in this cohort yet
                 </td>
               </tr>
@@ -757,14 +851,14 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
                 <td className="px-4 py-3.5">
                   <p className="text-[13px] font-semibold text-[#111827] font-display">{r.name}</p>
                   {r.organizationName && (
-                    <p className="text-[11px] text-[#9ca3af] font-body mt-0.5 flex items-center gap-1">
-                      <Building01Icon size={10} color="#9ca3af" strokeWidth={1.5} />
+                    <p className="text-[11px] text-[#4b5563] font-body mt-0.5 flex items-center gap-1">
+                      <Building01Icon size={10} color="#4b5563" strokeWidth={1.5} />
                       {r.organizationName}
                     </p>
                   )}
                 </td>
                 <td className="px-4 py-3.5">
-                  <p className="text-[12px] text-[#6b7280] font-body">{r.email}</p>
+                  <p className="text-[12px] text-[#4b5563] font-body">{r.email}</p>
                 </td>
                 <td className="px-4 py-3.5">
                   {r.role
@@ -776,7 +870,7 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
                 </td>
                 <td className="px-4 py-3.5">
                   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display ${
-                    isTeam(r.enrollmentType) ? 'bg-[#fffbeb] text-[#b45309]' : 'bg-[#f3f4f6] text-[#6b7280]'
+                    isTeam(r.enrollmentType) ? 'bg-[#fffbeb] text-[#b45309]' : 'bg-[#f3f4f6] text-[#4b5563]'
                   }`}>
                     {r.enrollmentType}
                   </span>
@@ -786,7 +880,7 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
                 </td>
                 <td className="px-4 py-3.5">
                   {r.enrollmentStatus !== '—'
-                    ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display ${STATUS_STYLE[r.enrollmentStatus.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#6b7280]'}`}>
+                    ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display ${STATUS_STYLE[r.enrollmentStatus.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#4b5563]'}`}>
                         {r.enrollmentStatus}
                       </span>
                     : <span className="text-[12px] text-[#d1d5db] font-body">—</span>
@@ -794,14 +888,14 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
                 </td>
                 <td className="px-4 py-3.5">
                   {r.completionStatus !== '—'
-                    ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display ${COMP_STYLE[r.completionStatus.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#6b7280]'}`}>
+                    ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display ${COMP_STYLE[r.completionStatus.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#4b5563]'}`}>
                         {r.completionStatus}
                       </span>
                     : <span className="text-[12px] text-[#d1d5db] font-body">—</span>
                   }
                 </td>
                 <td className="px-4 py-3.5">
-                  <p className="text-[12px] text-[#9ca3af] font-body whitespace-nowrap">{r.joinedAt}</p>
+                  <p className="text-[12px] text-[#4b5563] font-body whitespace-nowrap">{r.joinedAt}</p>
                 </td>
               </tr>
             ))}
@@ -837,7 +931,7 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
                     <h3 className="text-[16px] font-bold text-[#111827] font-display leading-tight">
                       {selectedPerson.name}
                     </h3>
-                    <p className="text-[13px] text-[#6b7280] font-body mt-0.5 break-all">
+                    <p className="text-[13px] text-[#4b5563] font-body mt-0.5 break-all">
                       {selectedPerson.email}
                     </p>
                     {selectedPerson.role && (
@@ -853,7 +947,7 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
                   onClick={() => setSelectedPerson(null)}
                   className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f3f4f6] transition-colors flex-shrink-0 mt-0.5"
                 >
-                  <Cancel01Icon size={16} color="#6b7280" strokeWidth={1.5} />
+                  <Cancel01Icon size={16} color="#4b5563" strokeWidth={1.5} />
                 </button>
               </div>
             </div>
@@ -863,23 +957,23 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
 
               {/* Enrollment details */}
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#9ca3af] font-display mb-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#4b5563] font-display mb-3">
                   Enrollment Details
                 </p>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-4">
                   <div>
-                    <p className="text-[11px] text-[#9ca3af] font-body mb-0.5">Plan Type</p>
+                    <p className="text-[11px] text-[#4b5563] font-body mb-0.5">Plan Type</p>
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold font-display ${
-                      isTeam(selectedPerson.enrollmentType) ? 'bg-[#fffbeb] text-[#b45309]' : 'bg-[#f3f4f6] text-[#6b7280]'
+                      isTeam(selectedPerson.enrollmentType) ? 'bg-[#fffbeb] text-[#b45309]' : 'bg-[#f3f4f6] text-[#4b5563]'
                     }`}>
                       {selectedPerson.enrollmentType}
                     </span>
                   </div>
                   <div>
-                    <p className="text-[11px] text-[#9ca3af] font-body mb-0.5">Enrollment Status</p>
+                    <p className="text-[11px] text-[#4b5563] font-body mb-0.5">Enrollment Status</p>
                     {selectedPerson.enrollmentStatus !== '—'
                       ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold font-display ${
-                          STATUS_STYLE[selectedPerson.enrollmentStatus.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#6b7280]'
+                          STATUS_STYLE[selectedPerson.enrollmentStatus.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#4b5563]'
                         }`}>
                           {selectedPerson.enrollmentStatus}
                         </span>
@@ -887,10 +981,10 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
                     }
                   </div>
                   <div>
-                    <p className="text-[11px] text-[#9ca3af] font-body mb-0.5">Completion</p>
+                    <p className="text-[11px] text-[#4b5563] font-body mb-0.5">Completion</p>
                     {selectedPerson.completionStatus !== '—'
                       ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold font-display ${
-                          COMP_STYLE[selectedPerson.completionStatus.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#6b7280]'
+                          COMP_STYLE[selectedPerson.completionStatus.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#4b5563]'
                         }`}>
                           {selectedPerson.completionStatus}
                         </span>
@@ -898,12 +992,12 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
                     }
                   </div>
                   <div>
-                    <p className="text-[11px] text-[#9ca3af] font-body mb-0.5">Date Joined</p>
+                    <p className="text-[11px] text-[#4b5563] font-body mb-0.5">Date Joined</p>
                     <p className="text-[13px] font-medium text-[#374151] font-body">{selectedPerson.joinedAt}</p>
                   </div>
                   {(selectedPerson.seatsPurchased !== null) && (
                     <div className="col-span-2">
-                      <p className="text-[11px] text-[#9ca3af] font-body mb-0.5">Seats</p>
+                      <p className="text-[11px] text-[#4b5563] font-body mb-0.5">Seats</p>
                       <p className="text-[13px] font-medium text-[#374151] font-body">
                         {selectedPerson.seatsPurchased} purchased
                         {selectedPerson.seatsUsed !== null && ` · ${selectedPerson.seatsUsed} used`}
@@ -918,8 +1012,8 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
                 <div>
                   <div className="h-px bg-[#f3f4f6] -mx-6 mb-5" />
                   <div className="flex items-center gap-2 mb-3">
-                    <Building01Icon size={14} color="#6b7280" strokeWidth={1.5} />
-                    <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#9ca3af] font-display">
+                    <Building01Icon size={14} color="#4b5563" strokeWidth={1.5} />
+                    <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#4b5563] font-display">
                       Organisation
                     </p>
                   </div>
@@ -934,7 +1028,7 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
                   </div>
 
                   {/* Team members list */}
-                  <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#9ca3af] font-display mb-2">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#4b5563] font-display mb-2">
                     Team Members ({teammates.length})
                   </p>
                   <div className="flex flex-col gap-1">
@@ -964,12 +1058,12 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
                               </span>
                             )}
                           </p>
-                          <p className="text-[11px] text-[#9ca3af] font-body truncate">{t.email}</p>
+                          <p className="text-[11px] text-[#4b5563] font-body truncate">{t.email}</p>
                         </div>
                         <span className={`flex-shrink-0 text-[9px] font-bold font-display px-1.5 py-0.5 rounded-[4px] uppercase tracking-wide ${
                           isTeam(t.enrollmentType) && t.enrollmentType !== 'TEAM MEMBER' && t.enrollmentType !== 'TEAM_MEMBER'
                             ? 'bg-[#fffbeb] text-[#b45309]'
-                            : 'bg-[#f3f4f6] text-[#6b7280]'
+                            : 'bg-[#f3f4f6] text-[#4b5563]'
                         }`}>
                           {t.enrollmentType === 'TEAM' ? 'Lead' : 'Member'}
                         </span>
@@ -1011,13 +1105,13 @@ function ReviewsTab({ cohortId }: { cohortId: string }) {
         <thead>
           <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
             {['Reviewer', 'Rating', 'Comment', 'Date'].map(h => (
-              <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6b7280] font-display">{h}</th>
+              <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display">{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {reviews.length === 0 ? (
-            <tr><td colSpan={4} className="px-4 py-12 text-center text-[13px] text-[#9ca3af] font-body">No reviews yet</td></tr>
+            <tr><td colSpan={4} className="px-4 py-12 text-center text-[13px] text-[#4b5563] font-body">No reviews yet</td></tr>
           ) : reviews.map(r => (
             <tr key={r.id} className="border-b border-[#f3f4f6] hover:bg-[#fafafa]">
               <td className="px-4 py-3.5"><p className="text-[13px] font-medium text-[#111827] font-body">{r.is_anonymous ? 'Anonymous' : userName(r.user)}</p></td>
@@ -1028,8 +1122,8 @@ function ReviewsTab({ cohortId }: { cohortId: string }) {
                   ))}
                 </div>
               </td>
-              <td className="px-4 py-3.5 max-w-[300px]"><p className="text-[12px] text-[#6b7280] font-body line-clamp-2">{r.comment ?? '—'}</p></td>
-              <td className="px-4 py-3.5"><p className="text-[12px] text-[#9ca3af] font-body">{formatDate(r.created_at)}</p></td>
+              <td className="px-4 py-3.5 max-w-[300px]"><p className="text-[12px] text-[#4b5563] font-body line-clamp-2">{r.comment ?? '—'}</p></td>
+              <td className="px-4 py-3.5"><p className="text-[12px] text-[#4b5563] font-body">{formatDate(r.created_at)}</p></td>
             </tr>
           ))}
         </tbody>
@@ -1043,7 +1137,7 @@ const TABS = ['Curriculum', 'People', 'Reviews'] as const
 type Tab = typeof TABS[number]
 
 const STATUS_STYLE: Record<string, string> = {
-  OPEN: 'bg-[#ecfdf3] text-[#027a48]', UPCOMING: 'bg-[#eff6ff] text-[#1d4ed8]', CLOSED: 'bg-[#f3f4f6] text-[#6b7280]',
+  OPEN: 'bg-[#ecfdf3] text-[#027a48]', UPCOMING: 'bg-[#eff6ff] text-[#1d4ed8]', CLOSED: 'bg-[#f3f4f6] text-[#4b5563]',
 }
 
 export default function CohortDetailPage() {
@@ -1070,7 +1164,7 @@ export default function CohortDetailPage() {
         setCohort(c)
 
         // Supplement dates from the program cohorts list if the single endpoint doesn't return them
-        const pId = c?.programId ?? c?.program_id ?? c?.program?.id ?? null
+        const pId = c?.programId ?? c?.program_id ?? c?.programmeId ?? c?.programme_id ?? c?.program?.id ?? c?.programme?.id ?? null
         if (pId) {
           try {
             const listRes = await apiClient.get(`/admin/programs/${pId}/cohorts?size=50`)
@@ -1097,7 +1191,7 @@ export default function CohortDetailPage() {
     loadCohort()
   }, [cohortId])
 
-  const programId = cohort?.programId ?? cohort?.program_id ?? cohort?.program?.id ?? null
+  const programId = cohort?.programId ?? cohort?.program_id ?? cohort?.programmeId ?? cohort?.programme_id ?? cohort?.program?.id ?? cohort?.programme?.id ?? null
 
   function goBack() {
     if (programId) {
@@ -1121,7 +1215,7 @@ export default function CohortDetailPage() {
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <div className="flex flex-col min-w-0">
                 {cohort?.program && (
-                  <p className="text-[11px] text-[#9ca3af] font-body truncate">{cohort.program.title}</p>
+                  <p className="text-[11px] text-[#4b5563] font-body truncate">{cohort.program.title}</p>
                 )}
                 <h1 className="text-[16px] font-bold text-[#111827] font-display truncate">{cohort?.title ?? 'Cohort'}</h1>
               </div>
@@ -1134,7 +1228,7 @@ export default function CohortDetailPage() {
           )
         }
         {cohort && (
-          <div className="flex items-center gap-4 text-[12px] text-[#9ca3af] font-body ml-auto flex-shrink-0">
+          <div className="flex items-center gap-4 text-[12px] text-[#4b5563] font-body ml-auto flex-shrink-0">
             <span>Start: <span className="text-[#374151] font-medium">{formatDate(cohort.start_date ?? cohort.startDate)}</span></span>
             <span>End: <span className="text-[#374151] font-medium">{formatDate(cohort.end_date ?? cohort.endDate)}</span></span>
           </div>
@@ -1146,7 +1240,7 @@ export default function CohortDetailPage() {
         {TABS.map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             className={`flex items-center gap-1.5 px-4 py-3 text-[13px] font-semibold font-display border-b-2 transition-colors ${
-              activeTab === tab ? 'border-[#d51520] text-[#d51520]' : 'border-transparent text-[#6b7280] hover:text-[#374151]'
+              activeTab === tab ? 'border-[#d51520] text-[#d51520]' : 'border-transparent text-[#4b5563] hover:text-[#374151]'
             }`}>
             {tab === 'Curriculum' && <BookOpen01Icon  size={14} strokeWidth={1.5} />}
             {tab === 'People'     && <UserGroup02Icon size={14} strokeWidth={1.5} />}
@@ -1161,7 +1255,7 @@ export default function CohortDetailPage() {
         className="flex-1 bg-white"
         style={activeTab === 'Curriculum' ? { display: 'flex', flexDirection: 'column', overflow: 'hidden' } : { overflowY: 'auto' }}
       >
-        {activeTab === 'Curriculum' && <CurriculumTab cohortId={cohortId} programId={programId} />}
+        {activeTab === 'Curriculum' && <CurriculumTab cohortId={cohortId} programId={programId} onProgramIdResolved={id => setCohort(prev => prev ? { ...prev, program_id: id } : prev)} />}
         {activeTab === 'People'     && <PeopleTab     cohortId={cohortId} />}
         {activeTab === 'Reviews'    && <ReviewsTab    cohortId={cohortId} />}
       </div>

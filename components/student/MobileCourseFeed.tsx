@@ -20,7 +20,7 @@ export default function MobileCourseFeed() {
         <p className="text-[16px] font-bold text-[#111827] font-display mb-1">
           No programmes yet
         </p>
-        <p className="text-[13px] text-[#6b7280] font-body max-w-[260px] leading-relaxed mb-5">
+        <p className="text-[13px] text-[#4b5563] font-body max-w-[260px] leading-relaxed mb-5">
           Browse Brixgate&apos;s AI programmes and join a cohort to start learning.
         </p>
         <Link
@@ -36,7 +36,7 @@ export default function MobileCourseFeed() {
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-[13px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">
+      <p className="text-[13px] font-semibold uppercase tracking-widest text-[#4b5563] font-display">
         Continue Learning
       </p>
 
@@ -85,18 +85,18 @@ export default function MobileCourseFeed() {
                 <p className="text-[13px] font-semibold text-[#111827] font-display leading-snug mb-0.5 line-clamp-2">
                   {program.title}
                 </p>
-                <p className="text-[11px] text-[#9ca3af] font-body mb-2.5 truncate">
+                <p className="text-[11px] text-[#4b5563] font-body mb-2.5 truncate">
                   {cohortLabel}
                 </p>
 
                 {/* Meta */}
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="flex items-center gap-1 text-[11px] text-[#9ca3af] font-body">
-                    <Clock01Icon size={10} color="#9ca3af" strokeWidth={1.5} />
+                  <div className="flex items-center gap-1 text-[11px] text-[#4b5563] font-body">
+                    <Clock01Icon size={10} color="#4b5563" strokeWidth={1.5} />
                     <span>{program.duration}</span>
                   </div>
-                  <div className="flex items-center gap-1 text-[11px] text-[#9ca3af] font-body">
-                    <UserGroupIcon size={10} color="#9ca3af" strokeWidth={1.5} />
+                  <div className="flex items-center gap-1 text-[11px] text-[#4b5563] font-body">
+                    <UserGroupIcon size={10} color="#4b5563" strokeWidth={1.5} />
                     <span>{enrollment.cohort.enrolled} students</span>
                   </div>
                 </div>
@@ -109,7 +109,7 @@ export default function MobileCourseFeed() {
                       style={{ width: `${enrollment.progress}%` }}
                     />
                   </div>
-                  <p className="text-[10px] text-[#9ca3af] font-body mt-0.5">{enrollment.progress}% complete</p>
+                  <p className="text-[10px] text-[#4b5563] font-body mt-0.5">{enrollment.progress}% complete</p>
                 </div>
 
                 <Link
@@ -131,14 +131,14 @@ export default function MobileCourseFeed() {
           href="/student/resources"
           className="bg-white border border-[#f0f0f2] rounded-[10px] p-4 flex flex-col gap-1.5 shadow-[0px_1px_3px_rgba(16,24,40,0.06)]"
         >
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">Resources</span>
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-[#4b5563] font-display">Resources</span>
           <span className="text-[13px] font-semibold text-[#111827] font-display">Session Materials</span>
         </Link>
         <Link
           href="/student/notifications"
           className="bg-white border border-[#f0f0f2] rounded-[10px] p-4 flex flex-col gap-1.5 shadow-[0px_1px_3px_rgba(16,24,40,0.06)]"
         >
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">Notifications</span>
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-[#4b5563] font-display">Notifications</span>
           <span className="text-[13px] font-semibold text-[#111827] font-display">Updates & Alerts</span>
         </Link>
       </div>

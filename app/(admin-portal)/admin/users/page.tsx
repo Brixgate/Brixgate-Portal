@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   UserGroup02Icon, Add01Icon, Loading01Icon, Cancel01Icon,
-  AlertCircleIcon, Search01Icon, RefreshIcon,
+  AlertCircleIcon, Search01Icon, RefreshIcon, Download01Icon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
+import AdminPageLoader from '@/components/admin/AdminPageLoader'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface ApiUser {
@@ -42,6 +43,11 @@ function userName(u: ApiUser): string {
   return `${f} ${l}`.trim() || u.email
 }
 
+function formatDate(d?: string) {
+  if (!d) return '—'
+  return new Date(d).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
 function RoleBadge({ role }: { role: string }) {
   const cls = ROLE_STYLE[role?.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#374151]'
   return (
@@ -49,6 +55,42 @@ function RoleBadge({ role }: { role: string }) {
       {ROLE_LABELS[role?.toUpperCase()] ?? role}
     </span>
   )
+}
+
+// ── CSV export helpers ────────────────────────────────────────────────────────
+async function fetchAllUsersForExport(role?: string): Promise<ApiUser[]> {
+  const all: ApiUser[] = []
+  let pg = 1
+  while (true) {
+    const params = new URLSearchParams({ page: String(pg), size: '100' })
+    if (role) params.set('role', role)
+    const res  = await apiClient.get(`/admin/users?${params}`)
+    const data = unwrap<{ users?: ApiUser[]; pagination?: Pagination }>(res.data)
+    const batch: ApiUser[] = Array.isArray(data?.users) ? data.users : []
+    all.push(...batch)
+    const hasNext = data?.pagination?.hasNext ?? data?.pagination?.has_next ?? false
+    if (!hasNext || batch.length === 0) break
+    pg++
+  }
+  return all
+}
+
+function downloadCSV(rows: ApiUser[], filename: string) {
+  const esc = (s: string) => `"${(s ?? '').replace(/"/g, '""')}"`
+  const lines = [
+    ['Name', 'Email', 'Role', 'Status', 'Date Joined'].join(','),
+    ...rows.map(u => [
+      esc(userName(u)),
+      esc(u.email),
+      esc(u.role ?? ''),
+      esc(u.status ?? ''),
+      esc(formatDate(u.createdAt ?? u.created_at)),
+    ].join(',')),
+  ]
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a'); a.href = url; a.download = filename; a.click()
+  URL.revokeObjectURL(url)
 }
 
 // ── Create user modal ─────────────────────────────────────────────────────────
@@ -76,7 +118,7 @@ function CreateUserModal({ onClose, onCreated }: { onClose: () => void; onCreate
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-[#f3f4f6]">
           <h2 className="text-[15px] font-bold text-[#111827] font-display">Create User</h2>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f3f4f6]">
-            <Cancel01Icon size={15} color="#6b7280" strokeWidth={1.5} />
+            <Cancel01Icon size={15} color="#4b5563" strokeWidth={1.5} />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="px-6 py-5 flex flex-col gap-4">
@@ -85,7 +127,7 @@ function CreateUserModal({ onClose, onCreated }: { onClose: () => void; onCreate
             <input
               value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
               placeholder="Adunola Okafor"
-              className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#9ca3af] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10"
+              className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#4b5563] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10"
             />
           </div>
           <div>
@@ -93,19 +135,19 @@ function CreateUserModal({ onClose, onCreated }: { onClose: () => void; onCreate
             <input
               type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
               placeholder="adunola@example.com"
-              className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#9ca3af] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10"
+              className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#4b5563] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10"
             />
           </div>
           <div>
             <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Role</label>
             <select
               value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value }))}
-              className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 bg-white"
+              className="w-full h-10 pl-3 pr-8 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 bg-white"
             >
               {ROLES.filter(Boolean).map(r => <option key={r} value={r}>{ROLE_LABELS[r] ?? r}</option>)}
             </select>
           </div>
-          <p className="text-[11px] text-[#9ca3af] font-body -mt-2">
+          <p className="text-[11px] text-[#4b5563] font-body -mt-2">
             The user will receive an email to set up their password.
           </p>
           {error && (
@@ -132,13 +174,16 @@ function CreateUserModal({ onClose, onCreated }: { onClose: () => void; onCreate
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function AdminUsersPage() {
-  const [users, setUsers]         = useState<ApiUser[]>([])
+  const [users, setUsers]           = useState<ApiUser[]>([])
   const [pagination, setPagination] = useState<Pagination | null>(null)
-  const [page, setPage]           = useState(1)
+  const [page, setPage]             = useState(1)
   const [roleFilter, setRoleFilter] = useState('')
-  const [search, setSearch]       = useState('')
-  const [loading, setLoading]     = useState(true)
+  const [search, setSearch]         = useState('')
+  const [loading, setLoading]       = useState(true)
   const [showCreate, setShowCreate] = useState(false)
+  const [showExport, setShowExport] = useState(false)
+  const [exporting, setExporting]   = useState(false)
+  const exportRef                   = useRef<HTMLDivElement>(null)
 
   const fetchUsers = useCallback(async () => {
     setLoading(true)
@@ -154,50 +199,109 @@ export default function AdminUsersPage() {
 
   useEffect(() => { fetchUsers() }, [fetchUsers])
 
+  // Close export dropdown on outside click
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (exportRef.current && !exportRef.current.contains(e.target as Node)) {
+        setShowExport(false)
+      }
+    }
+    if (showExport) document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showExport])
+
+  async function handleExport(exportAll: boolean) {
+    setShowExport(false); setExporting(true)
+    try {
+      const role = exportAll ? '' : roleFilter
+      const rows = await fetchAllUsersForExport(role || undefined)
+      const label = role ? (ROLE_LABELS[role] ?? role).toLowerCase() : 'all'
+      downloadCSV(rows, `brixgate-users-${label}-${new Date().toISOString().slice(0, 10)}.csv`)
+    } finally { setExporting(false) }
+  }
+
   const filtered = search.trim()
     ? users.filter(u => userName(u).toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase()))
     : users
 
-  function formatDate(d?: string) {
-    if (!d) return '—'
-    return new Date(d).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })
-  }
-
   return (
     <div className="p-8">
+      {loading && users.length === 0 && <AdminPageLoader />}
+
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-[24px] font-bold text-[#111827] font-display">Users</h1>
-          <p className="text-[14px] text-[#6b7280] font-body mt-0.5">
+          <p className="text-[14px] text-[#4b5563] font-body mt-0.5">
             {pagination ? `${(pagination.totalElements ?? pagination.total_elements ?? pagination.total ?? 0).toLocaleString()} total users` : 'Manage all users'}
           </p>
         </div>
-        <button onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 h-10 px-4 bg-[#d51520] text-white rounded-[8px] text-[13px] font-semibold font-display hover:bg-[#b81119] transition-colors">
-          <Add01Icon size={15} strokeWidth={2} /> Create User
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Export button */}
+          <div className="relative" ref={exportRef}>
+            <button
+              onClick={() => setShowExport(v => !v)}
+              disabled={exporting}
+              className="flex items-center gap-2 h-10 px-4 border border-[#e5e7eb] rounded-[8px] text-[13px] font-medium text-[#374151] font-body hover:bg-[#f9fafb] transition-colors disabled:opacity-60"
+            >
+              {exporting
+                ? <Loading01Icon size={14} className="animate-spin" strokeWidth={2} />
+                : <Download01Icon size={14} strokeWidth={1.5} />
+              }
+              Export
+            </button>
+            {showExport && (
+              <div className="absolute right-0 top-full mt-1.5 w-[230px] bg-white rounded-[10px] border border-[#e5e7eb] shadow-lg z-20 overflow-hidden py-1">
+                <button
+                  onClick={() => handleExport(false)}
+                  className="w-full px-4 py-3 text-left hover:bg-[#f9fafb] transition-colors"
+                >
+                  <p className="text-[13px] font-semibold text-[#111827] font-display">
+                    {roleFilter ? `Export ${ROLE_LABELS[roleFilter] ?? roleFilter}s` : 'Export current view'}
+                  </p>
+                  <p className="text-[11px] text-[#4b5563] font-body mt-0.5">
+                    {roleFilter ? `Only ${ROLE_LABELS[roleFilter] ?? roleFilter} users` : 'All users, no role filter'}
+                  </p>
+                </button>
+                <div className="h-px bg-[#f3f4f6] mx-2" />
+                <button
+                  onClick={() => handleExport(true)}
+                  className="w-full px-4 py-3 text-left hover:bg-[#f9fafb] transition-colors"
+                >
+                  <p className="text-[13px] font-semibold text-[#111827] font-display">Export all users</p>
+                  <p className="text-[11px] text-[#4b5563] font-body mt-0.5">Every role, no filters applied</p>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Create User */}
+          <button onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 h-10 px-4 bg-[#d51520] text-white rounded-[8px] text-[13px] font-semibold font-display hover:bg-[#b81119] transition-colors">
+            <Add01Icon size={15} strokeWidth={2} /> Create User
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
       <div className="flex items-center gap-3 mb-6">
         <div className="relative flex-1 max-w-[320px]">
-          <Search01Icon size={14} color="#9ca3af" strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <Search01Icon size={14} color="#4b5563" strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search name or email…"
-            className="w-full h-9 pl-8 pr-3 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body text-[#111827] placeholder:text-[#9ca3af] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10"
+            className="w-full h-9 pl-8 pr-3 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body text-[#111827] placeholder:text-[#4b5563] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10"
           />
         </div>
         <select
           value={roleFilter} onChange={e => { setRoleFilter(e.target.value); setPage(1) }}
-          className="h-9 px-3 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body text-[#374151] outline-none focus:border-[#d51520] bg-white"
+          className="h-9 pl-3 pr-8 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body text-[#374151] outline-none focus:border-[#d51520] bg-white"
         >
           {ROLES.map(r => <option key={r} value={r}>{r ? ROLE_LABELS[r] : 'All Roles'}</option>)}
         </select>
         <button onClick={fetchUsers}
           className="h-9 w-9 flex items-center justify-center border border-[#e5e7eb] rounded-[8px] hover:bg-[#f9fafb] transition-colors">
-          <RefreshIcon size={14} color="#6b7280" strokeWidth={1.5} />
+          <RefreshIcon size={14} color="#4b5563" strokeWidth={1.5} />
         </button>
       </div>
 
@@ -208,7 +312,7 @@ export default function AdminUsersPage() {
             <thead>
               <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
                 {['Name', 'Email', 'Role', 'Status', 'Joined'].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6b7280] font-display">
+                  <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display">
                     {h}
                   </th>
                 ))}
@@ -230,7 +334,7 @@ export default function AdminUsersPage() {
                   <td colSpan={5} className="px-4 py-16 text-center">
                     <UserGroup02Icon size={32} color="#d1d5db" strokeWidth={1.5} className="mx-auto mb-3" />
                     <p className="text-[14px] font-semibold text-[#111827] font-display">No users found</p>
-                    <p className="text-[13px] text-[#9ca3af] font-body mt-1">Try adjusting your filters</p>
+                    <p className="text-[13px] text-[#4b5563] font-body mt-1">Try adjusting your filters</p>
                   </td>
                 </tr>
               ) : (
@@ -240,20 +344,20 @@ export default function AdminUsersPage() {
                       <p className="text-[13px] font-medium text-[#111827] font-body">{userName(u)}</p>
                     </td>
                     <td className="px-4 py-3.5">
-                      <p className="text-[13px] text-[#6b7280] font-body">{u.email}</p>
+                      <p className="text-[13px] text-[#4b5563] font-body">{u.email}</p>
                     </td>
                     <td className="px-4 py-3.5">
                       {u.role ? <RoleBadge role={u.role} /> : <span className="text-[#d1d5db]">—</span>}
                     </td>
                     <td className="px-4 py-3.5">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold font-display ${
-                        u.status === 'ACTIVE' ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#f3f4f6] text-[#6b7280]'
+                        u.status === 'ACTIVE' ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#f3f4f6] text-[#4b5563]'
                       }`}>
                         {u.status ?? 'Active'}
                       </span>
                     </td>
                     <td className="px-4 py-3.5">
-                      <p className="text-[12px] text-[#9ca3af] font-body">
+                      <p className="text-[12px] text-[#4b5563] font-body">
                         {formatDate(u.createdAt ?? u.created_at)}
                       </p>
                     </td>
@@ -267,7 +371,7 @@ export default function AdminUsersPage() {
         {/* Pagination */}
         {pagination && (pagination.totalPages ?? pagination.total_pages ?? 1) > 1 && (
           <div className="px-4 py-3 flex items-center justify-between border-t border-[#f3f4f6]">
-            <p className="text-[12px] text-[#6b7280] font-body">
+            <p className="text-[12px] text-[#4b5563] font-body">
               {(() => {
                 const total = pagination.totalElements ?? pagination.total_elements ?? pagination.total ?? 0
                 return `Showing ${((page - 1) * 20) + 1}–${Math.min(page * 20, total)} of ${total.toLocaleString()}`

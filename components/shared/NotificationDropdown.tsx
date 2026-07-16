@@ -151,7 +151,7 @@ export default function NotificationDropdown() {
           {/* List */}
           <div className="overflow-y-auto max-h-[400px]">
             {loading ? (
-              <div className="flex items-center justify-center py-14 gap-2 text-[#9ca3af]">
+              <div className="flex items-center justify-center py-14 gap-2 text-[#4b5563]">
                 <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="#9ca3af" strokeWidth="4" />
                   <path className="opacity-75" fill="#9ca3af" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
@@ -161,12 +161,12 @@ export default function NotificationDropdown() {
             ) : notifications.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-14 px-6 text-center">
                 <div className="w-12 h-12 rounded-[10px] bg-[#f7f8fa] flex items-center justify-center mb-3">
-                  <Notification01Icon size={22} color="#9ca3af" strokeWidth={1.5} />
+                  <Notification01Icon size={22} color="#4b5563" strokeWidth={1.5} />
                 </div>
                 <p className="text-[14px] font-semibold text-[#111827] font-display mb-1">
                   You&apos;re all caught up
                 </p>
-                <p className="text-[13px] text-[#9ca3af] font-body">No notifications right now.</p>
+                <p className="text-[13px] text-[#4b5563] font-body">No notifications right now.</p>
               </div>
             ) : (
               notifications.map((n, i) => (
@@ -196,11 +196,11 @@ export default function NotificationDropdown() {
                       {n.title}
                     </p>
                     {n.body && (
-                      <p className="text-[13px] text-[#6b7280] font-body mt-1 line-clamp-2 leading-snug">
+                      <p className="text-[13px] text-[#4b5563] font-body mt-1 line-clamp-2 leading-snug">
                         {n.body}
                       </p>
                     )}
-                    <p className="text-[12px] text-[#9ca3af] font-body mt-1.5 font-medium">
+                    <p className="text-[12px] text-[#4b5563] font-body mt-1.5 font-medium">
                       {new Date(n.createdAt).toLocaleDateString('en-NG', {
                         day: 'numeric',
                         month: 'short',
@@ -211,7 +211,7 @@ export default function NotificationDropdown() {
 
                   <button
                     onClick={() => dismissOne(n.id)}
-                    className="opacity-0 group-hover:opacity-100 text-[#d1d5db] hover:text-[#9ca3af] transition-all flex-shrink-0 mt-0.5"
+                    className="opacity-0 group-hover:opacity-100 text-[#d1d5db] hover:text-[#4b5563] transition-all flex-shrink-0 mt-0.5"
                     aria-label="Dismiss"
                   >
                     <Delete02Icon size={15} color="currentColor" strokeWidth={1.5} />

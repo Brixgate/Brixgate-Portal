@@ -130,7 +130,7 @@ function ResourceRow({ resource }: { resource: ApiResource }) {
         <p className="text-[13px] font-medium text-[#111827] font-body truncate leading-snug">
           {resource.title ?? 'Resource'}
         </p>
-        <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">
+        <p className="text-[11px] text-[#4b5563] font-body mt-0.5">
           {(resource.type ?? '').toUpperCase()}{uploaded ? ` · ${uploaded}` : ''}
         </p>
       </div>
@@ -139,7 +139,7 @@ function ResourceRow({ resource }: { resource: ApiResource }) {
           href={resource.link}
           target="_blank"
           rel="noopener noreferrer"
-          className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 text-[#9ca3af] hover:text-[#374151]"
+          className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 text-[#4b5563] hover:text-[#374151]"
           aria-label="Download"
         >
           <Download01Icon size={14} strokeWidth={1.5} />
@@ -245,14 +245,14 @@ function CourseCard({ program, progress: progressOverride }: { program: ApiProgr
 
         {/* Subtitle */}
         {subtitle && (
-          <p className="text-[12px] text-[#6b7280] font-body leading-[1.5] mb-2 line-clamp-2">
+          <p className="text-[12px] text-[#4b5563] font-body leading-[1.5] mb-2 line-clamp-2">
             {subtitle}
           </p>
         )}
 
         {/* Cohort + role badge + team pill */}
         <div className="flex items-center gap-2 mb-4 flex-wrap">
-          <p className="text-[11px] text-[#9ca3af] font-body truncate">
+          <p className="text-[11px] text-[#4b5563] font-body truncate">
             {cohortLabel || cohortName || '—'}
           </p>
           {roleLabel(role) && (
@@ -271,8 +271,8 @@ function CourseCard({ program, progress: progressOverride }: { program: ApiProgr
         {/* Meta row */}
         <div className="flex items-center gap-3 flex-wrap mb-4">
           {(modulesCount > 0 || lessonsCount > 0) && (
-            <div className="flex items-center gap-1.5 text-[12px] text-[#6b7280] font-body">
-              <BookOpen01Icon size={12} color="#9ca3af" strokeWidth={1.5} />
+            <div className="flex items-center gap-1.5 text-[12px] text-[#4b5563] font-body">
+              <BookOpen01Icon size={12} color="#4b5563" strokeWidth={1.5} />
               <span>
                 {modulesCount > 0 && `${modulesCount} module${modulesCount !== 1 ? 's' : ''}`}
                 {modulesCount > 0 && lessonsCount > 0 && ' · '}
@@ -281,8 +281,8 @@ function CourseCard({ program, progress: progressOverride }: { program: ApiProgr
             </div>
           )}
           {enrolled > 0 && (
-            <div className="flex items-center gap-1.5 text-[12px] text-[#6b7280] font-body">
-              <UserGroupIcon size={12} color="#9ca3af" strokeWidth={1.5} />
+            <div className="flex items-center gap-1.5 text-[12px] text-[#4b5563] font-body">
+              <UserGroupIcon size={12} color="#4b5563" strokeWidth={1.5} />
               <span>{enrolled} enrolled</span>
             </div>
           )}
@@ -291,7 +291,7 @@ function CourseCard({ program, progress: progressOverride }: { program: ApiProgr
         {/* Progress bar */}
         <div className="mb-5">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[11px] text-[#9ca3af] font-body">Progress</span>
+            <span className="text-[11px] text-[#4b5563] font-body">Progress</span>
             <span className="text-[11px] font-semibold text-[#d51520] font-display">{progress}%</span>
           </div>
           <div className="h-1.5 bg-[#f3f4f6] rounded-full overflow-hidden w-full">
@@ -393,7 +393,7 @@ export default function MyLearning() {
       <div className="mt-3 flex border-b border-[#e5e7eb] px-6">
         {TABS.map((tab) => (
           <button key={tab} onClick={() => setActiveTab(tab)} className="flex flex-col items-center pb-0 mr-6 last:mr-0">
-            <span className={cn('pb-2.5 text-[14px] font-display transition-colors', activeTab === tab ? 'font-semibold text-[#d51715]' : 'font-normal text-[#6b7280] hover:text-[#374151]')}>
+            <span className={cn('pb-2.5 text-[14px] font-display transition-colors', activeTab === tab ? 'font-semibold text-[#d51715]' : 'font-normal text-[#4b5563] hover:text-[#374151]')}>
               {tab}
             </span>
             <div className={cn('h-[2px] w-full rounded-t-full transition-colors', activeTab === tab ? 'bg-[#d51715]' : 'bg-transparent')} />
@@ -407,7 +407,7 @@ export default function MyLearning() {
         {/* My Programs */}
         {activeTab === 'My Programs' && (
           loadingPrograms ? (
-            <div className="flex items-center justify-center py-10 gap-2 text-[#9ca3af]">
+            <div className="flex items-center justify-center py-10 gap-2 text-[#4b5563]">
               <Loading01Icon size={16} className="animate-spin" strokeWidth={1.5} />
               <span className="text-[13px] font-body">Loading programmes…</span>
             </div>
@@ -415,7 +415,7 @@ export default function MyLearning() {
             <div className="w-full py-10 text-center">
               <BookOpen01Icon size={36} color="#d1d5db" className="mx-auto mb-3" strokeWidth={1.5} />
               <p className="text-[14px] font-semibold text-[#374151] font-display">No programmes yet</p>
-              <p className="text-[13px] text-[#9ca3af] font-body mt-1">Your enrolled programmes will appear here.</p>
+              <p className="text-[13px] text-[#4b5563] font-body mt-1">Your enrolled programmes will appear here.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
@@ -438,7 +438,7 @@ export default function MyLearning() {
         {/* Resources */}
         {activeTab === 'Resources' && (
           loadingResources ? (
-            <div className="flex items-center justify-center py-10 gap-2 text-[#9ca3af]">
+            <div className="flex items-center justify-center py-10 gap-2 text-[#4b5563]">
               <Loading01Icon size={16} className="animate-spin" strokeWidth={1.5} />
               <span className="text-[13px] font-body">Loading resources…</span>
             </div>
@@ -446,7 +446,7 @@ export default function MyLearning() {
             <div className="py-8 text-center">
               <File01Icon size={32} color="#d1d5db" className="mx-auto mb-3" strokeWidth={1.5} />
               <p className="text-[14px] font-semibold text-[#374151] font-display">No resources yet</p>
-              <p className="text-[13px] text-[#9ca3af] font-body mt-1">Session materials will appear here once uploaded.</p>
+              <p className="text-[13px] text-[#4b5563] font-body mt-1">Session materials will appear here once uploaded.</p>
             </div>
           ) : (
             <>
@@ -467,7 +467,7 @@ export default function MyLearning() {
         {activeTab === 'Certifications' && (
           <div className="py-8 text-center">
             <p className="text-[14px] font-semibold text-[#374151] font-display mb-1">Not yet unlocked</p>
-            <p className="text-[13px] text-[#9ca3af] font-body">Complete your programme to earn your certificate.</p>
+            <p className="text-[13px] text-[#4b5563] font-body">Complete your programme to earn your certificate.</p>
             <Link href="/student/certificate" className="inline-flex items-center gap-1.5 mt-4 text-[13px] font-semibold text-[#d51520] font-display hover:underline">
               View requirements
               <ArrowRight01Icon size={13} color="#d51520" strokeWidth={2} />

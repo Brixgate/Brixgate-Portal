@@ -10,7 +10,7 @@ export default function PastSessionsPanel() {
         <p className="text-[16px] font-semibold text-[#111827] font-display leading-none">
           Past Sessions
         </p>
-        <span className="text-[11px] font-medium text-[#9ca3af] font-body">
+        <span className="text-[11px] font-medium text-[#4b5563] font-body">
           {past.length} completed
         </span>
       </div>
@@ -32,7 +32,7 @@ export default function PastSessionsPanel() {
               <p className="text-[12px] font-medium text-[#374151] font-body leading-snug truncate">
                 {session.title}
               </p>
-              <p className="text-[10px] text-[#9ca3af] font-body mt-0.5">
+              <p className="text-[10px] text-[#4b5563] font-body mt-0.5">
                 {new Date(session.date).toLocaleDateString('en-NG', {
                   day: 'numeric',
                   month: 'short',
@@ -58,7 +58,7 @@ export default function PastSessionsPanel() {
               <div className="w-2 h-2 rounded-full bg-[#d1d5db]" />
             </div>
             <p className="text-[12px] font-medium text-[#374151] font-display">No sessions yet</p>
-            <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">
+            <p className="text-[11px] text-[#4b5563] font-body mt-0.5">
               Completed sessions will appear here.
             </p>
           </div>

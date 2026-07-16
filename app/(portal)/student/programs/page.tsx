@@ -258,7 +258,7 @@ export default function ProgramsPage() {
           <h1 className="text-[24px] font-bold text-[#111827] font-display leading-tight">
             My Programs
           </h1>
-          <p className="text-[14px] text-[#6b7280] font-body mt-1">
+          <p className="text-[14px] text-[#4b5563] font-body mt-1">
             Track your progress across all enrolled programmes.
           </p>
         </div>
@@ -271,7 +271,7 @@ export default function ProgramsPage() {
 
           {/* Loading */}
           {loading && (
-            <div className="flex items-center justify-center py-16 gap-2 text-[#9ca3af]">
+            <div className="flex items-center justify-center py-16 gap-2 text-[#4b5563]">
               <Loading01Icon size={18} className="animate-spin" strokeWidth={1.5} />
               <span className="text-[13px] font-body">Loading your programmes…</span>
             </div>
@@ -348,14 +348,14 @@ export default function ProgramsPage() {
 
                     {/* Subtitle / description */}
                     {p.subtitle && (
-                      <p className="text-[12px] text-[#6b7280] font-body leading-[1.5] mb-2 line-clamp-2">
+                      <p className="text-[12px] text-[#4b5563] font-body leading-[1.5] mb-2 line-clamp-2">
                         {p.subtitle}
                       </p>
                     )}
 
                     {/* Cohort name + role badge + team pill (clickable) */}
                     <div className="flex items-center gap-2 mb-4 flex-wrap">
-                      <p className="text-[11px] text-[#9ca3af] font-body truncate">
+                      <p className="text-[11px] text-[#4b5563] font-body truncate">
                         {p.cohortLabel || p.cohortName || '—'}
                       </p>
                       {roleLabel(p.role) && (
@@ -377,8 +377,8 @@ export default function ProgramsPage() {
                     {/* Meta row */}
                     <div className="flex items-center gap-3 flex-wrap mb-4">
                       {(p.modulesCount > 0 || p.lessonsCount > 0) && (
-                        <div className="flex items-center gap-1.5 text-[12px] text-[#6b7280] font-body">
-                          <BookOpen01Icon size={12} color="#9ca3af" strokeWidth={1.5} />
+                        <div className="flex items-center gap-1.5 text-[12px] text-[#4b5563] font-body">
+                          <BookOpen01Icon size={12} color="#4b5563" strokeWidth={1.5} />
                           <span>
                             {p.modulesCount > 0 && `${p.modulesCount} module${p.modulesCount !== 1 ? 's' : ''}`}
                             {p.modulesCount > 0 && p.lessonsCount > 0 && ' · '}
@@ -387,8 +387,8 @@ export default function ProgramsPage() {
                         </div>
                       )}
                       {p.enrolled > 0 && (
-                        <div className="flex items-center gap-1.5 text-[12px] text-[#6b7280] font-body">
-                          <UserGroupIcon size={12} color="#9ca3af" strokeWidth={1.5} />
+                        <div className="flex items-center gap-1.5 text-[12px] text-[#4b5563] font-body">
+                          <UserGroupIcon size={12} color="#4b5563" strokeWidth={1.5} />
                           <span>{p.enrolled} enrolled</span>
                         </div>
                       )}
@@ -397,7 +397,7 @@ export default function ProgramsPage() {
                     {/* Progress bar */}
                     <div className="mb-5">
                       <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-[11px] text-[#9ca3af] font-body">Progress</span>
+                        <span className="text-[11px] text-[#4b5563] font-body">Progress</span>
                         <span className="text-[11px] font-semibold text-[#d51520] font-display">{scheduleProgress.get(p.cohortId) ?? p.progress}%</span>
                       </div>
                       <div className="h-1.5 bg-[#f3f4f6] rounded-full overflow-hidden w-full">

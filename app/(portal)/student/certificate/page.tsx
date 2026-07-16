@@ -95,7 +95,7 @@ function RequirementItem({ done, label }: { done: boolean; label: string }) {
           ? <CheckmarkCircle01Icon size={12} color="white" strokeWidth={2} />
           : <div className="w-1.5 h-1.5 rounded-full bg-[#d1d5db]" />}
       </div>
-      <p className={`text-[13px] font-body leading-snug ${done ? 'text-[#374151]' : 'text-[#9ca3af]'}`}>
+      <p className={`text-[13px] font-body leading-snug ${done ? 'text-[#374151]' : 'text-[#4b5563]'}`}>
         {label}
       </p>
     </div>
@@ -123,7 +123,7 @@ function CertificateCard({ row, fullName }: { row: CertRow; fullName: string }) 
           <div className="flex items-center justify-between mb-3">
             <div>
               <p className="text-[15px] font-semibold text-[#111827] font-display leading-tight">{title}</p>
-              <p className="text-[12px] text-[#9ca3af] font-body mt-0.5">{cohortLabel}</p>
+              <p className="text-[12px] text-[#4b5563] font-body mt-0.5">{cohortLabel}</p>
             </div>
             <div className="flex items-center gap-3">
               <span
@@ -141,7 +141,7 @@ function CertificateCard({ row, fullName }: { row: CertRow; fullName: string }) 
               style={{ width: `${progress}%` }}
             />
           </div>
-          <p className="text-[12px] text-[#9ca3af] font-body mt-2">
+          <p className="text-[12px] text-[#4b5563] font-body mt-2">
             {isUnlocked
               ? 'Programme complete — your certificate is ready!'
               : `${100 - progress}% remaining to unlock your certificate`}
@@ -165,12 +165,12 @@ function CertificateCard({ row, fullName }: { row: CertRow; fullName: string }) 
               {!isUnlocked && (
                 <div className="absolute inset-0 backdrop-blur-[6px] bg-white/60 z-10 flex flex-col items-center justify-center gap-3">
                   <div className="w-14 h-14 rounded-full bg-[#f3f4f6] flex items-center justify-center">
-                    <LockIcon size={24} color="#9ca3af" strokeWidth={1.5} />
+                    <LockIcon size={24} color="#4b5563" strokeWidth={1.5} />
                   </div>
                   <p className="text-[14px] font-semibold text-[#374151] font-display">
                     Complete the programme to unlock
                   </p>
-                  <p className="text-[12px] text-[#9ca3af] font-body max-w-[240px]">
+                  <p className="text-[12px] text-[#4b5563] font-body max-w-[240px]">
                     {100 - progress}% remaining — keep going!
                   </p>
                 </div>
@@ -179,32 +179,32 @@ function CertificateCard({ row, fullName }: { row: CertRow; fullName: string }) 
               <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#d51520] font-display mb-4">
                 Certificate of Completion
               </p>
-              <p className="text-[13px] text-[#9ca3af] font-body mb-2">This is to certify that</p>
+              <p className="text-[13px] text-[#4b5563] font-body mb-2">This is to certify that</p>
               <p className="text-[28px] font-bold text-[#111827] font-display leading-tight mb-3">
                 {fullName}
               </p>
-              <p className="text-[12px] text-[#6b7280] font-body mb-1">has successfully completed</p>
+              <p className="text-[12px] text-[#4b5563] font-body mb-1">has successfully completed</p>
               <p className="text-[16px] font-semibold text-[#111827] font-display max-w-[360px] mb-1">{title}</p>
-              <p className="text-[11px] text-[#9ca3af] font-body">{cohortLabel}</p>
+              <p className="text-[11px] text-[#4b5563] font-body">{cohortLabel}</p>
 
               <div className="mt-5 flex items-center gap-6">
                 <div className="text-center">
                   <div className="w-20 h-px bg-[#e5e7eb] mb-1 mx-auto" />
-                  <p className="text-[10px] text-[#9ca3af] font-body">{isUnlocked ? endDate : 'Date'}</p>
+                  <p className="text-[10px] text-[#4b5563] font-body">{isUnlocked ? endDate : 'Date'}</p>
                 </div>
                 <div className="w-9 h-9 rounded-full border-2 border-[#d51520] flex items-center justify-center">
                   <span className="text-[9px] font-bold text-[#d51520] font-display">BG</span>
                 </div>
                 <div className="text-center">
                   <div className="w-20 h-px bg-[#e5e7eb] mb-1 mx-auto" />
-                  <p className="text-[10px] text-[#9ca3af] font-body">Instructor</p>
+                  <p className="text-[10px] text-[#4b5563] font-body">Instructor</p>
                 </div>
               </div>
             </div>
 
             {/* Download bar */}
             <div className="px-6 py-4 flex items-center justify-between">
-              <p className="text-[12px] text-[#9ca3af] font-body">
+              <p className="text-[12px] text-[#4b5563] font-body">
                 {isUnlocked ? 'Your certificate is ready to download.' : 'Certificate locked until programme completion.'}
               </p>
               {isUnlocked && certificateUrl ? (
@@ -239,7 +239,7 @@ function CertificateCard({ row, fullName }: { row: CertRow; fullName: string }) 
       <div className="flex flex-col gap-4">
         <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] p-6">
           <p className="text-[15px] font-semibold text-[#111827] font-display mb-0.5">Requirements</p>
-          <p className="text-[12px] text-[#9ca3af] font-body mb-4">Complete all steps to unlock your certificate.</p>
+          <p className="text-[12px] text-[#4b5563] font-body mb-4">Complete all steps to unlock your certificate.</p>
           <div className="flex flex-col gap-3">
             {requirements.map(({ label, done }) => (
               <RequirementItem key={label} done={done} label={label} />
@@ -258,7 +258,7 @@ function CertificateCard({ row, fullName }: { row: CertRow; fullName: string }) 
               { label: 'Issuer',      value: 'Brixgate Academy' },
             ].map(({ label, value }) => (
               <div key={label} className="flex flex-col gap-0.5">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">{label}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-[#4b5563] font-display">{label}</p>
                 <p className="text-[13px] font-medium text-[#374151] font-body">{value}</p>
               </div>
             ))}
@@ -319,14 +319,14 @@ export default function CertificatePage() {
           <h1 className="text-[24px] font-bold text-[#111827] font-display leading-tight">
             My Certificates
           </h1>
-          <p className="text-[14px] text-[#6b7280] font-body mt-1">
+          <p className="text-[14px] text-[#4b5563] font-body mt-1">
             Complete each programme to earn and download your Brixgate certificate.
           </p>
         </div>
 
         {/* Loading */}
         {loading && (
-          <div className="flex items-center justify-center py-16 gap-2 text-[#9ca3af]">
+          <div className="flex items-center justify-center py-16 gap-2 text-[#4b5563]">
             <Loading01Icon size={18} className="animate-spin" strokeWidth={1.5} />
             <span className="text-[13px] font-body">Loading your certificates…</span>
           </div>

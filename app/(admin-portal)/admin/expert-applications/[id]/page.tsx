@@ -22,13 +22,13 @@ const STATUS_STYLE: Record<string, string> = {
   SUBMITTED: 'bg-[#fffbeb] text-[#b45309]', UNDER_REVIEW: 'bg-[#eff6ff] text-[#1d4ed8]',
   APPROVED: 'bg-[#ecfdf3] text-[#027a48]',  REJECTED: 'bg-[#fef2f2] text-[#d51520]',
   ONBOARDED: 'bg-[#f0fdf4] text-[#15803d]', ACTIVE: 'bg-[#ecfdf3] text-[#027a48]',
-  SUSPENDED: 'bg-[#f3f4f6] text-[#6b7280]',
+  SUSPENDED: 'bg-[#f3f4f6] text-[#4b5563]',
 }
 
 function DetailRow({ label, value }: { label: string; value?: string | number }) {
   return (
     <div className="flex gap-4 py-3 border-b border-[#f3f4f6] last:border-0">
-      <span className="w-[160px] flex-shrink-0 text-[12px] text-[#9ca3af] font-body">{label}</span>
+      <span className="w-[160px] flex-shrink-0 text-[12px] text-[#4b5563] font-body">{label}</span>
       <span className="text-[13px] text-[#111827] font-body">{value ?? '—'}</span>
     </div>
   )
@@ -103,7 +103,7 @@ export default function ExpertApplicationDetailPage() {
               <>
                 <div className="h-px bg-[#f3f4f6] mx-6" />
                 <div className="px-6 py-4">
-                  <p className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[#9ca3af] font-display mb-2">Biography</p>
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display mb-2">Biography</p>
                   <p className="text-[13px] text-[#374151] font-body leading-[1.7]">{app.biography}</p>
                 </div>
               </>
@@ -131,7 +131,7 @@ export default function ExpertApplicationDetailPage() {
           </div>
         </div>
       ) : (
-        <p className="text-[14px] text-[#6b7280] font-body">Application not found.</p>
+        <p className="text-[14px] text-[#4b5563] font-body">Application not found.</p>
       )}
     </div>
   )
