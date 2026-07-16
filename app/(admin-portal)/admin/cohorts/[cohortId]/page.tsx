@@ -141,11 +141,15 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
       let foundModulesFromAdmin = false
       const adminCohortRes = await apiClient.get(`/admin/cohorts/${cohortId}`).catch(() => null)
       if (adminCohortRes) {
-        const ad = unwrap<Record<string, unknown>>(adminCohortRes.data)
+        const adRaw = unwrap<Record<string, unknown>>(adminCohortRes.data)
+        // Handle both { id, program_id, ... } and { cohort: { id, program_id, ... } } shapes
+        const ad = (adRaw?.cohort && typeof adRaw.cohort === 'object'
+          ? adRaw.cohort
+          : adRaw) as Record<string, unknown>
         const rawMods =
           (ad?.modules as CohortModule[] | undefined) ??
           (ad?.cohort_modules as CohortModule[] | undefined) ??
-          ((ad?.content as Record<string, unknown>)?.modules as CohortModule[] | undefined) ??
+          ((adRaw?.content as Record<string, unknown>)?.modules as CohortModule[] | undefined) ??
           []
         if (Array.isArray(rawMods) && rawMods.length > 0) {
           foundModulesFromAdmin = true
@@ -154,13 +158,18 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
             const fromMod = rawMods[0].program_id ?? rawMods[0].programId ?? null
             if (fromMod) { resolvedProgramId = fromMod; setEffectiveProgramId(fromMod); onProgramIdResolved?.(fromMod) }
           }
-          const pid = ad?.program_id ?? ad?.programId ?? (ad?.program as Record<string, unknown>)?.id ?? null
-          if (!resolvedProgramId && pid) { resolvedProgramId = pid as number; setEffectiveProgramId(pid as number); onProgramIdResolved?.(pid as number) }
         }
-        // Also extract programId from the cohort record itself even if no modules embedded
+        // Extract programId from the cohort record itself (present even when no modules are embedded)
         if (!resolvedProgramId) {
-          const pid = ad?.program_id ?? ad?.programId ?? (ad?.program as Record<string, unknown>)?.id ?? null
-          if (pid) { resolvedProgramId = pid as number; setEffectiveProgramId(pid as number); onProgramIdResolved?.(pid as number) }
+          const pid =
+            (ad?.program_id as number | undefined) ??
+            (ad?.programId as number | undefined) ??
+            (ad?.programme_id as number | undefined) ??
+            (ad?.programmeId as number | undefined) ??
+            ((ad?.program as Record<string, unknown>)?.id as number | undefined) ??
+            ((ad?.programme as Record<string, unknown>)?.id as number | undefined) ??
+            null
+          if (pid) { resolvedProgramId = pid; setEffectiveProgramId(pid); onProgramIdResolved?.(pid) }
         }
       }
 
@@ -204,8 +213,12 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
       if (resolvedProgramId) {
         const progModRes = await apiClient.get(`/admin/programs/${resolvedProgramId}/modules`).catch(() => null)
         if (progModRes) {
-          const d = unwrap<{ modules?: ProgramModule[] } | ProgramModule[]>(progModRes.data)
-          const mods: ProgramModule[] = Array.isArray(d) ? d : ((d as { modules?: ProgramModule[] })?.modules ?? [])
+          const d = unwrap<{ modules?: ProgramModule[]; content?: ProgramModule[] } | ProgramModule[]>(progModRes.data)
+          const mods: ProgramModule[] = Array.isArray(d)
+            ? d
+            : ((d as { modules?: ProgramModule[]; content?: ProgramModule[] })?.modules
+               ?? (d as { modules?: ProgramModule[]; content?: ProgramModule[] })?.content
+               ?? [])
           setAllModules(mods)
           const seedCache: Record<number, ProgramModuleLesson[]> = {}
           mods.forEach(m => { if (m.lessons?.length) seedCache[m.id] = m.lessons })
