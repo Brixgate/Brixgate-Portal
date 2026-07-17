@@ -103,7 +103,7 @@ export default function AdminWaitlistPage() {
     try {
       const params = new URLSearchParams({ page: String(pg), size: '20' })
       if (q.trim()) params.set('search', q.trim())
-      const res  = await apiClient.get(`/waitlist?${params}`)
+      const res  = await apiClient.get(`/admin/waitlist?${params}`)
       const data = unwrap<{ entries?: WaitlistEntry[]; waitlist?: WaitlistEntry[]; content?: WaitlistEntry[]; pagination?: Pagination } | WaitlistEntry[]>(res.data)
       const list: WaitlistEntry[] = Array.isArray(data)
         ? data
@@ -141,7 +141,7 @@ export default function AdminWaitlistPage() {
       let pg = 1
       while (true) {
         const params = new URLSearchParams({ page: String(pg), size: '100' })
-        const res  = await apiClient.get(`/waitlist?${params}`)
+        const res  = await apiClient.get(`/admin/waitlist?${params}`)
         const data = unwrap<{ entries?: WaitlistEntry[]; waitlist?: WaitlistEntry[]; content?: WaitlistEntry[]; pagination?: Pagination } | WaitlistEntry[]>(res.data)
         const batch: WaitlistEntry[] = Array.isArray(data)
           ? data

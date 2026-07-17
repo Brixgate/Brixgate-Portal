@@ -1,11 +1,17 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { apiClient, unwrap } from '@/lib/api-client'
-import { Loading01Icon, Search01Icon, ArrowDown01Icon, ArrowUp01Icon, ChartBarLineIcon } from 'hugeicons-react'
+import { apiClient, unwrap, getApiError } from '@/lib/api-client'
+import { Loading01Icon, Search01Icon, ArrowDown01Icon, ArrowUp01Icon, ChartBarLineIcon, AlertCircleIcon } from 'hugeicons-react'
 import AdminPageLoader from '@/components/admin/AdminPageLoader'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+interface Questionnaire {
+  id: number
+  title?: string; name?: string; description?: string
+  created_at?: string; createdAt?: string
+}
+
 interface QuestionnaireSummary {
   id: number
   questionnaire_id?: number; questionnaireId?: number
@@ -41,6 +47,9 @@ function createdAt(r: QuestionnaireSummary): string {
   if (!raw) return '—'
   return new Date(raw).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })
 }
+function qTitle(q: Questionnaire): string {
+  return q.title ?? q.name ?? `Questionnaire #${q.id}`
+}
 
 const LEVEL_STYLES: Record<string, { bg: string; text: string; border: string }> = {
   ADVANCED:     { bg: '#ecfdf3', text: '#027a48', border: '#bbf7d0' },
@@ -59,29 +68,46 @@ function LevelBadge({ level }: { level: string }) {
   )
 }
 
-const PAGE_SIZE   = 20
-const STORAGE_KEY = 'brixgate_polls_qid'
+const PAGE_SIZE = 20
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function PollsPage() {
-  const [rows, setRows]           = useState<QuestionnaireSummary[]>([])
-  const [activeQId, setActiveQId] = useState<string>('')
-  const [inputQId, setInputQId]   = useState<string>('')
-  const [loading, setLoading]     = useState(false)
-  const [firstLoad, setFirstLoad] = useState(true)
-  const [search, setSearch]       = useState('')
-  const [levelFilter, setLevel]   = useState<string>('ALL')
-  const [page, setPage]           = useState(1)
-  const [total, setTotal]         = useState(0)
+  const [questionnaires, setQuestionnaires] = useState<Questionnaire[]>([])
+  const [qLoading, setQLoading]             = useState(true)
+  const [activeQId, setActiveQId]           = useState<number | null>(null)
+
+  const [rows, setRows]         = useState<QuestionnaireSummary[]>([])
+  const [loading, setLoading]   = useState(false)
+  const [search, setSearch]     = useState('')
+  const [levelFilter, setLevel] = useState<string>('ALL')
+  const [page, setPage]         = useState(1)
+  const [total, setTotal]       = useState(0)
   const [sortField, setSortField] = useState<'score' | 'created_at'>('created_at')
   const [sortDir, setSortDir]     = useState<'desc' | 'asc'>('desc')
   const [error, setError]         = useState('')
 
-  // Restore saved questionnaire ID on mount
+  // Fetch all questionnaires on mount
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved) { setInputQId(saved); setActiveQId(saved) }
-    else setFirstLoad(false)
+    async function fetchQuestionnaires() {
+      setQLoading(true)
+      try {
+        const res = await apiClient.get('/admin/questionnaires')
+        const d   = unwrap<{ questionnaires?: Questionnaire[]; content?: Questionnaire[]; data?: Questionnaire[] } | Questionnaire[]>(res.data)
+        const list: Questionnaire[] = Array.isArray(d)
+          ? d
+          : ((d as { questionnaires?: Questionnaire[] })?.questionnaires
+             ?? (d as { content?: Questionnaire[] })?.content
+             ?? (d as { data?: Questionnaire[] })?.data
+             ?? [])
+        setQuestionnaires(list)
+        if (list.length > 0) setActiveQId(list[0].id)
+      } catch {
+        setError('Could not load questionnaires.')
+      } finally {
+        setQLoading(false)
+      }
+    }
+    fetchQuestionnaires()
   }, [])
 
   const loadSummaries = useCallback(async () => {
@@ -100,41 +126,24 @@ export default function PollsPage() {
         d?.pagination?.total ?? d?.pagination?.total_elements ?? d?.pagination?.totalElements ??
         d?.total ?? d?.totalElements ?? (Array.isArray(list) ? list.length : 0)
       )
-    } catch (err: unknown) {
-      const status = (err as { response?: { status?: number } })?.response?.status
+    } catch (err) {
       setRows([])
       setTotal(0)
-      if (status === 404 || status === 500) {
-        setError(`Questionnaire ID "${activeQId}" not found. Please check the ID and try again.`)
-      } else {
-        setError('Failed to load quiz responses. Please try again.')
-      }
+      setError(getApiError(err))
     } finally {
       setLoading(false)
-      setFirstLoad(false)
     }
   }, [activeQId, page])
 
   useEffect(() => { loadSummaries() }, [loadSummaries])
 
-  function handleLoad(e: React.FormEvent) {
-    e.preventDefault()
-    const id = inputQId.trim()
-    if (!id) return
-    localStorage.setItem(STORAGE_KEY, id)
+  // Reset to page 1 when questionnaire changes
+  function handleQChange(id: number) {
+    setActiveQId(id)
     setPage(1)
     setRows([])
-    setActiveQId(id)
-  }
-
-  function handleClear() {
-    localStorage.removeItem(STORAGE_KEY)
-    setActiveQId('')
-    setInputQId('')
-    setRows([])
-    setTotal(0)
-    setError('')
-    setFirstLoad(false)
+    setSearch('')
+    setLevel('ALL')
   }
 
   const filtered = rows
@@ -165,12 +174,12 @@ export default function PollsPage() {
   const beginner     = rows.filter(r => ratingLevel(r).toUpperCase() === 'BEGINNER').length
   const avgScore     = rows.length ? Math.round(rows.reduce((s, r) => s + (r.score ?? 0), 0) / rows.length) : 0
 
-  const showPageLoader = firstLoad && !!activeQId && loading
+  const activeQ = questionnaires.find(q => q.id === activeQId)
+
+  if (qLoading) return <AdminPageLoader />
 
   return (
     <div className="p-8">
-      {showPageLoader && <AdminPageLoader />}
-
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -179,43 +188,35 @@ export default function PollsPage() {
             <p className="text-[14px] text-[#4b5563] font-body mt-0.5">Results from the AI readiness quiz on brixgate.com</p>
           </div>
 
-          {/* Questionnaire ID input */}
-          <form onSubmit={handleLoad} className="flex items-center gap-2">
+          {/* Questionnaire selector */}
+          {questionnaires.length > 0 && (
             <div className="flex flex-col gap-0.5">
               <label className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#98a2b3] font-display">
-                Questionnaire ID
+                Questionnaire
               </label>
-              <input
-                type="text"
-                value={inputQId}
-                onChange={e => setInputQId(e.target.value)}
-                placeholder="e.g. 1"
-                className="h-9 w-[110px] px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#98a2b3] focus:outline-none focus:border-[#d51520]/60 focus:ring-2 focus:ring-[#d51520]/10"
-              />
+              <select
+                value={activeQId ?? ''}
+                onChange={e => handleQChange(Number(e.target.value))}
+                className="h-9 pl-3 pr-8 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] bg-white outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 min-w-[220px]"
+              >
+                {questionnaires.map(q => (
+                  <option key={q.id} value={q.id}>{qTitle(q)}</option>
+                ))}
+              </select>
             </div>
-            <button type="submit"
-              className="h-9 mt-5 px-4 bg-[#d51520] hover:bg-[#b91219] text-white rounded-[8px] text-[13px] font-semibold font-display transition-colors">
-              Load
-            </button>
-            {activeQId && (
-              <button type="button" onClick={handleClear}
-                className="h-9 mt-5 px-3 border border-[#e5e7eb] text-[#4b5563] hover:bg-[#f9fafb] rounded-[8px] text-[13px] font-body transition-colors">
-                Clear
-              </button>
-            )}
-          </form>
+          )}
         </div>
       </div>
 
-      {/* No ID set state */}
-      {!activeQId && !firstLoad && (
+      {/* Empty — no questionnaires */}
+      {!qLoading && questionnaires.length === 0 && (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <div className="w-16 h-16 rounded-[12px] bg-[#f3f4f6] flex items-center justify-center mb-4">
             <ChartBarLineIcon size={28} color="#98a2b3" strokeWidth={1.5} />
           </div>
-          <h3 className="text-[16px] font-semibold text-[#111827] font-display mb-1">No questionnaire selected</h3>
+          <h3 className="text-[16px] font-semibold text-[#111827] font-display mb-1">No questionnaires found</h3>
           <p className="text-[13px] text-[#4b5563] font-body max-w-[300px]">
-            Enter the questionnaire ID above and click Load to view AI readiness quiz responses.
+            No questionnaires have been created yet, or the endpoint is not yet available.
           </p>
         </div>
       )}
@@ -223,9 +224,19 @@ export default function PollsPage() {
       {activeQId && (
         <>
           {error && !loading && (
-            <div className="bg-[#fef2f2] border border-[#fecdca] rounded-[10px] px-5 py-4 mb-6">
+            <div className="bg-[#fef2f2] border border-[#fecdca] rounded-[10px] px-5 py-4 mb-6 flex items-center gap-2">
+              <AlertCircleIcon size={15} color="#d51520" strokeWidth={1.5} />
               <p className="text-[13px] font-medium text-[#d51520] font-body">{error}</p>
             </div>
+          )}
+
+          {/* Active questionnaire label */}
+          {activeQ && (
+            <p className="text-[12px] text-[#98a2b3] font-body mb-6">
+              Showing responses for: <span className="font-semibold text-[#374151]">{qTitle(activeQ)}</span>
+              <span className="ml-2 text-[#d0d5dd]">·</span>
+              <span className="ml-2">ID {activeQ.id}</span>
+            </p>
           )}
 
           {/* Stat row */}
