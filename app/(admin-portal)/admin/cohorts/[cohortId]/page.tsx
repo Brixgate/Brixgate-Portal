@@ -114,6 +114,7 @@ function ResourceTypeChip({ type }: { type: string }) {
 function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId: string; programId: number | null; onProgramIdResolved?: (id: number) => void }) {
   const [allModules, setAllModules]               = useState<ProgramModule[]>([])
   const [cohortModuleIds, setCohortModuleIds]     = useState<Set<number>>(new Set())
+  const [selectedModuleIds, setSelectedModuleIds] = useState<Set<number>>(new Set())
   const [selectedLessonIds, setSelectedLessonIds] = useState<Set<number>>(new Set())
   const [lessonsCache, setLessonsCache]           = useState<Record<number, ProgramModuleLesson[]>>({})
   const [expandedModuleId, setExpandedModuleId]   = useState<number | null>(null)
@@ -238,10 +239,10 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
   }
 
   function getModuleState(moduleId: number): 'full' | 'partial' | 'none' {
+    if (!selectedModuleIds.has(moduleId)) return 'none'
     const lessons = getLessons(moduleId)
-    if (lessons.length === 0) return 'none'
+    if (lessons.length === 0) return 'full'
     const count = lessons.filter(l => selectedLessonIds.has(l.id)).length
-    if (count === 0) return 'none'
     if (count === lessons.length) return 'full'
     return 'partial'
   }
@@ -253,8 +254,12 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
     setLoadingModuleId(module.id)
     try {
       const res = await apiClient.get(`/admin/programs/${effectiveProgramId}/modules/${module.id}/lessons`)
-      const d = unwrap<{ lessons?: ProgramModuleLesson[] } | ProgramModuleLesson[]>(res.data)
-      const lessons: ProgramModuleLesson[] = Array.isArray(d) ? d : ((d as { lessons?: ProgramModuleLesson[] })?.lessons ?? [])
+      const d = unwrap<{ lessons?: ProgramModuleLesson[]; content?: ProgramModuleLesson[] } | ProgramModuleLesson[]>(res.data)
+      const lessons: ProgramModuleLesson[] = Array.isArray(d)
+        ? d
+        : ((d as { lessons?: ProgramModuleLesson[]; content?: ProgramModuleLesson[] })?.lessons
+           ?? (d as { lessons?: ProgramModuleLesson[]; content?: ProgramModuleLesson[] })?.content
+           ?? [])
       setLessonsCache(prev => ({ ...prev, [module.id]: lessons }))
       return lessons
     } catch { return [] } finally { setLoadingModuleId(null) }
@@ -267,26 +272,32 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
   }
 
   async function toggleModule(module: ProgramModule) {
-    let lessons = getLessons(module.id)
-    if (lessons.length === 0) lessons = await fetchLessons(module)
-    const state = getModuleState(module.id)
-    setSelectedLessonIds(prev => {
-      const next = new Set(prev)
-      if (state === 'full' || state === 'partial') {
-        lessons.forEach(l => next.delete(l.id))
-      } else {
-        lessons.forEach(l => next.add(l.id))
+    const isCurrentlySelected = selectedModuleIds.has(module.id)
+    if (isCurrentlySelected) {
+      // Deselect: remove module and all its lessons
+      setSelectedModuleIds(prev => { const next = new Set(prev); next.delete(module.id); return next })
+      const lessons = getLessons(module.id)
+      if (lessons.length > 0) {
+        setSelectedLessonIds(prev => { const next = new Set(prev); lessons.forEach(l => next.delete(l.id)); return next })
       }
-      return next
-    })
+    } else {
+      // Select: add module, then fetch and add all lessons
+      setSelectedModuleIds(prev => new Set(Array.from(prev).concat(module.id)))
+      const lessons = getLessons(module.id).length > 0 ? getLessons(module.id) : await fetchLessons(module)
+      if (lessons.length > 0) {
+        setSelectedLessonIds(prev => { const next = new Set(prev); lessons.forEach(l => next.add(l.id)); return next })
+      }
+    }
   }
 
-  function toggleLesson(lessonId: number) {
+  function toggleLesson(lessonId: number, moduleId: number) {
     setSelectedLessonIds(prev => {
       const next = new Set(prev)
       if (next.has(lessonId)) { next.delete(lessonId) } else { next.add(lessonId) }
       return next
     })
+    // Ensure parent module is selected when any lesson is ticked
+    setSelectedModuleIds(prev => new Set(Array.from(prev).concat(moduleId)))
   }
 
   async function enterEditMode() {
@@ -310,6 +321,8 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
         setLessonsCache(mergedCache)
       }
 
+      // Pre-select modules and their lessons from what's already assigned to the cohort
+      setSelectedModuleIds(new Set(assignedModules.map(m => m.id)))
       const preSelected = new Set<number>()
       assignedModules.forEach(m => {
         ;(mergedCache[m.id] ?? m.lessons ?? []).forEach(l => preSelected.add(l.id))
@@ -324,9 +337,10 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
   async function saveCurriculum() {
     setSaving(true); setError('')
     try {
-      const selectedModules = allModules.filter(m => getModuleState(m.id) !== 'none')
-      // Build reverse map: lessonId → moduleId so each lesson can include its programModuleId
+      const selectedModules = allModules.filter(m => selectedModuleIds.has(m.id))
+      // Build reverse map: lessonId → moduleId — seed from both sources
       const lessonModuleMap = new Map<number, number>()
+      allModules.forEach(m => { (m.lessons ?? []).forEach(l => lessonModuleMap.set(l.id, m.id)) })
       Object.entries(lessonsCache).forEach(([moduleId, lessons]) => {
         lessons.forEach(l => lessonModuleMap.set(l.id, parseInt(moduleId)))
       })
@@ -345,6 +359,8 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
       // Update cohortModuleIds directly from saved state — don't re-fetch via the student
       // endpoint which is enrollment-gated and returns nothing for admin users
       setCohortModuleIds(new Set(selectedModules.map(m => m.id)))
+      setSelectedModuleIds(new Set())
+      setSelectedLessonIds(new Set())
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
       setMode('read')
@@ -352,7 +368,7 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
     } catch (err) { setError(getApiError(err)) } finally { setSaving(false) }
   }
 
-  const selectedModuleCount = allModules.filter(m => getModuleState(m.id) !== 'none').length
+  const selectedModuleCount = selectedModuleIds.size
 
   // ── READ MODE ─────────────────────────────────────────────────────────────────
   if (mode === 'read') {
@@ -594,7 +610,7 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
                           {lessons.map(l => {
                             const checked = selectedLessonIds.has(l.id)
                             return (
-                              <button key={l.id} onClick={() => toggleLesson(l.id)}
+                              <button key={l.id} onClick={() => toggleLesson(l.id, m.id)}
                                 className="w-full flex items-center gap-2.5 py-2 px-1 rounded-[6px] hover:bg-[#f0f0f2] transition-colors text-left group">
                                 <div className={`w-4 h-4 rounded-[4px] border-2 flex-shrink-0 flex items-center justify-center transition-all ml-8 ${
                                   checked ? 'bg-[#d51520] border-[#d51520]' : 'border-[#d1d5db] bg-white group-hover:border-[#9ca3af]'
@@ -646,7 +662,7 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
                 <AlertCircleIcon size={12} color="#d51520" strokeWidth={1.5} />{error}
               </p>
             )}
-            <button onClick={() => { setMode('read'); setExpandedModuleId(null); load() }}
+            <button onClick={() => { setMode('read'); setExpandedModuleId(null); setSelectedModuleIds(new Set()); setSelectedLessonIds(new Set()); load() }}
               className="h-9 px-4 rounded-[8px] border border-[#e5e7eb] text-[12px] font-medium text-[#374151] font-body hover:bg-[#f9fafb] transition-colors">
               Cancel
             </button>
