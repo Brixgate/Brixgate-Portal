@@ -18,6 +18,7 @@ import {
   ArrowLeft01Icon,
   ArrowRight01Icon,
   TeacherIcon,
+  Queue01Icon,
 } from 'hugeicons-react'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -50,6 +51,7 @@ const NAV_GROUPS = [
     items: [
       { label: 'Expert Applications',    href: '/admin/expert-applications',   icon: UserSearch01Icon  },
       { label: 'Organisation Requests',  href: '/admin/organization-requests', icon: Building01Icon    },
+      { label: 'Waitlist',               href: '/admin/waitlist',              icon: Queue01Icon       },
     ],
   },
   {
