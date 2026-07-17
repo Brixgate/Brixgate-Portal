@@ -65,10 +65,16 @@ async function fetchAllUsersForExport(role?: string): Promise<ApiUser[]> {
     const params = new URLSearchParams({ page: String(pg), size: '100' })
     if (role) params.set('role', role)
     const res  = await apiClient.get(`/admin/users?${params}`)
-    const data = unwrap<{ users?: ApiUser[]; pagination?: Pagination }>(res.data)
-    const batch: ApiUser[] = Array.isArray(data?.users) ? data.users : []
+    const data = unwrap<{ users?: ApiUser[]; content?: ApiUser[]; data?: ApiUser[]; pagination?: Pagination } | ApiUser[]>(res.data)
+    const batch: ApiUser[] = Array.isArray(data)
+      ? data
+      : ((data as { users?: ApiUser[] })?.users
+         ?? (data as { content?: ApiUser[] })?.content
+         ?? (data as { data?: ApiUser[] })?.data
+         ?? [])
     all.push(...batch)
-    const hasNext = data?.pagination?.hasNext ?? data?.pagination?.has_next ?? false
+    const pag = Array.isArray(data) ? null : (data as { pagination?: Pagination })?.pagination ?? null
+    const hasNext = pag?.hasNext ?? pag?.has_next ?? false
     if (!hasNext || batch.length === 0) break
     pg++
   }
@@ -185,6 +191,7 @@ export default function AdminUsersPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [showExport, setShowExport] = useState(false)
   const [exporting, setExporting]   = useState(false)
+  const [exportError, setExportError] = useState('')
   const exportRef                   = useRef<HTMLDivElement>(null)
 
   const fetchUsers = useCallback(async () => {
@@ -213,12 +220,15 @@ export default function AdminUsersPage() {
   }, [showExport])
 
   async function handleExport(exportAll: boolean) {
-    setShowExport(false); setExporting(true)
+    setShowExport(false); setExporting(true); setExportError('')
     try {
       const role = exportAll ? '' : roleFilter
       const rows = await fetchAllUsersForExport(role || undefined)
+      if (rows.length === 0) { setExportError('No users found to export.'); return }
       const label = role ? (ROLE_LABELS[role] ?? role).toLowerCase() : 'all'
       downloadCSV(rows, `brixgate-users-${label}-${new Date().toISOString().slice(0, 10)}.csv`)
+    } catch (err) {
+      setExportError(getApiError(err))
     } finally { setExporting(false) }
   }
 
@@ -284,6 +294,17 @@ export default function AdminUsersPage() {
           </button>
         </div>
       </div>
+
+      {/* Export error */}
+      {exportError && (
+        <div className="mb-6 flex items-center gap-2 text-[13px] text-[#d51520] font-body bg-[#fef2f2] border border-[#fecdca] rounded-[8px] px-4 py-3">
+          <AlertCircleIcon size={14} color="#d51520" strokeWidth={1.5} />
+          {exportError}
+          <button onClick={() => setExportError('')} className="ml-auto text-[#d51520] hover:text-[#b81119]">
+            <Cancel01Icon size={13} strokeWidth={1.5} />
+          </button>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex items-center gap-3 mb-6">

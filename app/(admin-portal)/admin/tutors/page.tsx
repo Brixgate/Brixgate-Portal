@@ -6,7 +6,7 @@ import {
   TeacherIcon, Add01Icon, Loading01Icon, Cancel01Icon,
   AlertCircleIcon, Search01Icon, Refresh01Icon, Mail01Icon,
   CallIcon, Globe02Icon, Location01Icon, Linkedin01Icon,
-  TwitterIcon,
+  TwitterIcon, ImageUpload01Icon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 import AdminPageLoader from '@/components/admin/AdminPageLoader'
@@ -277,6 +277,7 @@ interface CreateForm {
   expertise: string; linkedin: string
   location: string; yoe: string
   organization: string; biography: string
+  profileImageUrl: string
 }
 const EMPTY_FORM: CreateForm = {
   name: '', email: '', title: '',
@@ -284,6 +285,7 @@ const EMPTY_FORM: CreateForm = {
   expertise: '', linkedin: '',
   location: '', yoe: '',
   organization: '', biography: '',
+  profileImageUrl: '',
 }
 
 function FormField({ label, required, children, hint }: {
@@ -375,6 +377,10 @@ function CreateTutorModal({ onClose, onCreated }: { onClose: () => void; onCreat
         patch.full_phone_number  = `${form.countryCode}${phone}`
         patch.phone              = `${form.countryCode}${phone}`
       }
+      if (form.profileImageUrl.trim()) {
+        patch.profileImageUrl  = form.profileImageUrl.trim()
+        patch.profile_image_url = form.profileImageUrl.trim()
+      }
 
       if (Object.keys(patch).length > 0) {
         await apiClient.patch(`/admin/users/${userId}`, patch)
@@ -397,6 +403,39 @@ function CreateTutorModal({ onClose, onCreated }: { onClose: () => void; onCreat
         </div>
 
         <form onSubmit={handleSubmit} className="px-6 py-5 flex flex-col gap-4 max-h-[76vh] overflow-y-auto">
+
+          {/* ── Profile photo ── */}
+          <div className="flex items-center gap-4 pb-1">
+            <div className="w-16 h-16 rounded-full bg-[#f3f4f6] border border-[#e5e7eb] flex items-center justify-center flex-shrink-0 overflow-hidden">
+              {form.profileImageUrl.trim() ? (
+                <Image
+                  src={form.profileImageUrl.trim()}
+                  alt="Profile preview"
+                  width={64}
+                  height={64}
+                  className="w-full h-full object-cover"
+                  unoptimized
+                  onError={() => setForm(p => ({ ...p, profileImageUrl: '' }))}
+                />
+              ) : (
+                <ImageUpload01Icon size={22} color="#9ca3af" strokeWidth={1.5} />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">
+                Profile Photo URL
+              </label>
+              <input
+                value={form.profileImageUrl}
+                onChange={set('profileImageUrl')}
+                placeholder="https://…"
+                className={INPUT_CLS}
+              />
+              <p className="mt-1 text-[11px] text-[#98a2b3] font-body">
+                Paste a direct image link. The tutor can also update their photo after logging in.
+              </p>
+            </div>
+          </div>
 
           {/* ── Basic info ── */}
           <div className="grid grid-cols-2 gap-4">
