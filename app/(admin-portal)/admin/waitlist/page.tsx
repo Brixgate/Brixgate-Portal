@@ -17,6 +17,7 @@ interface WaitlistEntry {
   status?: string
   createdAt?: string; created_at?: string
   notes?: string
+  user?: { primary_field?: string; primaryField?: string; role?: string }
 }
 
 interface Pagination {
@@ -54,7 +55,7 @@ function downloadCSV(rows: WaitlistEntry[]) {
       esc(entryName(e)),
       esc(e.email),
       esc(e.phone ?? ''),
-      esc(e.programme ?? e.program ?? ''),
+      esc(e.programme ?? e.program ?? e.user?.primary_field ?? e.user?.primaryField ?? ''),
       esc(e.source ?? ''),
       esc(e.status ?? ''),
       esc(formatDate(e.createdAt ?? e.created_at)),
@@ -299,7 +300,7 @@ export default function AdminWaitlistPage() {
                         <span className="text-[13px] text-[#374151] font-body">{e.email}</span>
                       </td>
                       <td className="px-4 py-3.5">
-                        <span className="text-[13px] text-[#374151] font-body">{e.programme ?? e.program ?? '—'}</span>
+                        <span className="text-[13px] text-[#374151] font-body">{e.programme ?? e.program ?? e.user?.primary_field ?? e.user?.primaryField ?? '—'}</span>
                       </td>
                       <td className="px-4 py-3.5">
                         <span className="text-[12px] text-[#6b7280] font-body capitalize">{e.source ?? '—'}</span>
