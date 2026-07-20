@@ -341,10 +341,10 @@ export default function PollsPage() {
                           <td className="px-5 py-3.5 text-[13px] font-medium text-[#111827] font-body">{displayName(r)}</td>
                           <td className="px-5 py-3.5 text-[13px] text-[#374151] font-body">{displayEmail(r)}</td>
                           <td className="px-5 py-3.5 text-[13px] text-[#4b5563] font-body">{displayOccupation(r)}</td>
-                          <td className="px-5 py-3.5 text-[13px] text-[#4b5563] font-body">
+                          <td className="px-5 py-3.5 max-w-[160px]">
                             {displaySource(r) !== '—'
-                              ? <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] bg-[#f3f4f6] text-[#374151] text-[11px] font-medium font-body">{displaySource(r)}</span>
-                              : '—'}
+                              ? <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] bg-[#f3f4f6] text-[#374151] text-[11px] font-medium font-body whitespace-nowrap overflow-hidden max-w-full truncate block">{displaySource(r)}</span>
+                              : <span className="text-[13px] text-[#4b5563] font-body">—</span>}
                           </td>
                           <td className="px-5 py-3.5"><LevelBadge level={ratingLevel(r)} /></td>
                           <td className="px-5 py-3.5 text-right text-[13px] font-semibold text-[#111827] font-display">{r.score != null ? `${r.score}%` : '—'}</td>
