@@ -368,9 +368,7 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
         formData.append('file', uploadFile)
         formData.append('title', resourceForm.title.trim())
         formData.append('type', resourceForm.type)
-        await apiClient.post(`${base}/resources`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        })
+        await apiClient.post(`${base}/resources`, formData)
       } else {
         const link = resourceForm.link.trim()
         if (!link) { setError('URL is required.'); return }
