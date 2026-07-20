@@ -12,16 +12,29 @@ interface Questionnaire {
   created_at?: string; createdAt?: string
 }
 
+interface QuestionnaireSummaryUser {
+  id?: number
+  name?: string; full_name?: string
+  email?: string
+  role?: string
+  occupation?: string
+  phone_number?: string; phoneNumber?: string
+}
+
 interface QuestionnaireSummary {
   id: number
   questionnaire_id?: number; questionnaireId?: number
+  user_id?: number; userId?: number
+  user?: QuestionnaireSummaryUser
+  // top-level fallbacks (some APIs flatten these)
   name?: string; full_name?: string
-  email: string
-  score: number
-  rating_level?: string; ratingLevel?: string
+  email?: string
   occupation?: string
   phone_number?: string; phoneNumber?: string
-  created_at?: string; createdAt?: string
+  score: number
+  rating_level?: string; ratingLevel?: string
+  source?: string
+  submitted_at?: string; created_at?: string; createdAt?: string
 }
 
 interface SummaryResponse {
@@ -41,9 +54,12 @@ interface SummaryResponse {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function ratingLevel(r: QuestionnaireSummary): string { return r.rating_level ?? r.ratingLevel ?? '—' }
-function displayName(r: QuestionnaireSummary): string  { return r.name ?? r.full_name ?? '—' }
+function displayName(r: QuestionnaireSummary): string  { return r.user?.name ?? r.user?.full_name ?? r.name ?? r.full_name ?? '—' }
+function displayEmail(r: QuestionnaireSummary): string { return r.user?.email ?? r.email ?? '—' }
+function displayOccupation(r: QuestionnaireSummary): string { return r.user?.occupation ?? r.occupation ?? '—' }
+function displaySource(r: QuestionnaireSummary): string { return r.source ?? '—' }
 function createdAt(r: QuestionnaireSummary): string {
-  const raw = r.created_at ?? r.createdAt
+  const raw = r.submitted_at ?? r.created_at ?? r.createdAt
   if (!raw) return '—'
   return new Date(raw).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })
 }
@@ -149,7 +165,7 @@ export default function PollsPage() {
   const filtered = rows
     .filter(r => {
       const q = search.toLowerCase()
-      const matchSearch = !q || (r.email ?? '').toLowerCase().includes(q) || displayName(r).toLowerCase().includes(q) || (r.occupation ?? '').toLowerCase().includes(q)
+      const matchSearch = !q || displayEmail(r).toLowerCase().includes(q) || displayName(r).toLowerCase().includes(q) || displayOccupation(r).toLowerCase().includes(q) || displaySource(r).toLowerCase().includes(q)
       const matchLevel  = levelFilter === 'ALL' || ratingLevel(r).toUpperCase() === levelFilter
       return matchSearch && matchLevel
     })
@@ -308,7 +324,7 @@ export default function PollsPage() {
                   <table className="w-full">
                     <thead>
                       <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
-                        {['Name', 'Email', 'Occupation', 'Level'].map(h => (
+                        {['Name', 'Email', 'Occupation', 'Source', 'Level'].map(h => (
                           <th key={h} className="text-left px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#98a2b3] font-display">{h}</th>
                         ))}
                         <th className="text-right px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#98a2b3] font-display cursor-pointer hover:text-[#374151] select-none" onClick={() => toggleSort('score')}>
@@ -323,8 +339,13 @@ export default function PollsPage() {
                       {filtered.map(r => (
                         <tr key={r.id} className="border-b border-[#f3f4f6] last:border-0 hover:bg-[#f9fafb] transition-colors">
                           <td className="px-5 py-3.5 text-[13px] font-medium text-[#111827] font-body">{displayName(r)}</td>
-                          <td className="px-5 py-3.5 text-[13px] text-[#374151] font-body">{r.email}</td>
-                          <td className="px-5 py-3.5 text-[13px] text-[#4b5563] font-body">{r.occupation ?? '—'}</td>
+                          <td className="px-5 py-3.5 text-[13px] text-[#374151] font-body">{displayEmail(r)}</td>
+                          <td className="px-5 py-3.5 text-[13px] text-[#4b5563] font-body">{displayOccupation(r)}</td>
+                          <td className="px-5 py-3.5 text-[13px] text-[#4b5563] font-body">
+                            {displaySource(r) !== '—'
+                              ? <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] bg-[#f3f4f6] text-[#374151] text-[11px] font-medium font-body">{displaySource(r)}</span>
+                              : '—'}
+                          </td>
                           <td className="px-5 py-3.5"><LevelBadge level={ratingLevel(r)} /></td>
                           <td className="px-5 py-3.5 text-right text-[13px] font-semibold text-[#111827] font-display">{r.score != null ? `${r.score}%` : '—'}</td>
                           <td className="px-5 py-3.5 text-[13px] text-[#4b5563] font-body whitespace-nowrap">{createdAt(r)}</td>
