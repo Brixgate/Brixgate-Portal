@@ -290,8 +290,6 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
   const [resourceForm, setResourceForm]       = useState({ title: '', type: 'PDF', link: '' })
   const [resourceMode, setResourceMode]       = useState<'url' | 'upload'>('url')
   const [uploadFile, setUploadFile]           = useState<File | null>(null)
-  const [uploading, setUploading]             = useState(false)
-
   // Shared state
   const [saving, setSaving]                   = useState(false)
   const [error, setError]                     = useState('')
@@ -352,46 +350,34 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
   }
 
   // ── Resource handlers ──────────────────────────────────────────────────────
-  async function handleFileUpload(file: File): Promise<string | null> {
-    setUploading(true)
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-      // NOTE: confirm the upload endpoint with the dev lead —
-      // typical pattern: /admin/upload or /admin/resources/upload
-      const res = await apiClient.post('/admin/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
-      const d = unwrap<{ url?: string; link?: string; file_url?: string }>(res.data)
-      return d?.url ?? d?.link ?? d?.file_url ?? null
-    } catch {
-      setError('File upload failed. Please try the URL option instead.')
-      return null
-    } finally {
-      setUploading(false)
-    }
-  }
+  const MAX_FILE_BYTES = 20 * 1024 * 1024 // 20 MB
 
   async function addResource(e: React.FormEvent) {
     e.preventDefault(); setError('')
     if (!resourceForm.title.trim()) { setError('Title required.'); return }
 
-    let link = resourceForm.link.trim()
-
-    if (resourceMode === 'upload') {
-      if (!uploadFile) { setError('Please select a file to upload.'); return }
-      const uploaded = await handleFileUpload(uploadFile)
-      if (!uploaded) return
-      link = uploaded
-    } else {
-      if (!link) { setError('URL is required.'); return }
-    }
-
     setSaving(true)
     try {
-      await apiClient.post(`${base}/resources`, {
-        title: resourceForm.title.trim(), type: resourceForm.type, link,
-      })
+      if (resourceMode === 'upload') {
+        if (!uploadFile) { setError('Please select a file to upload.'); return }
+        if (uploadFile.size > MAX_FILE_BYTES) {
+          setError('File exceeds the 20 MB limit. Please choose a smaller file.')
+          return
+        }
+        const formData = new FormData()
+        formData.append('file', uploadFile)
+        formData.append('title', resourceForm.title.trim())
+        formData.append('type', resourceForm.type)
+        await apiClient.post(`${base}/resources`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+      } else {
+        const link = resourceForm.link.trim()
+        if (!link) { setError('URL is required.'); return }
+        await apiClient.post(`${base}/resources`, {
+          title: resourceForm.title.trim(), type: resourceForm.type, link,
+        })
+      }
       setShowAddResource(false)
       setResourceForm({ title: '', type: 'PDF', link: '' })
       setUploadFile(null); setResourceMode('url')
@@ -653,7 +639,7 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
               <Field label="File">
                 <FileDropZone
                   onFileSelected={setUploadFile}
-                  uploading={uploading}
+                  uploading={saving}
                   uploadedFileName={uploadFile?.name ?? null}
                 />
               </Field>
@@ -669,9 +655,9 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
                 className="flex-1 h-10 rounded-[8px] border border-[#e5e7eb] text-[13px] font-body hover:bg-[#f9fafb]">
                 Cancel
               </button>
-              <button type="submit" disabled={saving || uploading}
+              <button type="submit" disabled={saving}
                 className="flex-1 h-10 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-60 flex items-center justify-center gap-2">
-                {(saving || uploading) && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
+                {(saving) && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
                 {editResource ? 'Save Changes' : 'Add Resource'}
               </button>
             </div>
