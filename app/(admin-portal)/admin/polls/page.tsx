@@ -90,6 +90,46 @@ function LevelBadge({ level }: { level: string }) {
 
 const PAGE_SIZE = 20
 
+function PaginationBar({ page, totalPages, onPageChange }: { page: number; totalPages: number; onPageChange: (p: number) => void }) {
+  if (totalPages <= 1) return null
+
+  const btnClass = (active: boolean) =>
+    `h-8 min-w-[32px] px-2 rounded-[6px] text-[12px] font-medium font-body border transition-colors ${
+      active
+        ? 'bg-[#d51520] text-white border-[#d51520]'
+        : 'border-[#e5e7eb] text-[#374151] hover:bg-[#f9fafb]'
+    }`
+
+  const pages: (number | '…')[] = []
+  if (totalPages <= 7) {
+    for (let i = 1; i <= totalPages; i++) pages.push(i)
+  } else {
+    pages.push(1)
+    if (page > 3) pages.push('…')
+    for (let i = Math.max(2, page - 1); i <= Math.min(totalPages - 1, page + 1); i++) pages.push(i)
+    if (page < totalPages - 2) pages.push('…')
+    pages.push(totalPages)
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      <button onClick={() => onPageChange(page - 1)} disabled={page === 1}
+        className="h-8 px-2.5 rounded-[6px] text-[12px] font-body border border-[#e5e7eb] text-[#374151] hover:bg-[#f9fafb] disabled:opacity-40 transition-colors">
+        ‹
+      </button>
+      {pages.map((p, i) =>
+        p === '…'
+          ? <span key={`ellipsis-${i}`} className="px-1 text-[12px] text-[#98a2b3]">…</span>
+          : <button key={p} onClick={() => onPageChange(p)} className={btnClass(p === page)}>{p}</button>
+      )}
+      <button onClick={() => onPageChange(page + 1)} disabled={page === totalPages}
+        className="h-8 px-2.5 rounded-[6px] text-[12px] font-body border border-[#e5e7eb] text-[#374151] hover:bg-[#f9fafb] disabled:opacity-40 transition-colors">
+        ›
+      </button>
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function PollsPage() {
   const [questionnaires, setQuestionnaires] = useState<Questionnaire[]>([])
@@ -124,19 +164,25 @@ export default function PollsPage() {
 
         if (qList.length === 0) { setLoading(false); return }
 
-        // 2. Fetch summaries for all questionnaires in parallel
-        const results = await Promise.allSettled(
-          qList.map(q =>
-            apiClient.get(`/admin/questionnaires/${q.id}/summaries?page=1&size=200`)
-              .then(res => {
-                const d = unwrap<SummaryResponse>(res.data)
-                const list: QuestionnaireSummary[] = Array.isArray(d)
-                  ? d
-                  : (d?.summaries ?? d?.data ?? d?.results ?? d?.content ?? d?.items ?? [])
-                return list.map(r => ({ ...r, _questionnaireName: qTitle(q), _questionnaireId: q.id }))
-              })
-          )
-        )
+        // 2. Fetch ALL pages of summaries for every questionnaire (API max size=100)
+        async function fetchAllPages(q: Questionnaire): Promise<QuestionnaireSummary[]> {
+          const all: QuestionnaireSummary[] = []
+          let p = 1
+          while (true) {
+            const res = await apiClient.get(`/admin/questionnaires/${q.id}/summaries?page=${p}&size=100`)
+            const d = unwrap<SummaryResponse>(res.data)
+            const list: QuestionnaireSummary[] = Array.isArray(d)
+              ? d
+              : (d?.summaries ?? d?.data ?? d?.results ?? d?.content ?? d?.items ?? [])
+            all.push(...list.map(r => ({ ...r, _questionnaireName: qTitle(q), _questionnaireId: q.id })))
+            const totalPages = d?.pagination?.total_pages ?? d?.pagination?.totalPages ?? 1
+            if (p >= totalPages || list.length === 0) break
+            p++
+          }
+          return all
+        }
+
+        const results = await Promise.allSettled(qList.map(q => fetchAllPages(q)))
 
         const merged: QuestionnaireSummary[] = []
         results.forEach(r => { if (r.status === 'fulfilled') merged.push(...r.value) })
@@ -335,21 +381,11 @@ export default function PollsPage() {
                     </tbody>
                   </table>
                 </div>
-                <div className="px-5 py-4 border-t border-[#f3f4f6] flex items-center justify-between">
+                <div className="px-5 py-4 border-t border-[#f3f4f6] flex items-center justify-between flex-wrap gap-3">
                   <p className="text-[12px] text-[#4b5563] font-body">
                     Showing {Math.min((page - 1) * PAGE_SIZE + 1, totalCount)}–{Math.min(page * PAGE_SIZE, totalCount)} of {totalCount.toLocaleString()} responses
                   </p>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-                      className="h-8 px-3 border border-[#e5e7eb] rounded-[6px] text-[12px] font-medium text-[#374151] font-body hover:bg-[#f9fafb] disabled:opacity-40 transition-colors">
-                      Previous
-                    </button>
-                    <span className="text-[12px] text-[#4b5563] font-body px-1">Page {page}</span>
-                    <button onClick={() => setPage(p => p + 1)} disabled={page * PAGE_SIZE >= totalCount}
-                      className="h-8 px-3 border border-[#e5e7eb] rounded-[6px] text-[12px] font-medium text-[#374151] font-body hover:bg-[#f9fafb] disabled:opacity-40 transition-colors">
-                      Next
-                    </button>
-                  </div>
+                  <PaginationBar page={page} totalPages={Math.ceil(totalCount / PAGE_SIZE)} onPageChange={setPage} />
                 </div>
               </>
             )}
