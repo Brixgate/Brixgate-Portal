@@ -112,11 +112,55 @@ function groupByWeek(resources: Resource[]): Record<number, { title: string; ite
 
 // ── Resource row ──────────────────────────────────────────────────────────────
 function ResourceRow({ resource }: { resource: Resource }) {
-  const FileIcon     = FILE_ICONS[resource.fileType] ?? File01Icon
-  const colours      = FILE_COLOURS[resource.fileType] ?? { bg: '#F7F8FA', text: '#6b7280' }
+  const [downloading, setDownloading] = useState(false)
+
+  const FileIcon = FILE_ICONS[resource.fileType] ?? File01Icon
+  const colours  = FILE_COLOURS[resource.fileType] ?? { bg: '#F7F8FA', text: '#6b7280' }
   const uploadedDate = resource.uploadedAt
     ? new Date(resource.uploadedAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })
     : ''
+
+  async function handleDownload() {
+    if (downloading) return
+    setDownloading(true)
+    try {
+      const res = await apiClient.get(`/program-resources/${resource.id}/download`, {
+        responseType: 'blob',
+      })
+      const blob: Blob = res.data
+      const contentType: string = res.headers['content-type'] ?? ''
+
+      // If the endpoint returns JSON containing a URL, open that URL
+      if (contentType.includes('json') || contentType.includes('text')) {
+        const text = await blob.text()
+        try {
+          const json = JSON.parse(text) as Record<string, unknown>
+          const url =
+            (json.url ?? json.link ?? json.downloadUrl ?? json.download_url) as string | undefined
+          if (url) { window.open(url, '_blank'); return }
+        } catch { /* not JSON — fall through to blob download */ }
+      }
+
+      // Treat as a file blob — trigger browser download
+      const objectUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = objectUrl
+      a.download = resource.title || 'download'
+      document.body.appendChild(a); a.click(); document.body.removeChild(a)
+      URL.revokeObjectURL(objectUrl)
+    } catch (err) {
+      // Fallback: if the endpoint errors, try the stored link directly
+      const fallback = resource.downloadUrl
+      if (fallback && fallback !== '#') {
+        window.open(fallback, '_blank')
+      } else {
+        const msg = getApiError(err)
+        alert(`Download failed: ${msg}`)
+      }
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   return (
     <div className="flex items-center gap-4 py-3.5 px-5 hover:bg-[#f9fafb] transition-colors rounded-[8px] group">
@@ -144,16 +188,18 @@ function ResourceRow({ resource }: { resource: Resource }) {
         </p>
       </div>
 
-      <a
-        href={resource.downloadUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center gap-1.5 text-[12px] font-medium font-display text-[#374151] border border-[#e5e7eb] px-3 py-1.5 rounded-[6px] hover:bg-[#f3f4f6] transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+      <button
+        onClick={handleDownload}
+        disabled={downloading}
+        className="flex items-center gap-1.5 text-[12px] font-medium font-display text-[#374151] border border-[#e5e7eb] px-3 py-1.5 rounded-[6px] hover:bg-[#f3f4f6] transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
         aria-label={`Download ${resource.title}`}
       >
-        <Download01Icon size={13} color="#374151" strokeWidth={1.5} />
-        Download
-      </a>
+        {downloading
+          ? <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />
+          : <Download01Icon size={13} color="#374151" strokeWidth={1.5} />
+        }
+        {downloading ? 'Downloading…' : 'Download'}
+      </button>
     </div>
   )
 }
