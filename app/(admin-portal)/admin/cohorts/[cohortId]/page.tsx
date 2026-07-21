@@ -212,7 +212,7 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
 
       // Step 3: Load programme modules (the pool to pick from in edit mode)
       if (resolvedProgramId) {
-        const progModRes = await apiClient.get(`/admin/programs/${resolvedProgramId}/modules`).catch(() => null)
+        const progModRes = await apiClient.get(`/admin/programs/${resolvedProgramId}/modules?status=PUBLISHED`).catch(() => null)
         if (progModRes) {
           const d = unwrap<{ modules?: ProgramModule[]; content?: ProgramModule[] } | ProgramModule[]>(progModRes.data)
           const mods: ProgramModule[] = Array.isArray(d)
@@ -253,7 +253,7 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
     if (!effectiveProgramId) return []
     setLoadingModuleId(module.id)
     try {
-      const res = await apiClient.get(`/admin/programs/${effectiveProgramId}/modules/${module.id}/lessons`)
+      const res = await apiClient.get(`/admin/programs/${effectiveProgramId}/modules/${module.id}/lessons?status=PUBLISHED`)
       const d = unwrap<{ lessons?: ProgramModuleLesson[]; content?: ProgramModuleLesson[] } | ProgramModuleLesson[]>(res.data)
       const lessons: ProgramModuleLesson[] = Array.isArray(d)
         ? d
@@ -310,7 +310,7 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
       if (toFetch.length > 0 && effectiveProgramId) {
         const results = await Promise.allSettled(
           toFetch.map(m =>
-            apiClient.get(`/admin/programs/${effectiveProgramId}/modules/${m.id}/lessons`).then(res => {
+            apiClient.get(`/admin/programs/${effectiveProgramId}/modules/${m.id}/lessons?status=PUBLISHED`).then(res => {
               const d = unwrap<{ lessons?: ProgramModuleLesson[] } | ProgramModuleLesson[]>(res.data)
               const lessons: ProgramModuleLesson[] = Array.isArray(d) ? d : ((d as { lessons?: ProgramModuleLesson[] })?.lessons ?? [])
               return { moduleId: m.id, lessons }
