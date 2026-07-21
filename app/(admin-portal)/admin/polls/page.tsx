@@ -45,7 +45,7 @@ interface SummaryResponse {
   results?: QuestionnaireSummary[]
   content?: QuestionnaireSummary[]
   items?: QuestionnaireSummary[]
-  pagination?: { total?: number; total_elements?: number; totalElements?: number }
+  pagination?: { total?: number; total_elements?: number; totalElements?: number; total_pages?: number; totalPages?: number }
   total?: number; totalElements?: number
 }
 
