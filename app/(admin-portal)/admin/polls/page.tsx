@@ -348,7 +348,7 @@ export default function PollsPage() {
                   <table className="w-full">
                     <thead>
                       <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
-                        {['Name', 'Email', 'Phone', 'Questionnaire', 'Source', 'Level'].map(h => (
+                        {['Name', 'Email', 'Phone', 'Questionnaire', 'Level'].map(h => (
                           <th key={h} className="text-left px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#98a2b3] font-display whitespace-nowrap">{h}</th>
                         ))}
                         <th className="text-right px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#98a2b3] font-display cursor-pointer hover:text-[#374151] select-none whitespace-nowrap" onClick={() => toggleSort('score')}>
@@ -368,11 +368,7 @@ export default function PollsPage() {
                           <td className="px-5 py-3.5 max-w-[180px]">
                             <span className="block truncate text-[13px] text-[#374151] font-body" title={r._questionnaireName}>{r._questionnaireName ?? '—'}</span>
                           </td>
-                          <td className="px-5 py-3.5 max-w-[160px]">
-                            {displaySource(r) !== '—'
-                              ? <span className="block truncate px-2 py-0.5 rounded-[4px] bg-[#f3f4f6] text-[#374151] text-[11px] font-medium font-body max-w-full" title={displaySource(r)}>{displaySource(r)}</span>
-                              : <span className="text-[13px] text-[#4b5563] font-body">—</span>}
-                          </td>
+
                           <td className="px-5 py-3.5"><LevelBadge level={ratingLevel(r)} /></td>
                           <td className="px-5 py-3.5 text-right text-[13px] font-semibold text-[#111827] font-display">{r.score != null ? `${r.score}%` : '—'}</td>
                           <td className="px-5 py-3.5 text-[13px] text-[#4b5563] font-body whitespace-nowrap">{submittedAt(r)}</td>
