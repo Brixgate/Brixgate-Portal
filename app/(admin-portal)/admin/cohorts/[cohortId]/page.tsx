@@ -5,9 +5,9 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft01Icon, Loading01Icon, UserGroup02Icon,
   StarIcon, BookOpen01Icon, CheckmarkCircle01Icon,
-  AlertCircleIcon, DatabaseIcon,
+  AlertCircleIcon, DatabaseIcon, Search01Icon,
   ArrowDown01Icon, ArrowRight01Icon, VideoReplayIcon, File01Icon,
-  PencilEdit01Icon, Cancel01Icon, Building01Icon,
+  PencilEdit01Icon, Cancel01Icon, Building01Icon, UserAdd01Icon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 import { useSidebar } from '@/lib/sidebar-context'
@@ -736,19 +736,167 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
   )
 }
 
+// ── Add Facilitator Modal ─────────────────────────────────────────────────────
+interface AdminUserResult { id: number; name?: string; email: string; role?: string }
+
+function AddFacilitatorModal({ cohortId, onClose, onAdded }: { cohortId: string; onClose: () => void; onAdded: () => void }) {
+  const [query, setQuery]       = useState('')
+  const [results, setResults]   = useState<AdminUserResult[]>([])
+  const [searching, setSearching] = useState(false)
+  const [selected, setSelected] = useState<AdminUserResult | null>(null)
+  const [role, setRole]         = useState<'INSTRUCTOR' | 'ADMIN'>('INSTRUCTOR')
+  const [saving, setSaving]     = useState(false)
+  const [error, setError]       = useState('')
+  const searchRef               = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function onQueryChange(v: string) {
+    setQuery(v)
+    setSelected(null)
+    if (searchRef.current) clearTimeout(searchRef.current)
+    if (!v.trim()) { setResults([]); return }
+    searchRef.current = setTimeout(async () => {
+      setSearching(true)
+      try {
+        const res = await apiClient.get(`/admin/users?search=${encodeURIComponent(v.trim())}&size=20`)
+        const d = unwrap<{ users?: AdminUserResult[]; content?: AdminUserResult[] } | AdminUserResult[]>(res.data)
+        const list: AdminUserResult[] = Array.isArray(d) ? d : ((d as { users?: AdminUserResult[] })?.users ?? (d as { content?: AdminUserResult[] })?.content ?? [])
+        setResults(list)
+      } catch { setResults([]) } finally { setSearching(false) }
+    }, 350)
+  }
+
+  async function handleAdd() {
+    if (!selected) return
+    setSaving(true); setError('')
+    try {
+      await apiClient.post(`/admin/cohorts/${cohortId}/facilitators`, { userId: selected.id, role })
+      onAdded()
+      onClose()
+    } catch (err) { setError(getApiError(err)) } finally { setSaving(false) }
+  }
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/30 z-[59]" onClick={onClose} />
+      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] bg-white rounded-[12px] shadow-[0px_12px_32px_rgba(16,24,40,0.16)] w-[480px] flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="px-6 pt-5 pb-4 border-b border-[#f3f4f6] flex items-center justify-between">
+          <div>
+            <h3 className="text-[15px] font-bold text-[#111827] font-display">Add Facilitator</h3>
+            <p className="text-[12px] text-[#4b5563] font-body mt-0.5">Assign an instructor or admin to this cohort</p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f3f4f6] transition-colors">
+            <Cancel01Icon size={16} color="#4b5563" strokeWidth={1.5} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-5 flex flex-col gap-4">
+          {/* User search */}
+          <div>
+            <label className="text-[12px] font-medium text-[#374151] font-body block mb-1.5">Search user</label>
+            <div className="relative">
+              <Search01Icon className="absolute left-3 top-1/2 -translate-y-1/2" size={14} color="#9ca3af" strokeWidth={1.5} />
+              <input
+                type="text" value={query} onChange={e => onQueryChange(e.target.value)}
+                placeholder="Name or email…"
+                className="w-full h-10 pl-9 pr-3.5 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#9ca3af] focus:outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10"
+              />
+              {searching && <Loading01Icon size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin" color="#9ca3af" strokeWidth={2} />}
+            </div>
+
+            {/* Results dropdown */}
+            {results.length > 0 && !selected && (
+              <div className="mt-1 border border-[#e5e7eb] rounded-[8px] overflow-hidden shadow-sm">
+                {results.map(u => (
+                  <button key={u.id} onClick={() => { setSelected(u); setQuery(u.name ?? u.email); setResults([]) }}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#f9fafb] transition-colors text-left border-b border-[#f3f4f6] last:border-0">
+                    <div className="w-8 h-8 rounded-full bg-[#fef2f2] flex items-center justify-center flex-shrink-0">
+                      <span className="text-[11px] font-bold text-[#d51520] font-display">{getInitials(u.name ?? u.email)}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-medium text-[#111827] font-body truncate">{u.name ?? '—'}</p>
+                      <p className="text-[11px] text-[#4b5563] font-body truncate">{u.email}</p>
+                    </div>
+                    {u.role && (
+                      <span className="text-[10px] font-semibold text-[#4b5563] bg-[#f3f4f6] px-2 py-0.5 rounded-full font-display flex-shrink-0">{u.role}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Selected user chip */}
+            {selected && (
+              <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-[#fef2f2] border border-[#fecdca] rounded-[8px]">
+                <div className="w-7 h-7 rounded-full bg-[#d51520] flex items-center justify-center flex-shrink-0">
+                  <span className="text-[10px] font-bold text-white font-display">{getInitials(selected.name ?? selected.email)}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[12px] font-semibold text-[#111827] font-body truncate">{selected.name ?? selected.email}</p>
+                  <p className="text-[11px] text-[#4b5563] font-body truncate">{selected.email}</p>
+                </div>
+                <button onClick={() => { setSelected(null); setQuery('') }} className="text-[#d51520] hover:text-[#b81119]">
+                  <Cancel01Icon size={13} strokeWidth={2} />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Role picker */}
+          <div>
+            <label className="text-[12px] font-medium text-[#374151] font-body block mb-1.5">Role</label>
+            <div className="flex gap-2">
+              {(['INSTRUCTOR', 'ADMIN'] as const).map(r => (
+                <button key={r} onClick={() => setRole(r)}
+                  className={`flex-1 h-10 rounded-[8px] text-[13px] font-semibold font-display border transition-colors ${
+                    role === r
+                      ? 'bg-[#fef2f2] border-[#fecdca] text-[#d51520]'
+                      : 'bg-white border-[#e5e7eb] text-[#374151] hover:bg-[#f9fafb]'
+                  }`}>
+                  {r === 'INSTRUCTOR' ? 'Instructor' : 'Admin'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {error && (
+            <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body">
+              <AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} />{error}
+            </p>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 pb-5 flex gap-2">
+          <button onClick={onClose} className="flex-1 h-10 rounded-[8px] border border-[#e5e7eb] text-[13px] font-medium text-[#374151] font-body hover:bg-[#f9fafb] transition-colors">
+            Cancel
+          </button>
+          <button onClick={handleAdd} disabled={!selected || saving}
+            className="flex-1 h-10 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-50 flex items-center justify-center gap-2 transition-colors">
+            {saving && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
+            Add Facilitator
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ── Tab: People (merged Members + Enrollments) ────────────────────────────────
 function PeopleTab({ cohortId }: { cohortId: string }) {
   const [rows, setRows]                   = useState<PersonRow[]>([])
   const [loading, setLoading]             = useState(true)
   const [selectedPerson, setSelectedPerson] = useState<PersonRow | null>(null)
+  const [showAddFacilitator, setShowAddFacilitator] = useState(false)
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const [membRes, enrollRes] = await Promise.allSettled([
-          apiClient.get(`/admin/cohorts/${cohortId}/members?size=100`),
-          apiClient.get(`/admin/cohort-enrollments?cohort_id=${cohortId}&size=100`),
-        ])
+  const loadPeople = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [membRes, enrollRes] = await Promise.allSettled([
+        apiClient.get(`/admin/cohorts/${cohortId}/members?size=100`),
+        apiClient.get(`/admin/cohort-enrollments?cohort_id=${cohortId}&size=100`),
+      ])
 
         const members: Member[] = membRes.status === 'fulfilled'
           ? (() => { const d = unwrap<{ members?: Member[] }>(membRes.value.data); return Array.isArray(d?.members) ? d.members : [] })()
@@ -798,9 +946,9 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
 
         setRows([...enrollmentRows, ...memberOnlyRows])
       } catch { setRows([]) } finally { setLoading(false) }
-    }
-    load()
   }, [cohortId])
+
+  useEffect(() => { loadPeople() }, [loadPeople])
 
   const COMP_STYLE: Record<string, string> = {
     'COMPLETED':    'bg-[#ecfdf3] text-[#027a48]',
@@ -835,6 +983,21 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
 
   return (
     <>
+      {showAddFacilitator && (
+        <AddFacilitatorModal
+          cohortId={cohortId}
+          onClose={() => setShowAddFacilitator(false)}
+          onAdded={() => { setShowAddFacilitator(false); loadPeople() }}
+        />
+      )}
+      <div className="px-6 pt-4 pb-2 flex items-center justify-between">
+        <p className="text-[12px] text-[#4b5563] font-body">{rows.length} member{rows.length !== 1 ? 's' : ''} in this cohort</p>
+        <button onClick={() => setShowAddFacilitator(true)}
+          className="flex items-center gap-2 h-9 px-4 bg-[#d51520] text-white rounded-[8px] text-[12px] font-semibold font-display hover:bg-[#b81119] transition-colors">
+          <UserAdd01Icon size={14} color="white" strokeWidth={1.5} />
+          Add Facilitator
+        </button>
+      </div>
       <div className="px-6 py-4 overflow-x-auto">
         <table className="w-full">
           <thead>
