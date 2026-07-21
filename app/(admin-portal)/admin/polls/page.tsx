@@ -165,7 +165,7 @@ export default function PollsPage() {
         if (qList.length === 0) { setLoading(false); return }
 
         // 2. Fetch ALL pages of summaries for every questionnaire (API max size=100)
-        async function fetchAllPages(q: Questionnaire): Promise<QuestionnaireSummary[]> {
+        const fetchAllPages = async (q: Questionnaire): Promise<QuestionnaireSummary[]> => {
           const all: QuestionnaireSummary[] = []
           let p = 1
           while (true) {
