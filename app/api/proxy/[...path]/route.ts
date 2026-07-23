@@ -34,11 +34,10 @@ async function handler(
   }
   if (!headers['accept']) headers['accept'] = 'application/json'
 
-  // Forward body for POST / PUT / PATCH.
-  // Use arrayBuffer to preserve binary content (multipart file uploads).
-  let body: ArrayBuffer | undefined
+  // Forward body for POST / PUT / PATCH
+  let body: string | undefined
   if (!['GET', 'HEAD', 'DELETE'].includes(request.method)) {
-    body = await request.arrayBuffer()
+    body = await request.text()
   }
 
   try {

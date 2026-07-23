@@ -2,9 +2,7 @@ import axios from 'axios'
 
 const DIRECT_API = process.env.NEXT_PUBLIC_API_URL ?? 'https://api.brixgate.com/api/v1'
 
-// Browser requests route through /api/proxy (Next.js server → API, no CORS).
-// Server-side code calls the API directly (already server-to-server, no CORS).
-export const BASE_URL = typeof window !== 'undefined' ? '/api/proxy' : DIRECT_API
+export const BASE_URL = DIRECT_API
 
 // ── Cookie helpers (client-side only) ─────────────────────────────────────────
 export function getTokenFromCookie(): string | null {
