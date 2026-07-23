@@ -368,7 +368,6 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
         formData.append('file', uploadFile)
         formData.append('title', resourceForm.title.trim())
         formData.append('type', resourceForm.type)
-        formData.append('link', '')
         await apiClient.post(`${base}/resources`, formData)
       } else {
         const link = resourceForm.link.trim()
