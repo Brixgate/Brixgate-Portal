@@ -19,7 +19,11 @@ import {
   Link01Icon,
   Download01Icon,
   UserGroup02Icon,
+  StarIcon,
+  Cancel01Icon,
+  CheckmarkCircle01Icon,
 } from 'hugeicons-react'
+import { getApiError } from '@/lib/api-client'
 import TeamFeature from '@/components/teams/TeamFeature'
 
 // ── API shapes — programmes (secondary lookup for header) ─────────────────────
@@ -507,6 +511,133 @@ function DetailPanel({ item, resources }: { item: SelectedItem | null; resources
   )
 }
 
+// ── Review modal ──────────────────────────────────────────────────────────────
+function ReviewModal({ cohortId, onClose }: { cohortId: string; onClose: () => void }) {
+  const [rating, setRating]       = useState(0)
+  const [hovered, setHovered]     = useState(0)
+  const [comment, setComment]     = useState('')
+  const [anonymous, setAnonymous] = useState(false)
+  const [saving, setSaving]       = useState(false)
+  const [done, setDone]           = useState(false)
+  const [error, setError]         = useState('')
+
+  async function submit() {
+    if (rating === 0) { setError('Please select a star rating.'); return }
+    setSaving(true); setError('')
+    try {
+      await apiClient.post(`/cohorts/${cohortId}/reviews`, {
+        rating,
+        comment: comment.trim() || undefined,
+        is_anonymous: anonymous,
+      })
+      setDone(true)
+    } catch (err) {
+      setError(getApiError(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="bg-white rounded-[12px] shadow-[0px_12px_16px_-4px_rgba(16,24,40,0.08)] w-full max-w-[480px] p-6">
+
+        {done ? (
+          <div className="flex flex-col items-center text-center py-6 gap-3">
+            <div className="w-12 h-12 rounded-full bg-[#ecfdf3] flex items-center justify-center">
+              <CheckmarkCircle01Icon size={24} color="#12b76a" strokeWidth={1.5} />
+            </div>
+            <p className="text-[16px] font-semibold text-[#111827] font-display">Review submitted!</p>
+            <p className="text-[13px] text-[#4b5563] font-body">Thank you for your feedback.</p>
+            <button
+              onClick={onClose}
+              className="mt-2 h-9 px-5 bg-[#d51520] hover:bg-[#b91c1c] text-white text-[13px] font-semibold font-display rounded-[8px] transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Header */}
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-[16px] font-semibold text-[#111827] font-display">Leave a review</h3>
+              <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#f3f4f6]">
+                <Cancel01Icon size={16} color="#6b7280" strokeWidth={1.5} />
+              </button>
+            </div>
+
+            {/* Star picker */}
+            <div className="mb-5">
+              <p className="text-[13px] font-medium text-[#374151] font-body mb-2">Rating <span className="text-[#d51520]">*</span></p>
+              <div className="flex gap-1">
+                {[1, 2, 3, 4, 5].map(n => (
+                  <button
+                    key={n}
+                    onMouseEnter={() => setHovered(n)}
+                    onMouseLeave={() => setHovered(0)}
+                    onClick={() => setRating(n)}
+                    className="p-0.5"
+                  >
+                    <StarIcon
+                      size={28}
+                      strokeWidth={1.5}
+                      color={n <= (hovered || rating) ? '#d97706' : '#d1d5db'}
+                      fill={n <= (hovered || rating) ? '#d97706' : 'none'}
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Comment */}
+            <div className="mb-4">
+              <p className="text-[13px] font-medium text-[#374151] font-body mb-1.5">Comment <span className="text-[#9ca3af] font-normal">(optional)</span></p>
+              <textarea
+                value={comment}
+                onChange={e => setComment(e.target.value)}
+                rows={4}
+                placeholder="Share your experience with this course..."
+                className="w-full border border-[#e5e7eb] rounded-[6px] px-3 py-2.5 text-[13px] text-[#111827] font-body placeholder:text-[#9ca3af] resize-none focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520]"
+              />
+            </div>
+
+            {/* Anonymous toggle */}
+            <label className="flex items-center gap-2.5 cursor-pointer mb-5">
+              <div
+                onClick={() => setAnonymous(v => !v)}
+                className={`w-9 h-5 rounded-full transition-colors flex-shrink-0 ${anonymous ? 'bg-[#d51520]' : 'bg-[#e5e7eb]'}`}
+              >
+                <div className={`w-4 h-4 bg-white rounded-full shadow mt-0.5 transition-transform ${anonymous ? 'translate-x-4' : 'translate-x-0.5'}`} />
+              </div>
+              <span className="text-[13px] text-[#374151] font-body">Submit anonymously</span>
+            </label>
+
+            {error && <p className="text-[12px] text-[#d51520] mb-3">{error}</p>}
+
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={onClose}
+                className="h-9 px-4 border border-[#d1d5dd] text-[#374151] text-[13px] font-medium font-body rounded-[8px] hover:bg-[#f9fafb] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submit}
+                disabled={saving}
+                className="h-9 px-5 bg-[#d51520] hover:bg-[#b91c1c] disabled:opacity-50 text-white text-[13px] font-semibold font-display rounded-[8px] transition-colors flex items-center gap-2"
+              >
+                {saving && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
+                Submit review
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function CourseDetailPage() {
   const params   = useParams()
@@ -521,6 +652,7 @@ export default function CourseDetailPage() {
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null)
   const [expandedModules, setExpandedModules] = useState<Set<number>>(new Set())
   const [showTeams, setShowTeams]       = useState(false)
+  const [showReview, setShowReview]     = useState(false)
   const [isTeamLead, setIsTeamLead]     = useState(false)
   const [teamSeats, setTeamSeats]       = useState<{ used: number; total: number } | null>(null)
 
@@ -662,21 +794,32 @@ export default function CourseDetailPage() {
             </div>
           </div>
 
-          {/* Teams button — team lead only */}
-          {isTeamLead && (
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Teams button — team lead only */}
+            {isTeamLead && (
+              <button
+                onClick={() => setShowTeams(true)}
+                className="inline-flex items-center gap-2 h-9 px-4 border border-[#fde68a] bg-[#fffbeb] text-[#b45309] text-[13px] font-semibold font-display rounded-[8px] hover:bg-[#fef9c3] transition-colors"
+              >
+                <UserGroup02Icon size={15} color="#b45309" strokeWidth={2} />
+                Teams
+                {teamSeats && (
+                  <span className="text-[11px] font-medium text-[#b45309] bg-[#fef3c7] px-1.5 py-0.5 rounded-full">
+                    {teamSeats.used}/{teamSeats.total}
+                  </span>
+                )}
+              </button>
+            )}
+
+            {/* Leave a review */}
             <button
-              onClick={() => setShowTeams(true)}
-              className="flex-shrink-0 inline-flex items-center gap-2 h-9 px-4 border border-[#fde68a] bg-[#fffbeb] text-[#b45309] text-[13px] font-semibold font-display rounded-[8px] hover:bg-[#fef9c3] transition-colors"
+              onClick={() => setShowReview(true)}
+              className="inline-flex items-center gap-2 h-9 px-4 border border-[#e5e7eb] bg-white text-[#374151] text-[13px] font-semibold font-display rounded-[8px] hover:bg-[#f9fafb] transition-colors"
             >
-              <UserGroup02Icon size={15} color="#b45309" strokeWidth={2} />
-              Teams
-              {teamSeats && (
-                <span className="text-[11px] font-medium text-[#b45309] bg-[#fef3c7] px-1.5 py-0.5 rounded-full">
-                  {teamSeats.used}/{teamSeats.total}
-                </span>
-              )}
+              <StarIcon size={15} color="#d97706" strokeWidth={1.5} />
+              Leave a review
             </button>
-          )}
+          </div>
         </div>
 
         {/* Curriculum grid */}
@@ -718,7 +861,8 @@ export default function CourseDetailPage() {
         </div>
       </div>
 
-      {showTeams && <TeamFeature onClose={() => setShowTeams(false)} />}
+      {showTeams  && <TeamFeature  onClose={() => setShowTeams(false)} />}
+      {showReview && <ReviewModal cohortId={cohortId} onClose={() => setShowReview(false)} />}
     </>
   )
 }
