@@ -741,7 +741,8 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
 }
 
 // ── Add Facilitator Modal ─────────────────────────────────────────────────────
-interface AdminUserResult { id: number; name?: string; email: string; role?: string }
+interface AdminUserRaw    { id?: number; userId?: number; name?: string; full_name?: string; firstName?: string; first_name?: string; lastName?: string; last_name?: string; email: string; role?: string }
+interface AdminUserResult { id: number; name: string; email: string; role?: string }
 
 function AddFacilitatorModal({ cohortId, onClose, onAdded }: { cohortId: string; onClose: () => void; onAdded: () => void }) {
   const [query, setQuery]       = useState('')
@@ -762,8 +763,17 @@ function AddFacilitatorModal({ cohortId, onClose, onAdded }: { cohortId: string;
       setSearching(true)
       try {
         const res = await apiClient.get(`/admin/users?search=${encodeURIComponent(v.trim())}&size=20`)
-        const d = unwrap<{ users?: AdminUserResult[]; content?: AdminUserResult[] } | AdminUserResult[]>(res.data)
-        const list: AdminUserResult[] = Array.isArray(d) ? d : ((d as { users?: AdminUserResult[] })?.users ?? (d as { content?: AdminUserResult[] })?.content ?? [])
+        const d = unwrap<{ users?: AdminUserRaw[]; content?: AdminUserRaw[] } | AdminUserRaw[]>(res.data)
+        const raw: AdminUserRaw[] = Array.isArray(d) ? d : ((d as { users?: AdminUserRaw[] })?.users ?? (d as { content?: AdminUserRaw[] })?.content ?? [])
+        const list: AdminUserResult[] = raw
+          .map(u => {
+            const id = u.id ?? u.userId ?? 0
+            const firstName = u.firstName ?? u.first_name ?? ''
+            const lastName  = u.lastName  ?? u.last_name  ?? ''
+            const name = u.name ?? u.full_name ?? (`${firstName} ${lastName}`.trim() || u.email)
+            return { id, name, email: u.email, role: u.role }
+          })
+          .filter(u => u.id !== 0)
         setResults(list)
       } catch { setResults([]) } finally { setSearching(false) }
     }, 350)
@@ -807,28 +817,38 @@ function AddFacilitatorModal({ cohortId, onClose, onAdded }: { cohortId: string;
                 className="w-full h-10 pl-9 pr-3.5 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#9ca3af] focus:outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10"
               />
               {searching && <Loading01Icon size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin" color="#9ca3af" strokeWidth={2} />}
-            </div>
 
-            {/* Results dropdown */}
-            {results.length > 0 && !selected && (
-              <div className="mt-1 border border-[#e5e7eb] rounded-[8px] overflow-hidden shadow-sm">
-                {results.map(u => (
-                  <button key={u.id} onClick={() => { setSelected(u); setQuery(u.name ?? u.email); setResults([]) }}
-                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#f9fafb] transition-colors text-left border-b border-[#f3f4f6] last:border-0">
-                    <div className="w-8 h-8 rounded-full bg-[#fef2f2] flex items-center justify-center flex-shrink-0">
-                      <span className="text-[11px] font-bold text-[#d51520] font-display">{getInitials(u.name ?? u.email)}</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-medium text-[#111827] font-body truncate">{u.name ?? '—'}</p>
-                      <p className="text-[11px] text-[#4b5563] font-body truncate">{u.email}</p>
-                    </div>
-                    {u.role && (
-                      <span className="text-[10px] font-semibold text-[#4b5563] bg-[#f3f4f6] px-2 py-0.5 rounded-full font-display flex-shrink-0">{u.role}</span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
+              {/* Results dropdown — absolutely positioned so it overlays content below */}
+              {results.length > 0 && !selected && (
+                <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-white border border-[#e5e7eb] rounded-[8px] shadow-[0px_4px_8px_rgba(16,24,40,0.10)] overflow-hidden"
+                  style={{ maxHeight: '212px', overflowY: 'auto' }}>
+                  {results.map(u => (
+                    <button
+                      key={u.id}
+                      type="button"
+                      onMouseDown={e => {
+                        e.preventDefault() // prevent input blur before click fires
+                        setSelected(u)
+                        setQuery(u.name)
+                        setResults([])
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#f9fafb] transition-colors text-left border-b border-[#f3f4f6] last:border-0"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-[#fef2f2] flex items-center justify-center flex-shrink-0">
+                        <span className="text-[11px] font-bold text-[#d51520] font-display">{getInitials(u.name)}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-medium text-[#111827] font-body truncate">{u.name}</p>
+                        <p className="text-[11px] text-[#4b5563] font-body truncate">{u.email}</p>
+                      </div>
+                      {u.role && (
+                        <span className="text-[10px] font-semibold text-[#4b5563] bg-[#f3f4f6] px-2 py-0.5 rounded-full font-display flex-shrink-0">{u.role}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* Selected user chip */}
             {selected && (
