@@ -1429,14 +1429,21 @@ export default function CohortDetailPage() {
         ))}
       </div>
 
-      {/* Tab content */}
+      {/* Tab content — all three stay mounted so CurriculumTab state survives tab switches.
+          display:contents makes the wrapper transparent to layout; display:none hides it. */}
       <div
         className="flex-1 bg-white"
         style={activeTab === 'Curriculum' ? { display: 'flex', flexDirection: 'column', overflow: 'hidden' } : { overflowY: 'auto' }}
       >
-        {activeTab === 'Curriculum' && <CurriculumTab cohortId={cohortId} programId={programId} onProgramIdResolved={id => setCohort(prev => prev ? { ...prev, program_id: id } : prev)} />}
-        {activeTab === 'People'     && <PeopleTab     cohortId={cohortId} />}
-        {activeTab === 'Reviews'    && <ReviewsTab    cohortId={cohortId} />}
+        <div style={activeTab === 'Curriculum' ? { display: 'contents' } : { display: 'none' }}>
+          <CurriculumTab cohortId={cohortId} programId={programId} onProgramIdResolved={id => setCohort(prev => prev ? { ...prev, program_id: id } : prev)} />
+        </div>
+        <div style={activeTab === 'People' ? { display: 'contents' } : { display: 'none' }}>
+          <PeopleTab cohortId={cohortId} />
+        </div>
+        <div style={activeTab === 'Reviews' ? { display: 'contents' } : { display: 'none' }}>
+          <ReviewsTab cohortId={cohortId} />
+        </div>
       </div>
     </div>
   )
