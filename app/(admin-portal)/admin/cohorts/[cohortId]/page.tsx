@@ -224,16 +224,6 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
         }
       }
 
-      // Step 1d: Last resort — restore from localStorage cache written at save time
-      if (!foundModulesFromAdmin) {
-        try {
-          const cached = localStorage.getItem(`brixgate_cohort_curriculum_${cohortId}`)
-          if (cached) {
-            const ids: number[] = JSON.parse(cached)
-            if (ids.length > 0) setCohortModuleIds(new Set(ids))
-          }
-        } catch { /* ignore */ }
-      }
 
       // Step 2: If programId still unknown, search all programmes to find which one owns this cohort
       if (!resolvedProgramId) {
@@ -403,10 +393,7 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
           })
           .filter((l): l is { programLessonId: number; programModuleId: number; visibilityStatus: string } => l !== null),
       })
-      const savedIds = selectedModules.map(m => m.id)
-      setCohortModuleIds(new Set(savedIds))
-      // Persist so the curriculum survives page reloads when no backend read endpoint exists
-      try { localStorage.setItem(`brixgate_cohort_curriculum_${cohortId}`, JSON.stringify(savedIds)) } catch { /* ignore */ }
+      setCohortModuleIds(new Set(selectedModules.map(m => m.id)))
       setSelectedModuleIds(new Set())
       setSelectedLessonIds(new Set())
       setSuccess(true)
