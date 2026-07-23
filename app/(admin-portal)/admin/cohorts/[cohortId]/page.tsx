@@ -174,40 +174,9 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
         }
       }
 
-      // Step 1b: Try dedicated content-selection and cohort-modules endpoints
-      if (!foundModulesFromAdmin) {
-        // Attempt the GET mirror of the save endpoint, plus two common variants
-        const selectionEndpoints = [
-          `/admin/cohorts/${cohortId}/content/selection`,
-          `/admin/cohorts/${cohortId}/content`,
-          `/admin/cohorts/${cohortId}/modules`,
-        ]
-        for (const ep of selectionEndpoints) {
-          if (foundModulesFromAdmin) break
-          const res = await apiClient.get(ep).catch(() => null)
-          if (!res) continue
-          const raw = unwrap<Record<string, unknown>>(res.data)
-          // Normalise across every plausible response shape
-          const mods: CohortModule[] = (
-            (raw?.modules        as CohortModule[] | undefined) ??
-            (raw?.lessons        as CohortModule[] | undefined) ??  // some endpoints nest under lessons
-            (raw?.selection      as CohortModule[] | undefined) ??
-            (raw?.content        as CohortModule[] | undefined) ??
-            (Array.isArray(raw)  ? (raw as CohortModule[]) : null) ??
-            []
-          )
-          if (mods.length > 0) {
-            foundModulesFromAdmin = true
-            setCohortModuleIds(new Set(mods.map(m => m.program_module_id ?? m.programModuleId ?? m.id ?? 0).filter(Boolean)))
-            if (!resolvedProgramId) {
-              const fromMod = mods[0].program_id ?? mods[0].programId ?? null
-              if (fromMod) { resolvedProgramId = fromMod; setEffectiveProgramId(fromMod); onProgramIdResolved?.(fromMod) }
-            }
-          }
-        }
-      }
-
-      // Step 1c: Fallback to student endpoint
+      // Step 1b: Fallback to student endpoint
+      // NOTE: GET /admin/cohorts/{id}/content/selection returns 500 (POST-only — no GET).
+      // Backend needs to either add a GET endpoint or embed modules in the cohort detail response.
       if (!foundModulesFromAdmin) {
         const cohortModRes = await apiClient.get(`/cohorts/${cohortId}/modules`).catch(() => null)
         if (cohortModRes) {
@@ -216,7 +185,7 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
           if (mods.length > 0) {
             foundModulesFromAdmin = true
             setCohortModuleIds(new Set(mods.map(m => m.program_module_id ?? m.programModuleId ?? 0).filter(Boolean)))
-            if (!resolvedProgramId && mods.length > 0) {
+            if (!resolvedProgramId) {
               const fromMod = mods[0].program_id ?? mods[0].programId ?? null
               if (fromMod) { resolvedProgramId = fromMod; setEffectiveProgramId(fromMod); onProgramIdResolved?.(fromMod) }
             }
