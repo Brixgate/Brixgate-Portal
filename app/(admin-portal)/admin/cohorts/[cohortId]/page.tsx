@@ -8,6 +8,7 @@ import {
   AlertCircleIcon, DatabaseIcon, Search01Icon,
   ArrowDown01Icon, ArrowRight01Icon, VideoReplayIcon, File01Icon,
   PencilEdit01Icon, Cancel01Icon, Building01Icon, UserAdd01Icon,
+  Certificate01Icon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 import { useSidebar } from '@/lib/sidebar-context'
@@ -55,6 +56,14 @@ interface Review {
   comment?: string; is_anonymous?: boolean; created_at?: string
 }
 
+interface AdminCertificate {
+  id: number
+  user_id?: number; userId?: number
+  cohort_id?: number; cohortId?: number
+  user?: { id?: number; email?: string }
+  certificate_number?: string; certificateNumber?: string
+}
+
 // Merged row for the People tab
 interface PersonRow {
   key: string
@@ -69,6 +78,7 @@ interface PersonRow {
   completionStatus: string
   joinedAt: string
   organizationName: string      // '' if not a team enrollment
+  userId: number | null         // needed for certificate POST
 }
 
 function getInitials(name: string): string {
@@ -925,18 +935,23 @@ function AddFacilitatorModal({ cohortId, onClose, onAdded }: { cohortId: string;
 }
 
 // ── Tab: People (merged Members + Enrollments) ────────────────────────────────
-function PeopleTab({ cohortId }: { cohortId: string }) {
+function PeopleTab({ cohortId, programId }: { cohortId: string; programId: number | null }) {
   const [rows, setRows]                   = useState<PersonRow[]>([])
   const [loading, setLoading]             = useState(true)
   const [selectedPerson, setSelectedPerson] = useState<PersonRow | null>(null)
   const [showAddFacilitator, setShowAddFacilitator] = useState(false)
+  // email → certificate id for issued certs
+  const [certMap, setCertMap]             = useState<Map<string, number>>(new Map())
+  const [togglingEmail, setTogglingEmail] = useState<string | null>(null)
+  const [toggleError, setToggleError]     = useState('')
 
   const loadPeople = useCallback(async () => {
     setLoading(true)
     try {
-      const [membRes, enrollRes] = await Promise.allSettled([
+      const [membRes, enrollRes, certRes] = await Promise.allSettled([
         apiClient.get(`/admin/cohorts/${cohortId}/members?size=100`),
         apiClient.get(`/admin/cohort-enrollments?cohort_id=${cohortId}&size=100`),
+        apiClient.get(`/admin/user-certificates?cohort_id=${cohortId}&size=200`),
       ])
 
         const members: Member[] = membRes.status === 'fulfilled'
@@ -946,6 +961,17 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
         const enrollments: Enrollment[] = enrollRes.status === 'fulfilled'
           ? (() => { const d = unwrap<{ enrollments?: Enrollment[] }>(enrollRes.value.data); return Array.isArray(d?.enrollments) ? d.enrollments : [] })()
           : []
+
+        // Build email → certId map from admin certificates
+        if (certRes.status === 'fulfilled') {
+          const cd = unwrap<{ certificates?: AdminCertificate[]; data?: AdminCertificate[] } | AdminCertificate[]>(certRes.value.data)
+          const certs: AdminCertificate[] = Array.isArray(cd)
+            ? cd
+            : ((cd as { certificates?: AdminCertificate[] })?.certificates ?? [])
+          const map = new Map<string, number>()
+          certs.forEach(c => { if (c.user?.email && c.id) map.set(c.user.email, c.id) })
+          setCertMap(map)
+        }
 
         const roleByEmail: Record<string, string> = {}
         members.forEach(m => {
@@ -965,6 +991,7 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
           completionStatus: (e.completionStatus ?? e.completion_status ?? 'NOT_STARTED').replace(/_/g, ' '),
           joinedAt:         formatDateTime(e.created_at ?? e.createdAt),
           organizationName: e.organizationName ?? e.organization_name ?? '',
+          userId:           e.user?.id ?? null,
         }))
 
         const enrollmentEmails = new Set(enrollments.map(e => e.user?.email ?? ''))
@@ -983,11 +1010,36 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
             completionStatus: '—',
             joinedAt:         '—',
             organizationName: '',
+            userId:           m.user?.id ?? null,
           }))
 
         setRows([...enrollmentRows, ...memberOnlyRows])
       } catch { setRows([]) } finally { setLoading(false) }
   }, [cohortId])
+
+  async function toggleCertificate(e: React.MouseEvent, row: PersonRow) {
+    e.stopPropagation()
+    if (togglingEmail === row.email || !row.userId) return
+    const existingCertId = certMap.get(row.email)
+    setTogglingEmail(row.email)
+    try {
+      if (existingCertId) {
+        await apiClient.delete(`/admin/user-certificates/${existingCertId}`)
+        setCertMap(prev => { const n = new Map(prev); n.delete(row.email); return n })
+      } else {
+        const res = await apiClient.post('/admin/user-certificates', {
+          user_id:  row.userId,
+          cohort_id: Number(cohortId),
+          ...(programId ? { program_id: programId } : {}),
+        })
+        const cert = unwrap<AdminCertificate>(res.data)
+        if (cert?.id) setCertMap(prev => new Map(prev).set(row.email, cert.id))
+      }
+    } catch (err) {
+      setToggleError(getApiError(err))
+      setTimeout(() => setToggleError(''), 4000)
+    } finally { setTogglingEmail(null) }
+  }
 
   useEffect(() => { loadPeople() }, [loadPeople])
 
@@ -1031,6 +1083,11 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
           onAdded={() => { setShowAddFacilitator(false); loadPeople() }}
         />
       )}
+      {toggleError && (
+        <div className="mx-6 mt-3 px-3 py-2 bg-[#fef2f2] border border-[#fecdca] rounded-[6px] text-[12px] text-[#d51520] font-body">
+          {toggleError}
+        </div>
+      )}
       <div className="px-6 pt-4 pb-2 flex items-center justify-between">
         <p className="text-[12px] text-[#4b5563] font-body">{rows.length} member{rows.length !== 1 ? 's' : ''} in this cohort</p>
         <button onClick={() => setShowAddFacilitator(true)}
@@ -1043,10 +1100,10 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
         <table className="w-full">
           <thead>
             <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
-              {['Name', 'Email', 'Role', 'Plan', 'Seats', 'Status', 'Progress', 'Joined'].map(h => (
+              {['Name', 'Email', 'Role', 'Plan', 'Seats', 'Status', 'Progress', 'Joined', 'Certificate'].map(h => (
                 <th key={h}
                   className={`px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display ${
-                    h === 'Seats' ? 'text-center' : 'text-left'
+                    h === 'Seats' || h === 'Certificate' ? 'text-center' : 'text-left'
                   }`}>
                   {h}
                 </th>
@@ -1056,7 +1113,7 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-12 text-center text-[13px] text-[#4b5563] font-body">
+                <td colSpan={9} className="px-4 py-12 text-center text-[13px] text-[#4b5563] font-body">
                   No people in this cohort yet
                 </td>
               </tr>
@@ -1116,6 +1173,28 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
                 </td>
                 <td className="px-4 py-3.5">
                   <p className="text-[12px] text-[#4b5563] font-body whitespace-nowrap">{r.joinedAt}</p>
+                </td>
+                {/* Certificate toggle */}
+                <td className="px-4 py-3.5 text-center">
+                  <button
+                    onClick={e => toggleCertificate(e, r)}
+                    disabled={togglingEmail === r.email || !r.userId}
+                    title={certMap.has(r.email) ? 'Revoke certificate' : 'Issue certificate'}
+                    className={`relative inline-flex items-center w-10 h-6 rounded-full transition-colors duration-200 ${
+                      certMap.has(r.email) ? 'bg-[#d51520]' : 'bg-[#e5e7eb]'
+                    } ${togglingEmail === r.email ? 'opacity-60 cursor-wait' : r.userId ? 'cursor-pointer' : 'opacity-40 cursor-not-allowed'}`}
+                  >
+                    {togglingEmail === r.email
+                      ? <Loading01Icon size={12} className="animate-spin mx-auto" color="white" strokeWidth={2} />
+                      : <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200 ${certMap.has(r.email) ? 'translate-x-5' : 'translate-x-1'}`} />
+                    }
+                  </button>
+                  {certMap.has(r.email) && (
+                    <div className="flex items-center justify-center gap-1 mt-1">
+                      <Certificate01Icon size={10} color="#d51520" strokeWidth={1.5} />
+                      <span className="text-[9px] text-[#d51520] font-semibold font-display">Issued</span>
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}
@@ -1480,7 +1559,7 @@ export default function CohortDetailPage() {
           <CurriculumTab cohortId={cohortId} programId={programId} onProgramIdResolved={id => setCohort(prev => prev ? { ...prev, program_id: id } : prev)} />
         </div>
         <div style={activeTab === 'People' ? { display: 'contents' } : { display: 'none' }}>
-          <PeopleTab cohortId={cohortId} />
+          <PeopleTab cohortId={cohortId} programId={programId} />
         </div>
         <div style={activeTab === 'Reviews' ? { display: 'contents' } : { display: 'none' }}>
           <ReviewsTab cohortId={cohortId} />

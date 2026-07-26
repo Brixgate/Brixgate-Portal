@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import TopNav from '@/components/layout/TopNav'
-import { Award01Icon, LockIcon, Download01Icon, CheckmarkCircle01Icon, Loading01Icon } from 'hugeicons-react'
+import { Award01Icon, LockIcon, Download01Icon, CheckmarkCircle01Icon, Loading01Icon, Share01Icon } from 'hugeicons-react'
 import EmptyState from '@/components/shared/EmptyState'
 import { apiClient, unwrap } from '@/lib/api-client'
 import { useAuth } from '@/lib/auth-context'
@@ -40,6 +40,10 @@ interface ApiCertification {
   issued_at?: string
   certificate_url?: string
   pdf_url?: string
+  certificate_number?: string
+  certificateNumber?: string
+  cohort_title?: string
+  cohortTitle?: string
 }
 
 // ── Normalised ────────────────────────────────────────────────────────────────
@@ -53,6 +57,7 @@ interface CertRow {
   endDate: string
   certificateUrl: string | null
   issuedAt: string | null
+  certificateNumber: string | null
 }
 
 function normaliseProgramToCertRow(raw: ApiProgram, certMap: Map<number, ApiCertification>): CertRow {
@@ -73,19 +78,15 @@ function normaliseProgramToCertRow(raw: ApiProgram, certMap: Map<number, ApiCert
     endDate: cohort?.end_date
       ? new Date(cohort.end_date).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })
       : '—',
-    certificateUrl: cert?.certificate_url ?? cert?.pdf_url ?? null,
-    issuedAt: cert?.issued_at
+    certificateUrl:    cert?.certificate_url ?? cert?.pdf_url ?? null,
+    issuedAt:          cert?.issued_at
       ? new Date(cert.issued_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })
       : null,
+    certificateNumber: cert?.certificate_number ?? cert?.certificateNumber ?? null,
   }
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
-function getStatusBadge(progress: number) {
-  if (progress >= 100) return { label: 'Completed', color: '#16a34a', bg: '#ecfdf3', border: '#bbf7d0' }
-  if (progress > 0)    return { label: 'In Progress', color: '#d97706', bg: '#fffbeb', border: '#fde68a' }
-  return                      { label: 'Not Started', color: '#9ca3af', bg: '#f9fafb', border: '#e5e7eb' }
-}
 
 function RequirementItem({ done, label }: { done: boolean; label: string }) {
   return (
@@ -103,167 +104,188 @@ function RequirementItem({ done, label }: { done: boolean; label: string }) {
 }
 
 function CertificateCard({ row, fullName }: { row: CertRow; fullName: string }) {
-  const { title, cohortLabel, progress, endDate, certificateUrl } = row
-  const isUnlocked = progress >= 100
-  const status = getStatusBadge(progress)
+  const { title, cohortLabel, issuedAt, certificateNumber } = row
+  // Unlocked = admin has issued the certificate (not based on progress)
+  const isUnlocked = issuedAt !== null
+  const [sharing, setSharing] = useState(false)
 
-  const requirements = [
-    { label: 'Attend at least 80% of live sessions', done: progress >= 40 },
-    { label: 'Submit all required assignments',       done: progress >= 60 },
-    { label: 'Complete all session materials',        done: progress >= 80 },
-    { label: 'Final assessment passed',               done: progress >= 100 },
-  ]
+  function handleDownload() {
+    // Print the certificate section — use window.print() with a print-only style
+    window.print()
+  }
+
+  async function handleShare() {
+    const text = `🎓 I'm proud to have completed ${title} at Brixgate!\n\nThis certificate was awarded to ${fullName} on ${issuedAt} for successfully completing ${title}${cohortLabel ? ` — ${cohortLabel}` : ''}.${certificateNumber ? `\n\nCertificate No: ${certificateNumber}` : ''}\n\n#Brixgate #AITraining #Certificate`
+    setSharing(true)
+    try {
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        await navigator.share({ title: 'My Brixgate Certificate', text })
+      } else {
+        await navigator.clipboard.writeText(text)
+        alert('Share text copied to clipboard!')
+      }
+    } catch { /* user cancelled */ } finally { setSharing(false) }
+  }
 
   return (
     <div className="grid grid-cols-[1fr_340px] gap-5">
-      {/* Left: certificate preview */}
+      {/* Left: certificate visual */}
       <div className="flex flex-col gap-4">
-        {/* Progress banner */}
-        <div className="bg-[#fef2f2] border border-[#fecdca] rounded-[12px] p-5">
-          <div className="flex items-center justify-between mb-3">
+
+        {/* Status banner */}
+        <div className={`rounded-[12px] p-5 border ${isUnlocked ? 'bg-[#ecfdf3] border-[#bbf7d0]' : 'bg-[#fef2f2] border-[#fecdca]'}`}>
+          <div className="flex items-center gap-3">
+            <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${isUnlocked ? 'bg-[#dcfce7]' : 'bg-[#fee2e2]'}`}>
+              {isUnlocked
+                ? <CheckmarkCircle01Icon size={20} color="#16a34a" strokeWidth={1.5} />
+                : <LockIcon size={18} color="#d51520" strokeWidth={1.5} />
+              }
+            </div>
             <div>
-              <p className="text-[15px] font-semibold text-[#111827] font-display leading-tight">{title}</p>
-              <p className="text-[12px] text-[#4b5563] font-body mt-0.5">{cohortLabel}</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <span
-                className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full border font-display"
-                style={{ color: status.color, background: status.bg, borderColor: status.border }}
-              >
-                {status.label}
-              </span>
-              <span className="text-[22px] font-bold text-[#d51520] font-display">{progress}%</span>
+              <p className={`text-[14px] font-semibold font-display ${isUnlocked ? 'text-[#166534]' : 'text-[#991b1b]'}`}>
+                {isUnlocked ? 'Certificate issued' : 'Certificate pending'}
+              </p>
+              <p className={`text-[12px] font-body mt-0.5 ${isUnlocked ? 'text-[#16a34a]' : 'text-[#d51520]'}`}>
+                {isUnlocked
+                  ? `Issued on ${issuedAt}`
+                  : 'Your instructor has not yet issued your certificate'}
+              </p>
             </div>
           </div>
-          <div className="h-2 bg-white rounded-full overflow-hidden">
-            <div
-              className="h-full bg-[#d51520] rounded-full transition-all duration-700"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <p className="text-[12px] text-[#4b5563] font-body mt-2">
-            {isUnlocked
-              ? 'Programme complete — your certificate is ready!'
-              : `${100 - progress}% remaining to unlock your certificate`}
-          </p>
         </div>
 
-        {/* Certificate design */}
-        <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] overflow-hidden">
+        {/* Certificate preview */}
+        <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] overflow-hidden" id="certificate-print-area">
           <div className="relative">
+            {/* Certificate visual — replace inner content with <img> when template image is provided */}
             <div
-              className={`relative min-h-[340px] flex flex-col items-center justify-center p-10 text-center ${!isUnlocked ? 'select-none' : ''}`}
+              className={`relative min-h-[380px] flex flex-col items-center justify-center p-10 text-center ${!isUnlocked ? 'select-none' : ''}`}
               style={{ background: 'linear-gradient(160deg, #fff9f9 0%, #ffffff 50%, #fff9f9 100%)', borderBottom: '1px solid #f3f4f6' }}
             >
               {/* Corner decorations */}
-              <div className="absolute top-4 left-4 w-7 h-7 border-t-2 border-l-2 border-[#fecdca] rounded-tl-[4px]" />
-              <div className="absolute top-4 right-4 w-7 h-7 border-t-2 border-r-2 border-[#fecdca] rounded-tr-[4px]" />
-              <div className="absolute bottom-4 left-4 w-7 h-7 border-b-2 border-l-2 border-[#fecdca] rounded-bl-[4px]" />
-              <div className="absolute bottom-4 right-4 w-7 h-7 border-b-2 border-r-2 border-[#fecdca] rounded-br-[4px]" />
+              <div className="absolute top-4 left-4 w-8 h-8 border-t-2 border-l-2 border-[#fecdca] rounded-tl-[4px]" />
+              <div className="absolute top-4 right-4 w-8 h-8 border-t-2 border-r-2 border-[#fecdca] rounded-tr-[4px]" />
+              <div className="absolute bottom-4 left-4 w-8 h-8 border-b-2 border-l-2 border-[#fecdca] rounded-bl-[4px]" />
+              <div className="absolute bottom-4 right-4 w-8 h-8 border-b-2 border-r-2 border-[#fecdca] rounded-br-[4px]" />
 
               {/* Lock overlay */}
               {!isUnlocked && (
-                <div className="absolute inset-0 backdrop-blur-[6px] bg-white/60 z-10 flex flex-col items-center justify-center gap-3">
+                <div className="absolute inset-0 backdrop-blur-[6px] bg-white/70 z-10 flex flex-col items-center justify-center gap-3">
                   <div className="w-14 h-14 rounded-full bg-[#f3f4f6] flex items-center justify-center">
-                    <LockIcon size={24} color="#4b5563" strokeWidth={1.5} />
+                    <LockIcon size={26} color="#9ca3af" strokeWidth={1.5} />
                   </div>
-                  <p className="text-[14px] font-semibold text-[#374151] font-display">
-                    Complete the programme to unlock
-                  </p>
-                  <p className="text-[12px] text-[#4b5563] font-body max-w-[240px]">
-                    {100 - progress}% remaining — keep going!
+                  <p className="text-[14px] font-semibold text-[#374151] font-display">Certificate not yet issued</p>
+                  <p className="text-[12px] text-[#6b7280] font-body max-w-[240px]">
+                    Your instructor will issue your certificate once they&apos;ve reviewed your performance.
                   </p>
                 </div>
               )}
 
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#d51520] font-display mb-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#d51520] font-display mb-5">
                 Certificate of Completion
               </p>
-              <p className="text-[13px] text-[#4b5563] font-body mb-2">This is to certify that</p>
-              <p className="text-[28px] font-bold text-[#111827] font-display leading-tight mb-3">
-                {fullName}
-              </p>
-              <p className="text-[12px] text-[#4b5563] font-body mb-1">has successfully completed</p>
-              <p className="text-[16px] font-semibold text-[#111827] font-display max-w-[360px] mb-1">{title}</p>
-              <p className="text-[11px] text-[#4b5563] font-body">{cohortLabel}</p>
+              <p className="text-[13px] text-[#6b7280] font-body mb-2">This is to certify that</p>
+              <p className="text-[30px] font-bold text-[#111827] font-display leading-tight mb-3">{fullName}</p>
+              <p className="text-[12px] text-[#6b7280] font-body mb-2">has successfully completed</p>
+              <p className="text-[17px] font-semibold text-[#111827] font-display max-w-[380px] leading-snug mb-1">{title}</p>
+              {cohortLabel && <p className="text-[12px] text-[#6b7280] font-body">{cohortLabel}</p>}
 
-              <div className="mt-5 flex items-center gap-6">
+              <div className="mt-6 flex items-center gap-8">
                 <div className="text-center">
-                  <div className="w-20 h-px bg-[#e5e7eb] mb-1 mx-auto" />
-                  <p className="text-[10px] text-[#4b5563] font-body">{isUnlocked ? endDate : 'Date'}</p>
+                  <div className="w-24 h-px bg-[#e5e7eb] mb-1.5 mx-auto" />
+                  <p className="text-[10px] text-[#6b7280] font-body">{issuedAt ?? '—'}</p>
+                  <p className="text-[9px] text-[#9ca3af] font-body uppercase tracking-wider mt-0.5">Date Issued</p>
                 </div>
-                <div className="w-9 h-9 rounded-full border-2 border-[#d51520] flex items-center justify-center">
-                  <span className="text-[9px] font-bold text-[#d51520] font-display">BG</span>
+                <div className="w-10 h-10 rounded-full border-2 border-[#d51520] flex items-center justify-center">
+                  <span className="text-[10px] font-bold text-[#d51520] font-display">BG</span>
                 </div>
                 <div className="text-center">
-                  <div className="w-20 h-px bg-[#e5e7eb] mb-1 mx-auto" />
-                  <p className="text-[10px] text-[#4b5563] font-body">Instructor</p>
+                  <div className="w-24 h-px bg-[#e5e7eb] mb-1.5 mx-auto" />
+                  <p className="text-[10px] text-[#6b7280] font-body">Brixgate Academy</p>
+                  <p className="text-[9px] text-[#9ca3af] font-body uppercase tracking-wider mt-0.5">Issuer</p>
                 </div>
               </div>
+
+              {certificateNumber && (
+                <p className="mt-4 text-[9px] text-[#9ca3af] font-body tracking-widest uppercase">
+                  Certificate No: {certificateNumber}
+                </p>
+              )}
             </div>
 
-            {/* Download bar */}
-            <div className="px-6 py-4 flex items-center justify-between">
-              <p className="text-[12px] text-[#4b5563] font-body">
-                {isUnlocked ? 'Your certificate is ready to download.' : 'Certificate locked until programme completion.'}
+            {/* Action bar */}
+            <div className="px-6 py-4 flex items-center justify-between gap-3">
+              <p className="text-[12px] text-[#6b7280] font-body">
+                {isUnlocked ? 'Download or share your certificate.' : 'Available once your instructor issues it.'}
               </p>
-              {isUnlocked && certificateUrl ? (
-                <a
-                  href={certificateUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 text-[13px] font-medium font-display px-4 py-2 rounded-[8px] bg-[#d51520] text-white hover:bg-[#b81119] transition-colors"
-                >
-                  <Download01Icon size={14} strokeWidth={1.5} />
-                  Download PDF
-                </a>
-              ) : (
+              <div className="flex items-center gap-2">
                 <button
+                  onClick={handleShare}
+                  disabled={!isUnlocked || sharing}
+                  className={`inline-flex items-center gap-2 text-[13px] font-semibold font-display px-4 py-2 rounded-[8px] border transition-colors ${
+                    isUnlocked
+                      ? 'border-[#d1d5dd] text-[#374151] hover:bg-[#f9fafb]'
+                      : 'border-[#e5e7eb] text-[#d1d5db] cursor-not-allowed'
+                  }`}
+                >
+                  <Share01Icon size={14} strokeWidth={1.5} />
+                  Share
+                </button>
+                <button
+                  onClick={handleDownload}
                   disabled={!isUnlocked}
-                  className={`inline-flex items-center gap-2 text-[13px] font-medium font-display px-4 py-2 rounded-[8px] transition-colors ${
+                  className={`inline-flex items-center gap-2 text-[13px] font-semibold font-display px-4 py-2 rounded-[8px] transition-colors ${
                     isUnlocked
                       ? 'bg-[#d51520] text-white hover:bg-[#b81119]'
                       : 'bg-[#f3f4f6] text-[#d1d5db] cursor-not-allowed'
                   }`}
                 >
                   <Download01Icon size={14} strokeWidth={1.5} />
-                  Download PDF
+                  Download
                 </button>
-              )}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Right: requirements + details */}
+      {/* Right: details */}
       <div className="flex flex-col gap-4">
-        <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] p-6">
-          <p className="text-[15px] font-semibold text-[#111827] font-display mb-0.5">Requirements</p>
-          <p className="text-[12px] text-[#4b5563] font-body mb-4">Complete all steps to unlock your certificate.</p>
-          <div className="flex flex-col gap-3">
-            {requirements.map(({ label, done }) => (
-              <RequirementItem key={label} done={done} label={label} />
-            ))}
-          </div>
-        </div>
-
         <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] p-6">
           <p className="text-[15px] font-semibold text-[#111827] font-display mb-4">Certificate Details</p>
           <div className="flex flex-col gap-4">
             {[
-              { label: 'Recipient',   value: fullName },
-              { label: 'Programme',   value: title },
-              { label: 'Cohort',      value: cohortLabel },
-              { label: 'Course Ends', value: endDate },
-              { label: 'Issuer',      value: 'Brixgate Academy' },
+              { label: 'Recipient',          value: fullName },
+              { label: 'Programme',          value: title },
+              { label: 'Cohort',             value: cohortLabel || '—' },
+              { label: 'Date of Issue',      value: issuedAt ?? 'Pending' },
+              { label: 'Certificate No.',    value: certificateNumber ?? 'Pending' },
+              { label: 'Issuer',             value: 'Brixgate Academy' },
             ].map(({ label, value }) => (
               <div key={label} className="flex flex-col gap-0.5">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-[#4b5563] font-display">{label}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">{label}</p>
                 <p className="text-[13px] font-medium text-[#374151] font-body">{value}</p>
               </div>
             ))}
           </div>
         </div>
+
+        {!isUnlocked && (
+          <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] p-6">
+            <p className="text-[15px] font-semibold text-[#111827] font-display mb-0.5">What&apos;s next?</p>
+            <p className="text-[12px] text-[#6b7280] font-body mb-4">Steps your instructor evaluates before issuing your certificate.</p>
+            <div className="flex flex-col gap-3">
+              {[
+                'Attend at least 80% of live sessions',
+                'Submit all required assignments',
+                'Complete all session materials',
+                'Pass the final assessment',
+              ].map(label => (
+                <RequirementItem key={label} done={false} label={label} />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
