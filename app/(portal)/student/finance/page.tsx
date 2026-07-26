@@ -38,6 +38,7 @@ interface ApiPaymentPlan {
   installments?: ApiInstallment[]
   payment_schedule?: ApiInstallment[]
   pricing_plan_id?: number; pricingPlanId?: number
+  currency?: string
 }
 
 interface ApiWallet {
@@ -77,6 +78,7 @@ interface PaymentPlan {
   amountOutstanding: number
   installments: Installment[]
   pricingPlanId: number | null
+  currency: string
 }
 
 interface WalletTx {
@@ -128,6 +130,7 @@ function normalisePlan(r: ApiPaymentPlan): PaymentPlan {
     amountOutstanding: r.amount_outstanding ?? r.amountOutstanding ?? 0,
     installments,
     pricingPlanId:     r.pricing_plan_id ?? r.pricingPlanId ?? null,
+    currency:          r.currency ?? 'NGN',
   }
 }
 
@@ -197,6 +200,7 @@ function PayButton({ plan, installment, onSuccess }: {
           pricing_plan_id:            plan.pricingPlanId,
           enrollment_payment_plan_id: plan.id,
           payment_method:             'PAYSTACK',
+          currency:                   plan.currency,
         })
       )
       const url = res.authorization_url ?? res.authorizationUrl

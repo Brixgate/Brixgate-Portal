@@ -120,9 +120,9 @@ function CertificateCard({ row, fullName }: { row: CertRow; fullName: string }) 
       const certUrl = `https://brixgate.com/verify/${certificateNumber ?? ''}`
       const linkedInUrl = `https://www.linkedin.com/shareArticle?mini=true&url=${encodeURIComponent(certUrl)}&title=${encodeURIComponent(`${title} Certificate`)}&summary=${encodeURIComponent(`I completed ${title} at Brixgate!`)}`
 
-      // signatories from cert metadata: [0] = expert/director, [1] = tutor/instructor
-      const tutorLabel  = signatories[1] ?? 'Lead Instructor'
-      const expertLabel = signatories[0] ?? 'Program Director'
+      // signatories from cert metadata: [0] = tutor/instructor, [1] = expert/practitioner
+      const tutorLabel  = signatories[0] ?? 'Lead Instructor'
+      const expertLabel = signatories[1] ?? 'Expert Practitioner'
 
       const replacements: Record<string, string> = {
         '{{HOLDER_NAME}}':       fullName,
