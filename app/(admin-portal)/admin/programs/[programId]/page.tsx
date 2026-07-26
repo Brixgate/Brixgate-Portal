@@ -7,6 +7,7 @@ import {
   Delete01Icon, ArrowDown01Icon, ArrowRight01Icon,
   ArrowLeft01Icon, File01Icon, BookOpen01Icon, VideoReplayIcon,
   Upload01Icon, Link01Icon, PencilEdit01Icon, Invoice01Icon,
+  Payment01Icon, CheckmarkCircle01Icon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 
@@ -832,6 +833,332 @@ function PricingPlanModal({
   )
 }
 
+// ── Payment options ────────────────────────────────────────────────────────────
+interface PaymentOption {
+  id: number
+  payment_mode?: string; paymentMode?: string
+  installment_calculation_type?: string; installmentCalculationType?: string
+  number_of_installments?: number; numberOfInstallments?: number
+  grace_period_days?: number; gracePeriodDays?: number
+  suspend_access_on_overdue?: boolean; suspendAccessOnOverdue?: boolean
+  status?: string; is_active?: boolean; isActive?: boolean
+}
+
+interface InstallmentDef { amount_type: 'FIXED_AMOUNT' | 'PERCENTAGE'; amount_value: string; due_offset_days: string }
+
+function PaymentOptionsModal({ planId, breakdown, onClose }: {
+  planId: number
+  breakdown: PricingBreakdown
+  onClose: () => void
+}) {
+  const [options,  setOptions]  = useState<PaymentOption[]>([])
+  const [loading,  setLoading]  = useState(true)
+  const [creating, setCreating] = useState(false)
+  const [saving,   setSaving]   = useState(false)
+  const [toggling, setToggling] = useState<number | null>(null)
+  const [error,    setError]    = useState('')
+
+  // Form state
+  const [mode,            setMode]            = useState<'FULL' | 'FIXED_INSTALLMENT' | 'FLEXIBLE_PART_PAYMENT'>('FULL')
+  const [calcType,        setCalcType]        = useState<'EQUAL' | 'CUSTOM'>('EQUAL')
+  const [numInstallments, setNumInstallments] = useState('3')
+  const [graceDays,       setGraceDays]       = useState('5')
+  const [suspendOnOverdue, setSuspendOnOverdue] = useState(true)
+  const [customInsts,     setCustomInsts]     = useState<InstallmentDef[]>([
+    { amount_type: 'PERCENTAGE', amount_value: '', due_offset_days: '0' }
+  ])
+
+  const bdId = breakdown.id
+
+  const loadOptions = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await apiClient.get(`/admin/pricing-plans/${planId}/breakdowns/${bdId}/payment-options`)
+      const raw = res.data
+      const list = (Array.isArray(raw) ? raw : (raw?.data ?? raw?.options ?? raw?.content ?? [])) as PaymentOption[]
+      setOptions(list)
+    } catch { setOptions([]) } finally { setLoading(false) }
+  }, [planId, bdId])
+
+  useEffect(() => { loadOptions() }, [loadOptions])
+
+  function addCustomRow() {
+    setCustomInsts(p => [...p, { amount_type: 'PERCENTAGE', amount_value: '', due_offset_days: '' }])
+  }
+
+  function updateCustomRow(i: number, field: keyof InstallmentDef, value: string) {
+    setCustomInsts(p => p.map((r, idx) => idx === i ? { ...r, [field]: value } : r))
+  }
+
+  function removeCustomRow(i: number) {
+    setCustomInsts(p => p.filter((_, idx) => idx !== i))
+  }
+
+  async function handleCreate() {
+    setSaving(true); setError('')
+    try {
+      const payload: Record<string, unknown> = {
+        payment_mode: mode,
+        grace_period_days: Number(graceDays) || 5,
+        suspend_access_on_overdue: suspendOnOverdue,
+      }
+      if (mode !== 'FULL') {
+        payload.installment_calculation_type = calcType
+        payload.number_of_installments = Number(numInstallments) || 3
+        if (calcType === 'CUSTOM') {
+          payload.installment_schedule = customInsts.map(r => ({
+            amount_type: r.amount_type,
+            amount_value: parseFloat(r.amount_value) || 0,
+            due_offset_days: Number(r.due_offset_days) || 0,
+          }))
+        }
+      }
+      await apiClient.post(`/admin/pricing-plans/${planId}/breakdowns/${bdId}/payment-options`, payload)
+      setCreating(false)
+      await loadOptions()
+    } catch (e) { setError(getApiError(e)) } finally { setSaving(false) }
+  }
+
+  async function handleToggle(opt: PaymentOption) {
+    setToggling(opt.id)
+    const isActive = opt.is_active ?? opt.isActive ?? opt.status === 'ACTIVE'
+    try {
+      if (isActive) {
+        await apiClient.patch(`/admin/pricing-plans/${planId}/breakdowns/${bdId}/payment-options/${opt.id}/disable`)
+      } else {
+        await apiClient.patch(`/admin/pricing-plans/${planId}/breakdowns/${bdId}/payment-options/${opt.id}/enable`)
+      }
+      await loadOptions()
+    } catch { /* ignore */ } finally { setToggling(null) }
+  }
+
+  async function handleDelete(optId: number) {
+    try {
+      await apiClient.delete(`/admin/pricing-plans/${planId}/breakdowns/${bdId}/payment-options/${optId}`)
+      await loadOptions()
+    } catch { /* ignore */ }
+  }
+
+  const MODE_LABELS: Record<string, string> = {
+    FULL: 'Full Payment', FIXED_INSTALLMENT: 'Fixed Installments', FLEXIBLE_PART_PAYMENT: 'Flexible Part Payment',
+  }
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/30 z-[59]" onClick={!saving ? onClose : undefined} />
+      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] bg-white rounded-[12px] shadow-[0px_12px_32px_rgba(16,24,40,0.16)] w-[560px] max-h-[86vh] flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="px-6 pt-5 pb-4 border-b border-[#f3f4f6] flex items-start justify-between flex-shrink-0">
+          <div>
+            <h3 className="text-[15px] font-bold text-[#111827] font-display">Payment Options</h3>
+            <p className="text-[12px] text-[#6b7280] font-body mt-0.5">
+              {breakdown.currency} breakdown — define how students can pay
+            </p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f3f4f6] transition-colors flex-shrink-0">
+            <Cancel01Icon size={16} color="#4b5563" strokeWidth={1.5} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {/* Existing options */}
+          <div className="px-6 pt-5">
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loading01Icon size={20} className="animate-spin" color="#9ca3af" strokeWidth={1.5} />
+              </div>
+            ) : options.length === 0 && !creating ? (
+              <div className="text-center py-8">
+                <div className="w-12 h-12 rounded-[10px] bg-[#f3f4f6] flex items-center justify-center mx-auto mb-3">
+                  <Payment01Icon size={22} color="#9ca3af" strokeWidth={1.5} />
+                </div>
+                <p className="text-[13px] font-semibold text-[#374151] font-display mb-0.5">No payment options yet</p>
+                <p className="text-[12px] text-[#9ca3af] font-body">Add at least one option so students can pay at enrolment.</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2 mb-4">
+                {options.map(opt => {
+                  const isActive = opt.is_active ?? opt.isActive ?? opt.status === 'ACTIVE'
+                  const modeLabel = MODE_LABELS[opt.payment_mode ?? opt.paymentMode ?? ''] ?? (opt.payment_mode ?? opt.paymentMode ?? '—')
+                  const instCount = opt.number_of_installments ?? opt.numberOfInstallments
+                  const grace     = opt.grace_period_days ?? opt.gracePeriodDays
+                  return (
+                    <div key={opt.id} className="flex items-center justify-between gap-3 p-4 rounded-[8px] border border-[#eaecf0] bg-[#fafafa]">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-[13px] font-semibold text-[#111827] font-display">{modeLabel}</p>
+                          {instCount && (
+                            <span className="text-[10px] font-semibold bg-[#eff6ff] text-[#1d4ed8] px-2 py-0.5 rounded-full font-display">
+                              {instCount} instalments
+                            </span>
+                          )}
+                          {grace && (
+                            <span className="text-[10px] text-[#6b7280] font-body">{grace}d grace</span>
+                          )}
+                        </div>
+                        {(opt.suspend_access_on_overdue ?? opt.suspendAccessOnOverdue) && (
+                          <p className="text-[11px] text-amber-600 font-body mt-0.5">Suspends access on overdue</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {/* Active toggle */}
+                        <button
+                          onClick={() => handleToggle(opt)}
+                          disabled={toggling === opt.id}
+                          className={`relative w-10 h-5 rounded-full transition-colors duration-200 flex-shrink-0 ${isActive ? 'bg-[#d51520]' : 'bg-[#d1d5db]'} disabled:opacity-60`}
+                          title={isActive ? 'Disable' : 'Enable'}
+                        >
+                          {toggling === opt.id
+                            ? <Loading01Icon size={12} className="absolute inset-0 m-auto animate-spin" color="white" strokeWidth={2} />
+                            : <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${isActive ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                          }
+                        </button>
+                        <button onClick={() => handleDelete(opt.id)}
+                          className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#fef2f2] transition-colors">
+                          <Delete01Icon size={13} color="#d51520" strokeWidth={1.5} />
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Create form */}
+          {creating && (
+            <div className="px-6 pb-2">
+              <div className="border border-[#eaecf0] rounded-[10px] p-5 bg-white flex flex-col gap-4">
+                <p className="text-[13px] font-bold text-[#111827] font-display">New Payment Option</p>
+
+                {/* Payment mode */}
+                <div>
+                  <p className="text-[11px] font-medium text-[#374151] font-body mb-2">Payment Mode</p>
+                  <div className="flex flex-col gap-1.5">
+                    {(['FULL', 'FIXED_INSTALLMENT', 'FLEXIBLE_PART_PAYMENT'] as const).map(m => (
+                      <button key={m} onClick={() => setMode(m)}
+                        className={`flex items-center gap-2.5 h-10 px-3 rounded-[8px] border text-left text-[13px] font-medium font-display transition-colors ${
+                          mode === m ? 'border-[#d51520] bg-[#fef2f2] text-[#d51520]' : 'border-[#e5e7eb] bg-white text-[#374151] hover:bg-[#f9fafb]'
+                        }`}>
+                        <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${mode === m ? 'border-[#d51520]' : 'border-[#d1d5db]'}`}>
+                          {mode === m && <div className="w-2 h-2 rounded-full bg-[#d51520]" />}
+                        </div>
+                        {MODE_LABELS[m]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {mode !== 'FULL' && (
+                  <>
+                    {/* Calculation type */}
+                    <div>
+                      <p className="text-[11px] font-medium text-[#374151] font-body mb-1.5">Installment Calculation</p>
+                      <div className="flex gap-2">
+                        {(['EQUAL', 'CUSTOM'] as const).map(t => (
+                          <button key={t} onClick={() => setCalcType(t)}
+                            className={`flex-1 h-9 rounded-[8px] text-[12px] font-semibold font-display border transition-colors ${
+                              calcType === t ? 'bg-[#fef2f2] border-[#fecdca] text-[#d51520]' : 'bg-white border-[#e5e7eb] text-[#374151] hover:bg-[#f9fafb]'
+                            }`}>
+                            {t === 'EQUAL' ? 'Equal splits' : 'Custom amounts'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {calcType === 'EQUAL' && (
+                      <div>
+                        <p className="text-[11px] font-medium text-[#374151] font-body mb-1.5">Number of Installments</p>
+                        <input type="number" min="2" max="24" value={numInstallments} onChange={e => setNumInstallments(e.target.value)}
+                          className="w-full h-9 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] focus:outline-none focus:border-[#d51520]" />
+                      </div>
+                    )}
+
+                    {calcType === 'CUSTOM' && (
+                      <div>
+                        <p className="text-[11px] font-medium text-[#374151] font-body mb-2">Installment Schedule</p>
+                        <div className="flex flex-col gap-2">
+                          {customInsts.map((row, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                              <span className="text-[11px] text-[#9ca3af] font-body w-5 flex-shrink-0">{i + 1}.</span>
+                              <select value={row.amount_type} onChange={e => updateCustomRow(i, 'amount_type', e.target.value)}
+                                className="h-8 px-2 border border-[#e5e7eb] rounded-[6px] text-[11px] font-body text-[#374151] focus:outline-none focus:border-[#d51520]">
+                                <option value="PERCENTAGE">%</option>
+                                <option value="FIXED_AMOUNT">₦ Fixed</option>
+                              </select>
+                              <input type="number" min="0" value={row.amount_value} onChange={e => updateCustomRow(i, 'amount_value', e.target.value)}
+                                placeholder={row.amount_type === 'PERCENTAGE' ? '30' : '50000'}
+                                className="flex-1 h-8 px-2 border border-[#e5e7eb] rounded-[6px] text-[12px] font-body text-[#111827] focus:outline-none focus:border-[#d51520]" />
+                              <input type="number" min="0" value={row.due_offset_days} onChange={e => updateCustomRow(i, 'due_offset_days', e.target.value)}
+                                placeholder="days after enrol"
+                                className="flex-1 h-8 px-2 border border-[#e5e7eb] rounded-[6px] text-[12px] font-body text-[#111827] focus:outline-none focus:border-[#d51520]" />
+                              {customInsts.length > 1 && (
+                                <button onClick={() => removeCustomRow(i)} className="flex-shrink-0">
+                                  <Cancel01Icon size={13} color="#d51520" strokeWidth={2} />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                          <button onClick={addCustomRow}
+                            className="flex items-center gap-1 text-[11px] font-semibold text-[#d51520] font-display hover:opacity-80 mt-0.5">
+                            <Add01Icon size={12} strokeWidth={2} /> Add row
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* Grace + suspend */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-[11px] font-medium text-[#374151] font-body mb-1.5">Grace Period (days)</p>
+                    <input type="number" min="0" value={graceDays} onChange={e => setGraceDays(e.target.value)}
+                      className="w-full h-9 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] focus:outline-none focus:border-[#d51520]" />
+                  </div>
+                  <div className="flex flex-col justify-end">
+                    <button onClick={() => setSuspendOnOverdue(p => !p)}
+                      className="flex items-center gap-2 h-9 px-3 rounded-[8px] border border-[#e5e7eb] text-[12px] font-medium font-body text-[#374151] hover:bg-[#f9fafb] transition-colors">
+                      <div className={`w-4 h-4 rounded-[4px] border-2 flex items-center justify-center transition-all ${suspendOnOverdue ? 'bg-[#d51520] border-[#d51520]' : 'border-[#d1d5db]'}`}>
+                        {suspendOnOverdue && <CheckmarkCircle01Icon size={10} color="white" strokeWidth={2} />}
+                      </div>
+                      Suspend on overdue
+                    </button>
+                  </div>
+                </div>
+
+                {error && <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body"><AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} />{error}</p>}
+
+                <div className="flex gap-2">
+                  <button onClick={() => { setCreating(false); setError('') }}
+                    className="flex-1 h-9 rounded-[8px] border border-[#e5e7eb] text-[12px] font-medium text-[#374151] font-body hover:bg-[#f9fafb] transition-colors">
+                    Cancel
+                  </button>
+                  <button onClick={handleCreate} disabled={saving}
+                    className="flex-1 h-9 rounded-[8px] bg-[#d51520] text-[12px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-50 flex items-center justify-center gap-2 transition-colors">
+                    {saving && <Loading01Icon size={12} className="animate-spin" strokeWidth={2} />}
+                    Save Option
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        {!creating && (
+          <div className="px-6 py-4 border-t border-[#f3f4f6] flex-shrink-0">
+            <button onClick={() => { setCreating(true); setError('') }}
+              className="w-full flex items-center justify-center gap-1.5 h-9 rounded-[8px] border border-dashed border-[#d51520] text-[12px] font-semibold font-display text-[#d51520] hover:bg-[#fef2f2] transition-colors">
+              <Add01Icon size={13} strokeWidth={2} /> Add Payment Option
+            </button>
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
 // ── Pricing tab ────────────────────────────────────────────────────────────────
 function PricingTab({ programId }: { programId: string }) {
   const [plans, setPlans]           = useState<PricingPlan[]>([])
@@ -841,6 +1168,8 @@ function PricingTab({ programId }: { programId: string }) {
   const [deletePlan, setDeletePlan] = useState<PricingPlan | null>(null)
   const [deleting, setDeleting]     = useState(false)
   const [deleteError, setDeleteError] = useState('')
+  // { planId, breakdown } — opens the payment options modal for a specific breakdown
+  const [payOptTarget, setPayOptTarget] = useState<{ planId: number; breakdown: PricingBreakdown } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -935,7 +1264,21 @@ function PricingTab({ programId }: { programId: string }) {
                         )
                       })}
                     </div>
-                    <p className="text-[11px] text-[#9ca3af] font-body mt-2">One-off billing</p>
+                    {/* Payment options per breakdown */}
+                    {bds.length > 0 && (
+                      <div className="flex items-center gap-2 mt-3 flex-wrap">
+                        {bds.map(bd => (
+                          <button
+                            key={bd.id}
+                            onClick={() => setPayOptTarget({ planId: plan.id, breakdown: bd })}
+                            className="flex items-center gap-1.5 h-7 px-2.5 rounded-[6px] border border-[#e5e7eb] text-[11px] font-semibold font-display text-[#374151] hover:bg-[#f9fafb] hover:border-[#d51520] hover:text-[#d51520] transition-colors"
+                          >
+                            <Payment01Icon size={11} strokeWidth={1.5} />
+                            {bd.currency} Payment Options
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button onClick={() => setEditPlan(plan)}
@@ -960,6 +1303,14 @@ function PricingTab({ programId }: { programId: string }) {
           plan={editPlan}
           onClose={() => { setShowCreate(false); setEditPlan(null) }}
           onSaved={() => { setShowCreate(false); setEditPlan(null); load() }}
+        />
+      )}
+
+      {payOptTarget && (
+        <PaymentOptionsModal
+          planId={payOptTarget.planId}
+          breakdown={payOptTarget.breakdown}
+          onClose={() => setPayOptTarget(null)}
         />
       )}
 

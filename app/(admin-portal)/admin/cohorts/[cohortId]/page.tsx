@@ -8,7 +8,7 @@ import {
   AlertCircleIcon, DatabaseIcon, Search01Icon,
   ArrowDown01Icon, ArrowRight01Icon, VideoReplayIcon, File01Icon,
   PencilEdit01Icon, Cancel01Icon, Building01Icon, UserAdd01Icon,
-  Certificate01Icon,
+  Certificate01Icon, Payment01Icon, Invoice01Icon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 import { useSidebar } from '@/lib/sidebar-context'
@@ -1132,6 +1132,7 @@ function GenerateCertificatesModal({
 
 // ── Tab: People (merged Members + Enrollments) ────────────────────────────────
 function PeopleTab({ cohortId, programId }: { cohortId: string; programId: number | null }) {
+  const router                            = useRouter()
   const [rows, setRows]                   = useState<PersonRow[]>([])
   const [loading, setLoading]             = useState(true)
   const [selectedPerson, setSelectedPerson] = useState<PersonRow | null>(null)
@@ -1303,7 +1304,7 @@ function PeopleTab({ cohortId, programId }: { cohortId: string; programId: numbe
             ) : rows.map(r => (
               <tr
                 key={r.key}
-                onClick={() => setSelectedPerson(r)}
+                onClick={() => r.userId ? router.push(`/admin/users/${r.userId}`) : setSelectedPerson(r)}
                 className={`border-b border-[#f3f4f6] cursor-pointer transition-colors ${
                   selectedPerson?.key === r.key ? 'bg-[#fef2f2]' : 'hover:bg-[#fafafa]'
                 }`}
@@ -1592,8 +1593,170 @@ function ReviewsTab({ cohortId }: { cohortId: string }) {
   )
 }
 
+// ── Tab: Payments ─────────────────────────────────────────────────────────────
+interface PaymentOverviewStudent {
+  user_id?: number; userId?: number
+  name?: string; email?: string
+  plan_status?: string; planStatus?: string
+  amount_paid?: number; amountPaid?: number
+  amount_outstanding?: number; amountOutstanding?: number
+  next_due_date?: string; nextDueDate?: string
+  payment_mode?: string; paymentMode?: string
+}
+
+interface PaymentOverview {
+  total_enrolled?: number; totalEnrolled?: number
+  total_revenue?: number; totalRevenue?: number
+  total_outstanding?: number; totalOutstanding?: number
+  students?: PaymentOverviewStudent[]
+  enrollments?: PaymentOverviewStudent[]
+}
+
+function fmt(n: number) {
+  return `₦${n.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+const PAY_STATUS: Record<string, string> = {
+  ACTIVE:    'bg-[#ecfdf3] text-[#027a48]',
+  COMPLETED: 'bg-[#f3f4f6] text-[#4b5563]',
+  SUSPENDED: 'bg-amber-50 text-amber-700',
+  DEFAULTED: 'bg-[#fef2f2] text-[#d51520]',
+  PAID:      'bg-[#ecfdf3] text-[#027a48]',
+}
+
+function PaymentsTab({ cohortId }: { cohortId: string }) {
+  const [overview, setOverview]   = useState<PaymentOverview | null>(null)
+  const [loading,  setLoading]    = useState(true)
+  const [error,    setError]      = useState<string | null>(null)
+  const router                    = useRouter()
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true); setError(null)
+      try {
+        const res = await apiClient.get(`/admin/cohorts/${cohortId}/payment-overview`)
+        const raw = res.data
+        setOverview((raw?.data ?? raw) as PaymentOverview)
+      } catch (e) { setError(getApiError(e)) } finally { setLoading(false) }
+    }
+    load()
+  }, [cohortId])
+
+  if (loading) return (
+    <div className="flex items-center justify-center py-20">
+      <Loading01Icon size={22} className="animate-spin text-[#d51520]" strokeWidth={1.5} />
+    </div>
+  )
+
+  if (error) return (
+    <div className="m-6 flex items-center gap-3 bg-[#fef2f2] border border-[#fecdca] rounded-[10px] p-4">
+      <AlertCircleIcon size={16} color="#d51520" strokeWidth={1.5} />
+      <p className="text-[13px] text-[#d51520] font-body">{error}</p>
+    </div>
+  )
+
+  if (!overview) return null
+
+  const students = overview.students ?? overview.enrollments ?? []
+  const totalEnrolled    = overview.total_enrolled    ?? overview.totalEnrolled    ?? students.length
+  const totalRevenue     = overview.total_revenue     ?? overview.totalRevenue     ?? 0
+  const totalOutstanding = overview.total_outstanding ?? overview.totalOutstanding ?? 0
+
+  return (
+    <div className="px-6 py-5">
+      {/* Summary stat row */}
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        {[
+          { label: 'Total Enrolled',   value: String(totalEnrolled),     icon: <Invoice01Icon  size={18} color="#7c3aed" strokeWidth={1.5} />, tint: '#f5f3ff', accent: '#7c3aed' },
+          { label: 'Revenue Collected', value: fmt(totalRevenue),        icon: <Payment01Icon  size={18} color="#0d9488" strokeWidth={1.5} />, tint: '#f0fdfa', accent: '#0d9488' },
+          { label: 'Outstanding',       value: fmt(totalOutstanding),    icon: <AlertCircleIcon size={18} color="#d97706" strokeWidth={1.5} />, tint: '#fffbeb', accent: '#d97706' },
+        ].map(({ label, value, icon, tint, accent }) => (
+          <div key={label} className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] p-5">
+            <div className="flex items-start justify-between mb-3">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">{label}</p>
+              <div className="w-9 h-9 rounded-[8px] flex items-center justify-center flex-shrink-0" style={{ background: tint }}>
+                {icon}
+              </div>
+            </div>
+            <p className="text-[24px] font-bold text-[#111827] font-display leading-none">{value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Student payment table */}
+      <div className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-[#f3f4f6]">
+          <p className="text-[13px] font-semibold text-[#111827] font-display">Per-Student Breakdown</p>
+        </div>
+        {students.length === 0 ? (
+          <div className="py-14 flex flex-col items-center text-center">
+            <div className="w-12 h-12 rounded-[10px] bg-[#f3f4f6] flex items-center justify-center mb-3">
+              <Payment01Icon size={22} color="#9ca3af" strokeWidth={1.5} />
+            </div>
+            <p className="text-[14px] font-semibold text-[#374151] font-display mb-1">No payment data yet</p>
+            <p className="text-[12px] text-[#9ca3af] font-body">Payment data will appear once students complete a payment.</p>
+          </div>
+        ) : (
+          <table className="w-full">
+            <thead>
+              <tr className="bg-[#f9fafb]">
+                {['Student', 'Payment Mode', 'Status', 'Paid', 'Outstanding', 'Next Due'].map(h => (
+                  <th key={h} className={`px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display ${
+                    h === 'Paid' || h === 'Outstanding' ? 'text-right' : 'text-left'
+                  }`}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {students.map((s, i) => {
+                const uid = s.user_id ?? s.userId
+                const status = s.plan_status ?? s.planStatus ?? '—'
+                return (
+                  <tr
+                    key={i}
+                    onClick={() => uid && router.push(`/admin/users/${uid}`)}
+                    className={`border-b border-[#f3f4f6] transition-colors ${uid ? 'cursor-pointer hover:bg-[#fafafa]' : ''}`}
+                  >
+                    <td className="px-4 py-3.5">
+                      <p className="text-[13px] font-semibold text-[#111827] font-display">{s.name ?? '—'}</p>
+                      {s.email && <p className="text-[11px] text-[#6b7280] font-body mt-0.5">{s.email}</p>}
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <span className="text-[12px] text-[#374151] font-body">{(s.payment_mode ?? s.paymentMode ?? 'FULL').replace(/_/g, ' ')}</span>
+                    </td>
+                    <td className="px-4 py-3.5">
+                      {status !== '—'
+                        ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display ${PAY_STATUS[status.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#4b5563]'}`}>{status}</span>
+                        : <span className="text-[12px] text-[#d1d5db] font-body">—</span>}
+                    </td>
+                    <td className="px-4 py-3.5 text-right">
+                      <span className="text-[13px] font-semibold text-[#111827] font-display">{fmt(s.amount_paid ?? s.amountPaid ?? 0)}</span>
+                    </td>
+                    <td className="px-4 py-3.5 text-right">
+                      <span className={`text-[13px] font-semibold font-display ${(s.amount_outstanding ?? s.amountOutstanding ?? 0) > 0 ? 'text-[#d51520]' : 'text-[#9ca3af]'}`}>
+                        {fmt(s.amount_outstanding ?? s.amountOutstanding ?? 0)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <span className="text-[12px] text-[#6b7280] font-body">
+                        {(s.next_due_date ?? s.nextDueDate)
+                          ? new Date((s.next_due_date ?? s.nextDueDate)!).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })
+                          : '—'}
+                      </span>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
-const TABS = ['Curriculum', 'People', 'Reviews'] as const
+const TABS = ['Curriculum', 'People', 'Reviews', 'Payments'] as const
 type Tab = typeof TABS[number]
 
 const STATUS_STYLE: Record<string, string> = {
@@ -1705,6 +1868,7 @@ export default function CohortDetailPage() {
             {tab === 'Curriculum' && <BookOpen01Icon  size={14} strokeWidth={1.5} />}
             {tab === 'People'     && <UserGroup02Icon size={14} strokeWidth={1.5} />}
             {tab === 'Reviews'    && <StarIcon        size={14} strokeWidth={1.5} />}
+            {tab === 'Payments'   && <Payment01Icon   size={14} strokeWidth={1.5} />}
             {tab}
           </button>
         ))}
@@ -1724,6 +1888,9 @@ export default function CohortDetailPage() {
         </div>
         <div style={activeTab === 'Reviews' ? { display: 'contents' } : { display: 'none' }}>
           <ReviewsTab cohortId={cohortId} />
+        </div>
+        <div style={activeTab === 'Payments' ? { display: 'contents' } : { display: 'none' }}>
+          <PaymentsTab cohortId={cohortId} />
         </div>
       </div>
     </div>
