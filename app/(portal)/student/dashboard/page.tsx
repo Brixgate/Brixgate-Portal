@@ -5,6 +5,7 @@ import PromoBanner from '@/components/student/PromoBanner'
 import MyLearning from '@/components/student/MyLearning'
 // FEATURE_OFF: notifications — import NotificationsPanel from '@/components/student/NotificationsPanel'
 import NewUserDashboard from '@/components/student/NewUserDashboard'
+import PaymentAlertBanner from '@/components/student/PaymentAlertBanner'
 import { MOCK_ENROLLMENTS } from '@/lib/mock-data'
 import { useAuth } from '@/lib/auth-context'
 
@@ -40,6 +41,8 @@ export default function DashboardPage() {
             {getTodayFormatted()}
           </p>
         </div>
+
+        <PaymentAlertBanner />
 
         {isNewUser ? (
           <NewUserDashboard />

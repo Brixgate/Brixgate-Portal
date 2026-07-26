@@ -12,6 +12,7 @@ import {
   Logout01Icon,
   Award01Icon,
   ArrowLeft01Icon,
+  Wallet01Icon,
 } from 'hugeicons-react'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -28,6 +29,7 @@ const NAV_ITEMS = [
   { label: 'My Certificate',   href: '/student/certificate',  icon: Award01Icon        },
   // FEATURE_OFF: notifications — { label: 'Notifications', href: '/student/notifications', icon: Notification01Icon },
   { label: 'Resources',        href: '/student/resources',    icon: Folder01Icon       },
+  { label: 'Finance',          href: '/student/finance',      icon: Wallet01Icon       },
   { label: 'Profile Settings', href: '/student/settings',     icon: Settings01Icon     },
 ]
 
