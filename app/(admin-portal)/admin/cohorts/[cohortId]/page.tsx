@@ -937,6 +937,8 @@ function AddFacilitatorModal({ cohortId, onClose, onAdded }: { cohortId: string;
 // ── Generate Certificates Modal ───────────────────────────────────────────────
 interface AdminCertificateDef {
   id: number
+  title?: string
+  status?: string
   template_url?: string; templateUrl?: string
   cohort_id?: number; cohortId?: number
   program_id?: number; programId?: number
@@ -953,14 +955,18 @@ function GenerateCertificatesModal({
   onClose: () => void
   onDone: (newMap: Map<string, number>) => void
 }) {
-  const [certMap, setCertMap]       = useState<Map<string, number>>(new Map(initialCertMap))
-  const [selected, setSelected]     = useState<Set<string>>(new Set())
-  const [issuing, setIssuing]       = useState(false)
-  const [error, setError]           = useState('')
-  const [doneCount, setDoneCount]   = useState<number | null>(null)
-  const [certDef, setCertDef]       = useState<AdminCertificateDef | null>(null)
+  const [certMap, setCertMap]         = useState<Map<string, number>>(new Map(initialCertMap))
+  const [selected, setSelected]       = useState<Set<string>>(new Set())
+  const [issuing, setIssuing]         = useState(false)
+  const [error, setError]             = useState('')
+  const [doneCount, setDoneCount]     = useState<number | null>(null)
+  const [certDefs, setCertDefs]       = useState<AdminCertificateDef[]>([])
+  const [certLoading, setCertLoading] = useState(true)
+  const [selectedCertId, setSelectedCertId] = useState<number | null>(null)
 
-  // Fetch the certificate definition for this cohort on mount
+  const selectedCert = certDefs.find(c => c.id === selectedCertId) ?? null
+
+  // Fetch all certificate definitions for this cohort on mount
   useEffect(() => {
     const params = new URLSearchParams()
     params.set('cohort_id', cohortId)
@@ -969,9 +975,12 @@ function GenerateCertificatesModal({
       .then(res => {
         const raw = res.data?.data ?? res.data
         const list: AdminCertificateDef[] = Array.isArray(raw) ? raw : (raw ? [raw] : [])
-        if (list.length > 0) setCertDef(list[0])
+        setCertDefs(list)
+        // Auto-select when there is exactly one certificate
+        if (list.length === 1) setSelectedCertId(list[0].id)
       })
-      .catch(() => { /* cert def optional — issuance may still work */ })
+      .catch(() => { /* cert def fetch failed — admin can still proceed if backend allows */ })
+      .finally(() => setCertLoading(false))
   }, [cohortId, programId])
 
   // Only students who don't already have a cert are selectable
@@ -1000,10 +1009,10 @@ function GenerateCertificatesModal({
     setIssuing(true); setError('')
     try {
       await apiClient.post('/admin/user-certificates/issue', {
-        ...(certDef?.id                                              ? { certificate_id: certDef.id }   : {}),
+        ...(selectedCert?.id                                                              ? { certificate_id: selectedCert.id }  : {}),
         cohort_id:  Number(cohortId),
         user_ids:   targets.map(r => r.userId!),
-        ...(certDef?.template_url ?? certDef?.templateUrl           ? { file_url: certDef.template_url ?? certDef.templateUrl } : {}),
+        ...(selectedCert?.template_url ?? selectedCert?.templateUrl                      ? { file_url: selectedCert.template_url ?? selectedCert.templateUrl } : {}),
       })
       const newMap = new Map(certMap)
       // Mark each issued student in the local map so rows re-render as "already issued"
@@ -1037,6 +1046,52 @@ function GenerateCertificatesModal({
             <Cancel01Icon size={16} color="#4b5563" strokeWidth={1.5} />
           </button>
         </div>
+
+        {/* Certificate picker — shown when multiple certs exist for this cohort */}
+        {!certLoading && certDefs.length > 1 && doneCount === null && (
+          <div className="px-6 py-4 border-b border-[#f3f4f6] bg-[#fafafa] flex-shrink-0">
+            <p className="text-[11px] font-semibold text-[#374151] font-display uppercase tracking-wider mb-2">
+              Select Certificate to Issue
+            </p>
+            <div className="flex flex-col gap-2">
+              {certDefs.map(cd => (
+                <button
+                  key={cd.id}
+                  onClick={() => setSelectedCertId(cd.id)}
+                  className={`flex items-center gap-3 px-3.5 py-2.5 rounded-[8px] border text-left transition-colors ${
+                    selectedCertId === cd.id
+                      ? 'border-[#d51520] bg-[#fef2f2]'
+                      : 'border-[#e5e7eb] bg-white hover:border-[#d1d5db]'
+                  }`}
+                >
+                  <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
+                    selectedCertId === cd.id ? 'border-[#d51520]' : 'border-[#d1d5db]'
+                  }`}>
+                    {selectedCertId === cd.id && <div className="w-2 h-2 rounded-full bg-[#d51520]" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-semibold text-[#111827] font-display truncate">
+                      {cd.title ?? `Certificate #${cd.id}`}
+                    </p>
+                    {cd.status && (
+                      <p className="text-[11px] text-[#6b7280] font-body">{cd.status}</p>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Empty cert state */}
+        {!certLoading && certDefs.length === 0 && doneCount === null && (
+          <div className="px-6 py-4 border-b border-[#fef2f2] bg-[#fef2f2] flex-shrink-0 flex items-center gap-2">
+            <AlertCircleIcon size={14} color="#d51520" strokeWidth={1.5} />
+            <p className="text-[12px] text-[#d51520] font-body">
+              No certificate template configured for this cohort. Create one under the programme settings first.
+            </p>
+          </div>
+        )}
 
         {/* Success state */}
         {doneCount !== null ? (
@@ -1141,7 +1196,7 @@ function GenerateCertificatesModal({
                 className="flex-1 h-10 rounded-[8px] border border-[#e5e7eb] text-[13px] font-medium text-[#374151] font-body hover:bg-[#f9fafb] transition-colors">
                 Cancel
               </button>
-              <button onClick={handleIssue} disabled={newSelectionCount === 0 || issuing}
+              <button onClick={handleIssue} disabled={newSelectionCount === 0 || issuing || (certDefs.length > 1 && selectedCertId === null)}
                 className="flex-1 h-10 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-50 flex items-center justify-center gap-2 transition-colors">
                 {issuing && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
                 Issue {newSelectionCount > 0 ? `${newSelectionCount} ` : ''}Certificate{newSelectionCount !== 1 ? 's' : ''}
