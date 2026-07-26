@@ -44,6 +44,7 @@ interface ApiCertification {
   certificateNumber?: string
   cohort_title?: string
   cohortTitle?: string
+  metadata?: { signatories?: string[] }
 }
 
 // ── Normalised ────────────────────────────────────────────────────────────────
@@ -58,6 +59,7 @@ interface CertRow {
   certificateUrl: string | null
   issuedAt: string | null
   certificateNumber: string | null
+  signatories: string[]
 }
 
 function normaliseProgramToCertRow(raw: ApiProgram, certMap: Map<number, ApiCertification>): CertRow {
@@ -83,6 +85,7 @@ function normaliseProgramToCertRow(raw: ApiProgram, certMap: Map<number, ApiCert
       ? new Date(cert.issued_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })
       : null,
     certificateNumber: cert?.certificate_number ?? cert?.certificateNumber ?? null,
+    signatories:       cert?.metadata?.signatories ?? [],
   }
 }
 
@@ -104,7 +107,7 @@ function RequirementItem({ done, label }: { done: boolean; label: string }) {
 }
 
 function CertificateCard({ row, fullName }: { row: CertRow; fullName: string }) {
-  const { title, cohortLabel, issuedAt, certificateNumber } = row
+  const { title, cohortLabel, issuedAt, certificateNumber, signatories } = row
   // Unlocked = admin has issued the certificate (not based on progress)
   const isUnlocked = issuedAt !== null
   const [sharing, setSharing] = useState(false)
@@ -117,15 +120,19 @@ function CertificateCard({ row, fullName }: { row: CertRow; fullName: string }) 
       const certUrl = `https://brixgate.com/verify/${certificateNumber ?? ''}`
       const linkedInUrl = `https://www.linkedin.com/shareArticle?mini=true&url=${encodeURIComponent(certUrl)}&title=${encodeURIComponent(`${title} Certificate`)}&summary=${encodeURIComponent(`I completed ${title} at Brixgate!`)}`
 
+      // signatories from cert metadata: [0] = expert/director, [1] = tutor/instructor
+      const tutorLabel  = signatories[1] ?? 'Lead Instructor'
+      const expertLabel = signatories[0] ?? 'Program Director'
+
       const replacements: Record<string, string> = {
         '{{HOLDER_NAME}}':       fullName,
         '{{FIELD_NAME}}':        title,
         '{{CERT_ID}}':           certificateNumber ?? '',
         '{{DATE_ISSUED}}':       issuedAt ?? '',
-        '{{TUTOR_NAME}}':        'Brixgate Instructor',
-        '{{TUTOR_ROLE}}':        'Lead Instructor · Brixgate',
-        '{{EXPERT_NAME}}':       'Brixgate Academy',
-        '{{EXPERT_ROLE}}':       'Expert Practitioner · Brixgate',
+        '{{TUTOR_NAME}}':        tutorLabel,
+        '{{TUTOR_ROLE}}':        `${tutorLabel} · Brixgate`,
+        '{{EXPERT_NAME}}':       expertLabel,
+        '{{EXPERT_ROLE}}':       `${expertLabel} · Brixgate`,
         '{{CERT_URL}}':          certUrl,
         '{{CERT_URL_ENCODED}}':  encodeURIComponent(certUrl),
         '{{PROGRAMME_BLURB}}':   `This programme equips professionals with practical, job-ready skills in ${title}. Delivered by Brixgate — Nigeria's leading AI training company.`,

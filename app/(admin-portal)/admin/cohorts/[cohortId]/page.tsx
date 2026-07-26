@@ -935,6 +935,14 @@ function AddFacilitatorModal({ cohortId, onClose, onAdded }: { cohortId: string;
 }
 
 // ── Generate Certificates Modal ───────────────────────────────────────────────
+interface AdminCertificateDef {
+  id: number
+  template_url?: string; templateUrl?: string
+  cohort_id?: number; cohortId?: number
+  program_id?: number; programId?: number
+  metadata?: { signatories?: string[] }
+}
+
 function GenerateCertificatesModal({
   cohortId, programId, rows, initialCertMap, onClose, onDone,
 }: {
@@ -950,6 +958,21 @@ function GenerateCertificatesModal({
   const [issuing, setIssuing]       = useState(false)
   const [error, setError]           = useState('')
   const [doneCount, setDoneCount]   = useState<number | null>(null)
+  const [certDef, setCertDef]       = useState<AdminCertificateDef | null>(null)
+
+  // Fetch the certificate definition for this cohort on mount
+  useEffect(() => {
+    const params = new URLSearchParams()
+    params.set('cohort_id', cohortId)
+    if (programId) params.set('program_id', String(programId))
+    apiClient.get(`/admin/certificates?${params}`)
+      .then(res => {
+        const raw = res.data?.data ?? res.data
+        const list: AdminCertificateDef[] = Array.isArray(raw) ? raw : (raw ? [raw] : [])
+        if (list.length > 0) setCertDef(list[0])
+      })
+      .catch(() => { /* cert def optional — issuance may still work */ })
+  }, [cohortId, programId])
 
   // Only students who don't already have a cert are selectable
   const selectable = rows.filter(r => r.userId && !certMap.has(r.email))
@@ -977,8 +1000,10 @@ function GenerateCertificatesModal({
     setIssuing(true); setError('')
     try {
       await apiClient.post('/admin/user-certificates/issue', {
-        cohort_id: Number(cohortId),
-        user_ids:  targets.map(r => r.userId!),
+        ...(certDef?.id                                              ? { certificate_id: certDef.id }   : {}),
+        cohort_id:  Number(cohortId),
+        user_ids:   targets.map(r => r.userId!),
+        ...(certDef?.template_url ?? certDef?.templateUrl           ? { file_url: certDef.template_url ?? certDef.templateUrl } : {}),
       })
       const newMap = new Map(certMap)
       // Mark each issued student in the local map so rows re-render as "already issued"
