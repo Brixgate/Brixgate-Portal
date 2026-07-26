@@ -350,19 +350,36 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
       Object.entries(lessonsCache).forEach(([moduleId, lessons]) => {
         lessons.forEach(l => lessonModuleMap.set(l.id, parseInt(moduleId)))
       })
-      await apiClient.post(`/admin/cohorts/${cohortId}/content/selection`, {
-        modules: selectedModules.map(m => ({
-          programModuleId:  m.id,
-          visibilityStatus: 'PUBLISHED',
+
+      const now = new Date().toISOString()
+
+      const res = await apiClient.post(`/admin/cohorts/${cohortId}/content/selection`, {
+        modules: selectedModules.map((m, i) => ({
+          program_module_id: m.id,
+          order_index:       i + 1,
+          release_date:      now,
+          visibility_status: 'PUBLISHED',
         })),
         lessons: Array.from(selectedLessonIds)
-          .map(lid => {
+          .map((lid, i) => {
             const mid = lessonModuleMap.get(lid)
-            return mid ? { programLessonId: lid, programModuleId: mid, visibilityStatus: 'PUBLISHED' } : null
+            return mid ? {
+              program_lesson_id: lid,
+              program_module_id: mid,
+              order_index:       i + 1,
+              release_date:      now,
+              visibility_status: 'PUBLISHED',
+            } : null
           })
-          .filter((l): l is { programLessonId: number; programModuleId: number; visibilityStatus: string } => l !== null),
+          .filter((l): l is { program_lesson_id: number; program_module_id: number; order_index: number; release_date: string; visibility_status: string } => l !== null),
+        resources: [],
       })
-      setCohortModuleIds(new Set(selectedModules.map(m => m.id)))
+
+      // Read saved program_module_ids back from the response so admin state
+      // reflects exactly what the backend persisted
+      const saved = (res.data as { data?: { modules?: { program_module_id?: number }[] } })?.data
+      const savedIds = saved?.modules?.map(m => m.program_module_id ?? 0).filter(Boolean) ?? []
+      setCohortModuleIds(new Set(savedIds.length > 0 ? savedIds : selectedModules.map(m => m.id)))
       setSelectedModuleIds(new Set())
       setSelectedLessonIds(new Set())
       setSuccess(true)
