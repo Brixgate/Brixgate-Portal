@@ -934,16 +934,211 @@ function AddFacilitatorModal({ cohortId, onClose, onAdded }: { cohortId: string;
   )
 }
 
+// ── Generate Certificates Modal ───────────────────────────────────────────────
+function GenerateCertificatesModal({
+  cohortId, programId, rows, initialCertMap, onClose, onDone,
+}: {
+  cohortId: string
+  programId: number | null
+  rows: PersonRow[]
+  initialCertMap: Map<string, number>
+  onClose: () => void
+  onDone: (newMap: Map<string, number>) => void
+}) {
+  const [certMap, setCertMap]       = useState<Map<string, number>>(new Map(initialCertMap))
+  const [selected, setSelected]     = useState<Set<string>>(new Set())
+  const [issuing, setIssuing]       = useState(false)
+  const [error, setError]           = useState('')
+  const [doneCount, setDoneCount]   = useState<number | null>(null)
+
+  // Only students who don't already have a cert are selectable
+  const selectable = rows.filter(r => r.userId && !certMap.has(r.email))
+  const allSelected = selectable.length > 0 && selectable.every(r => selected.has(r.email))
+
+  function toggleAll() {
+    if (allSelected) {
+      setSelected(new Set())
+    } else {
+      setSelected(new Set(selectable.map(r => r.email)))
+    }
+  }
+
+  function toggleRow(email: string) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(email)) next.delete(email); else next.add(email)
+      return next
+    })
+  }
+
+  async function handleIssue() {
+    const targets = rows.filter(r => selected.has(r.email) && r.userId && !certMap.has(r.email))
+    if (targets.length === 0) return
+    setIssuing(true); setError('')
+    const newMap = new Map(certMap)
+    let count = 0
+    for (const row of targets) {
+      try {
+        const res = await apiClient.post('/admin/user-certificates', {
+          user_id:    row.userId,
+          cohort_id:  Number(cohortId),
+          ...(programId ? { program_id: programId } : {}),
+        })
+        const cert = unwrap<AdminCertificate>(res.data)
+        if (cert?.id) { newMap.set(row.email, cert.id); count++ }
+      } catch { /* skip — might already exist */ }
+    }
+    setCertMap(newMap)
+    setDoneCount(count)
+    setIssuing(false)
+    onDone(newMap)
+  }
+
+  const newSelectionCount = Array.from(selected).filter(e => !certMap.has(e)).length
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/30 z-[59]" onClick={doneCount !== null ? onClose : undefined} />
+      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] bg-white rounded-[12px] shadow-[0px_12px_32px_rgba(16,24,40,0.16)] w-[540px] max-h-[80vh] flex flex-col overflow-hidden">
+
+        {/* Header */}
+        <div className="px-6 pt-5 pb-4 border-b border-[#f3f4f6] flex items-center justify-between flex-shrink-0">
+          <div>
+            <h3 className="text-[15px] font-bold text-[#111827] font-display">Generate Certificates</h3>
+            <p className="text-[12px] text-[#4b5563] font-body mt-0.5">
+              Select students to issue a certificate of completion
+            </p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f3f4f6] transition-colors">
+            <Cancel01Icon size={16} color="#4b5563" strokeWidth={1.5} />
+          </button>
+        </div>
+
+        {/* Success state */}
+        {doneCount !== null ? (
+          <div className="flex-1 flex flex-col items-center justify-center py-12 px-8 text-center">
+            <div className="w-16 h-16 rounded-full bg-[#ecfdf3] flex items-center justify-center mb-4">
+              <CheckmarkCircle01Icon size={28} color="#16a34a" strokeWidth={1.5} />
+            </div>
+            <p className="text-[16px] font-bold text-[#111827] font-display mb-1">
+              {doneCount} certificate{doneCount !== 1 ? 's' : ''} issued
+            </p>
+            <p className="text-[13px] text-[#4b5563] font-body mb-6">
+              Selected students can now view and download their certificate.
+            </p>
+            <button onClick={onClose}
+              className="h-10 px-6 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] transition-colors">
+              Done
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Select All bar */}
+            <div className="px-6 py-3 border-b border-[#f3f4f6] flex items-center justify-between flex-shrink-0 bg-[#fafafa]">
+              <button
+                onClick={toggleAll}
+                disabled={selectable.length === 0}
+                className="flex items-center gap-2.5 text-[13px] font-semibold text-[#374151] font-display hover:text-[#d51520] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <div className={`w-5 h-5 rounded-[5px] border-2 flex items-center justify-center transition-all ${
+                  allSelected ? 'bg-[#d51520] border-[#d51520]' : 'border-[#d1d5db] bg-white'
+                }`}>
+                  {allSelected && (
+                    <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                      <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </div>
+                Select All ({selectable.length} eligible)
+              </button>
+              {newSelectionCount > 0 && (
+                <span className="text-[11px] font-semibold text-[#d51520] font-display">
+                  {newSelectionCount} selected
+                </span>
+              )}
+            </div>
+
+            {/* Student list */}
+            <div className="flex-1 overflow-y-auto">
+              {rows.length === 0 ? (
+                <div className="py-12 text-center text-[13px] text-[#9ca3af] font-body">
+                  No students in this cohort
+                </div>
+              ) : rows.map(row => {
+                const alreadyIssued = certMap.has(row.email)
+                const isChecked     = alreadyIssued || selected.has(row.email)
+                const canToggle     = !alreadyIssued && !!row.userId
+                return (
+                  <button
+                    key={row.key}
+                    onClick={() => canToggle && toggleRow(row.email)}
+                    disabled={!canToggle}
+                    className={`w-full flex items-center gap-3.5 px-6 py-3.5 border-b border-[#f3f4f6] text-left transition-colors ${
+                      alreadyIssued ? 'bg-[#f9fafb] cursor-default' : canToggle ? 'hover:bg-[#fef2f2] cursor-pointer' : 'opacity-40 cursor-not-allowed'
+                    }`}
+                  >
+                    <div className={`w-5 h-5 rounded-[5px] border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                      isChecked ? 'bg-[#d51520] border-[#d51520]' : 'border-[#d1d5db] bg-white'
+                    }`}>
+                      {isChecked && (
+                        <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                          <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </div>
+                    <div className="w-9 h-9 rounded-full bg-[#fef2f2] flex items-center justify-center flex-shrink-0">
+                      <span className="text-[13px] font-bold text-[#d51520] font-display">{getInitials(row.name)}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-semibold text-[#111827] font-display truncate">{row.name}</p>
+                      <p className="text-[12px] text-[#4b5563] font-body truncate">{row.email}</p>
+                    </div>
+                    {alreadyIssued && (
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <Certificate01Icon size={12} color="#16a34a" strokeWidth={1.5} />
+                        <span className="text-[10px] font-semibold text-[#16a34a] font-display">Issued</span>
+                      </div>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Footer */}
+            {error && (
+              <div className="px-6 py-2 bg-[#fef2f2] border-t border-[#fecdca]">
+                <p className="text-[12px] text-[#d51520] font-body flex items-center gap-1.5">
+                  <AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} />{error}
+                </p>
+              </div>
+            )}
+            <div className="px-6 py-4 border-t border-[#f3f4f6] flex gap-2 flex-shrink-0">
+              <button onClick={onClose}
+                className="flex-1 h-10 rounded-[8px] border border-[#e5e7eb] text-[13px] font-medium text-[#374151] font-body hover:bg-[#f9fafb] transition-colors">
+                Cancel
+              </button>
+              <button onClick={handleIssue} disabled={newSelectionCount === 0 || issuing}
+                className="flex-1 h-10 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-50 flex items-center justify-center gap-2 transition-colors">
+                {issuing && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
+                Issue {newSelectionCount > 0 ? `${newSelectionCount} ` : ''}Certificate{newSelectionCount !== 1 ? 's' : ''}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </>
+  )
+}
+
 // ── Tab: People (merged Members + Enrollments) ────────────────────────────────
 function PeopleTab({ cohortId, programId }: { cohortId: string; programId: number | null }) {
   const [rows, setRows]                   = useState<PersonRow[]>([])
   const [loading, setLoading]             = useState(true)
   const [selectedPerson, setSelectedPerson] = useState<PersonRow | null>(null)
   const [showAddFacilitator, setShowAddFacilitator] = useState(false)
-  // email → certificate id for issued certs
+  const [showGenCerts, setShowGenCerts]   = useState(false)
+  // email → certificate id for issued certs (used by Generate Certificates modal)
   const [certMap, setCertMap]             = useState<Map<string, number>>(new Map())
-  const [togglingEmail, setTogglingEmail] = useState<string | null>(null)
-  const [toggleError, setToggleError]     = useState('')
 
   const loadPeople = useCallback(async () => {
     setLoading(true)
@@ -1017,30 +1212,6 @@ function PeopleTab({ cohortId, programId }: { cohortId: string; programId: numbe
       } catch { setRows([]) } finally { setLoading(false) }
   }, [cohortId])
 
-  async function toggleCertificate(e: React.MouseEvent, row: PersonRow) {
-    e.stopPropagation()
-    if (togglingEmail === row.email || !row.userId) return
-    const existingCertId = certMap.get(row.email)
-    setTogglingEmail(row.email)
-    try {
-      if (existingCertId) {
-        await apiClient.delete(`/admin/user-certificates/${existingCertId}`)
-        setCertMap(prev => { const n = new Map(prev); n.delete(row.email); return n })
-      } else {
-        const res = await apiClient.post('/admin/user-certificates', {
-          user_id:  row.userId,
-          cohort_id: Number(cohortId),
-          ...(programId ? { program_id: programId } : {}),
-        })
-        const cert = unwrap<AdminCertificate>(res.data)
-        if (cert?.id) setCertMap(prev => new Map(prev).set(row.email, cert.id))
-      }
-    } catch (err) {
-      setToggleError(getApiError(err))
-      setTimeout(() => setToggleError(''), 4000)
-    } finally { setTogglingEmail(null) }
-  }
-
   useEffect(() => { loadPeople() }, [loadPeople])
 
   const COMP_STYLE: Record<string, string> = {
@@ -1083,27 +1254,39 @@ function PeopleTab({ cohortId, programId }: { cohortId: string; programId: numbe
           onAdded={() => { setShowAddFacilitator(false); loadPeople() }}
         />
       )}
-      {toggleError && (
-        <div className="mx-6 mt-3 px-3 py-2 bg-[#fef2f2] border border-[#fecdca] rounded-[6px] text-[12px] text-[#d51520] font-body">
-          {toggleError}
-        </div>
+      {showGenCerts && (
+        <GenerateCertificatesModal
+          cohortId={cohortId}
+          programId={programId}
+          rows={rows}
+          initialCertMap={certMap}
+          onClose={() => setShowGenCerts(false)}
+          onDone={(newMap) => { setCertMap(newMap); setShowGenCerts(false) }}
+        />
       )}
       <div className="px-6 pt-4 pb-2 flex items-center justify-between">
         <p className="text-[12px] text-[#4b5563] font-body">{rows.length} member{rows.length !== 1 ? 's' : ''} in this cohort</p>
-        <button onClick={() => setShowAddFacilitator(true)}
-          className="flex items-center gap-2 h-9 px-4 bg-[#d51520] text-white rounded-[8px] text-[12px] font-semibold font-display hover:bg-[#b81119] transition-colors">
-          <UserAdd01Icon size={14} color="white" strokeWidth={1.5} />
-          Add Facilitator
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowGenCerts(true)}
+            className="flex items-center gap-2 h-9 px-4 bg-white border border-[#e5e7eb] text-[#374151] rounded-[8px] text-[12px] font-semibold font-display hover:bg-[#f9fafb] transition-colors">
+            <Certificate01Icon size={14} color="#374151" strokeWidth={1.5} />
+            Generate Certificates
+          </button>
+          <button onClick={() => setShowAddFacilitator(true)}
+            className="flex items-center gap-2 h-9 px-4 bg-[#d51520] text-white rounded-[8px] text-[12px] font-semibold font-display hover:bg-[#b81119] transition-colors">
+            <UserAdd01Icon size={14} color="white" strokeWidth={1.5} />
+            Add Facilitator
+          </button>
+        </div>
       </div>
       <div className="px-6 py-4 overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
-              {['Name', 'Email', 'Role', 'Plan', 'Seats', 'Status', 'Progress', 'Joined', 'Certificate'].map(h => (
+              {['Name', 'Email', 'Role', 'Plan', 'Seats', 'Status', 'Progress', 'Joined'].map(h => (
                 <th key={h}
                   className={`px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display ${
-                    h === 'Seats' || h === 'Certificate' ? 'text-center' : 'text-left'
+                    h === 'Seats' ? 'text-center' : 'text-left'
                   }`}>
                   {h}
                 </th>
@@ -1113,7 +1296,7 @@ function PeopleTab({ cohortId, programId }: { cohortId: string; programId: numbe
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-4 py-12 text-center text-[13px] text-[#4b5563] font-body">
+                <td colSpan={8} className="px-4 py-12 text-center text-[13px] text-[#4b5563] font-body">
                   No people in this cohort yet
                 </td>
               </tr>
@@ -1173,28 +1356,6 @@ function PeopleTab({ cohortId, programId }: { cohortId: string; programId: numbe
                 </td>
                 <td className="px-4 py-3.5">
                   <p className="text-[12px] text-[#4b5563] font-body whitespace-nowrap">{r.joinedAt}</p>
-                </td>
-                {/* Certificate toggle */}
-                <td className="px-4 py-3.5 text-center">
-                  <button
-                    onClick={e => toggleCertificate(e, r)}
-                    disabled={togglingEmail === r.email || !r.userId}
-                    title={certMap.has(r.email) ? 'Revoke certificate' : 'Issue certificate'}
-                    className={`relative inline-flex items-center w-10 h-6 rounded-full transition-colors duration-200 ${
-                      certMap.has(r.email) ? 'bg-[#d51520]' : 'bg-[#e5e7eb]'
-                    } ${togglingEmail === r.email ? 'opacity-60 cursor-wait' : r.userId ? 'cursor-pointer' : 'opacity-40 cursor-not-allowed'}`}
-                  >
-                    {togglingEmail === r.email
-                      ? <Loading01Icon size={12} className="animate-spin mx-auto" color="white" strokeWidth={2} />
-                      : <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200 ${certMap.has(r.email) ? 'translate-x-5' : 'translate-x-1'}`} />
-                    }
-                  </button>
-                  {certMap.has(r.email) && (
-                    <div className="flex items-center justify-center gap-1 mt-1">
-                      <Certificate01Icon size={10} color="#d51520" strokeWidth={1.5} />
-                      <span className="text-[9px] text-[#d51520] font-semibold font-display">Issued</span>
-                    </div>
-                  )}
                 </td>
               </tr>
             ))}
