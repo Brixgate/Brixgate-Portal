@@ -975,23 +975,22 @@ function GenerateCertificatesModal({
     const targets = rows.filter(r => selected.has(r.email) && r.userId && !certMap.has(r.email))
     if (targets.length === 0) return
     setIssuing(true); setError('')
-    const newMap = new Map(certMap)
-    let count = 0
-    for (const row of targets) {
-      try {
-        const res = await apiClient.post('/admin/user-certificates', {
-          user_id:    row.userId,
-          cohort_id:  Number(cohortId),
-          ...(programId ? { program_id: programId } : {}),
-        })
-        const cert = unwrap<AdminCertificate>(res.data)
-        if (cert?.id) { newMap.set(row.email, cert.id); count++ }
-      } catch { /* skip — might already exist */ }
+    try {
+      await apiClient.post('/admin/user-certificates/issue', {
+        cohort_id: Number(cohortId),
+        user_ids:  targets.map(r => r.userId!),
+      })
+      const newMap = new Map(certMap)
+      // Mark each issued student in the local map so rows re-render as "already issued"
+      targets.forEach(r => { if (!newMap.has(r.email)) newMap.set(r.email, 1) })
+      setCertMap(newMap)
+      setDoneCount(targets.length)
+      onDone(newMap)
+    } catch (e) {
+      setError(getApiError(e))
+    } finally {
+      setIssuing(false)
     }
-    setCertMap(newMap)
-    setDoneCount(count)
-    setIssuing(false)
-    onDone(newMap)
   }
 
   const newSelectionCount = Array.from(selected).filter(e => !certMap.has(e)).length

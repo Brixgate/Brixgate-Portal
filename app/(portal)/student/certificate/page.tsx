@@ -109,9 +109,44 @@ function CertificateCard({ row, fullName }: { row: CertRow; fullName: string }) 
   const isUnlocked = issuedAt !== null
   const [sharing, setSharing] = useState(false)
 
-  function handleDownload() {
-    // Print the certificate section — use window.print() with a print-only style
-    window.print()
+  async function handleDownload() {
+    try {
+      const res = await fetch('/certificate-template.html')
+      let html = await res.text()
+
+      const certUrl = `https://brixgate.com/verify/${certificateNumber ?? ''}`
+      const linkedInUrl = `https://www.linkedin.com/shareArticle?mini=true&url=${encodeURIComponent(certUrl)}&title=${encodeURIComponent(`${title} Certificate`)}&summary=${encodeURIComponent(`I completed ${title} at Brixgate!`)}`
+
+      const replacements: Record<string, string> = {
+        '{{HOLDER_NAME}}':       fullName,
+        '{{FIELD_NAME}}':        title,
+        '{{CERT_ID}}':           certificateNumber ?? '',
+        '{{DATE_ISSUED}}':       issuedAt ?? '',
+        '{{TUTOR_NAME}}':        'Brixgate Instructor',
+        '{{TUTOR_ROLE}}':        'Lead Instructor · Brixgate',
+        '{{EXPERT_NAME}}':       'Brixgate Academy',
+        '{{EXPERT_ROLE}}':       'Expert Practitioner · Brixgate',
+        '{{CERT_URL}}':          certUrl,
+        '{{CERT_URL_ENCODED}}':  encodeURIComponent(certUrl),
+        '{{PROGRAMME_BLURB}}':   `This programme equips professionals with practical, job-ready skills in ${title}. Delivered by Brixgate — Nigeria's leading AI training company.`,
+        '{{LINKEDIN_SHARE_URL}}': linkedInUrl,
+      }
+
+      for (const [key, val] of Object.entries(replacements)) {
+        html = html.split(key).join(val)
+      }
+
+      const win = window.open('', '_blank')
+      if (!win) return
+      win.document.write(html)
+      win.document.close()
+      win.addEventListener('load', () => {
+        setTimeout(() => { win.print() }, 400)
+      })
+    } catch {
+      // Fallback: print current page
+      window.print()
+    }
   }
 
   async function handleShare() {
