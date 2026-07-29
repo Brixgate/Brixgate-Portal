@@ -951,16 +951,25 @@ function AddFacilitatorModal({ cohortId, onClose, onAdded }: { cohortId: string;
   )
 }
 
-// ── Generate Certificates Modal ───────────────────────────────────────────────
+// ── Certificate-related shared types ─────────────────────────────────────────
 interface AdminCertificateDef {
   id: number
-  title?: string
-  status?: string
+  title?: string; status?: string
   template_url?: string; templateUrl?: string
   cohort_id?: number; cohortId?: number
   program_id?: number; programId?: number
+  certificate_type_id?: number; certificateTypeId?: number
   metadata?: { signatories?: string[] }
 }
+interface CertTypeItem {
+  id: number
+  name?: string; title?: string
+  description?: string; status?: string
+  template_url?: string; templateUrl?: string
+}
+interface SimpleStudent { userId: number; name: string; email: string }
+
+// ── Generate Certificates Modal ───────────────────────────────────────────────
 
 function GenerateCertificatesModal({
   cohortId, programId, rows, initialCertMap, onClose, onDone,
@@ -1223,6 +1232,262 @@ function GenerateCertificatesModal({
         )}
       </div>
     </>
+  )
+}
+
+// ── Tab: Certificates ─────────────────────────────────────────────────────────
+function CertificatesTab({ cohortId, programId }: { cohortId: string; programId: number | null }) {
+  const [certTypes, setCertTypes]               = useState<CertTypeItem[]>([])
+  const [certDefs, setCertDefs]                 = useState<AdminCertificateDef[]>([])
+  const [members, setMembers]                   = useState<SimpleStudent[]>([])
+  const [issuedUserIds, setIssuedUserIds]       = useState<Set<number>>(new Set())
+  const [selectedTypeId, setSelectedTypeId]     = useState<number | null>(null)
+  const [selectedStudents, setSelectedStudents] = useState<Set<number>>(new Set())
+  const [loadingInit, setLoadingInit]           = useState(true)
+  const [loadingIssued, setLoadingIssued]       = useState(false)
+  const [issuing, setIssuing]                   = useState(false)
+  const [error, setError]                       = useState('')
+  const [successCount, setSuccessCount]         = useState<number | null>(null)
+
+  const certDef = certDefs.find(d =>
+    (d.certificate_type_id ?? d.certificateTypeId) === selectedTypeId
+  ) ?? null
+
+  const issuedMembers   = members.filter(m => issuedUserIds.has(m.userId))
+  const unissuedMembers = members.filter(m => !issuedUserIds.has(m.userId))
+  const allUnissuedSelected = unissuedMembers.length > 0 && unissuedMembers.every(m => selectedStudents.has(m.userId))
+
+  // Load cert types + cert defs + members on mount
+  useEffect(() => {
+    async function init() {
+      setLoadingInit(true)
+      try {
+        const [typesRes, defsRes, membRes, enrollRes] = await Promise.allSettled([
+          apiClient.get('/admin/certificate-types?size=100'),
+          apiClient.get(`/admin/certificates?cohort_id=${cohortId}${programId ? `&program_id=${programId}` : ''}`),
+          apiClient.get(`/admin/cohorts/${cohortId}/members?size=100`),
+          apiClient.get(`/admin/cohort-enrollments?cohort_id=${cohortId}&size=100`),
+        ])
+
+        if (typesRes.status === 'fulfilled') {
+          const raw = typesRes.value.data?.data ?? typesRes.value.data
+          const inner = raw?.data ?? raw
+          const list: CertTypeItem[] = Array.isArray(inner) ? inner : Array.isArray(inner?.content) ? inner.content : []
+          setCertTypes(list)
+          if (list.length > 0) setSelectedTypeId(list[0].id)
+        }
+
+        if (defsRes.status === 'fulfilled') {
+          const raw = defsRes.value.data?.data ?? defsRes.value.data
+          const list: AdminCertificateDef[] = Array.isArray(raw) ? raw : (raw ? [raw] : [])
+          setCertDefs(list)
+        }
+
+        // Merge members + enrollments into a unified student list (deduplicated by email)
+        const seen = new Set<string>()
+        const students: SimpleStudent[] = []
+        const addStudent = (uid: number | undefined, u: { name?: string; first_name?: string; firstName?: string; last_name?: string; lastName?: string; email?: string } | undefined) => {
+          if (!uid || !u?.email || seen.has(u.email)) return
+          seen.add(u.email)
+          const fn = u.firstName ?? u.first_name ?? ''
+          const ln = u.lastName  ?? u.last_name  ?? ''
+          const fullNameStr = `${fn} ${ln}`.trim()
+          const name = (u.name ?? fullNameStr) || u.email
+          students.push({ userId: uid, name, email: u.email })
+        }
+        if (membRes.status === 'fulfilled') {
+          const d = unwrap<{ members?: Member[] }>(membRes.value.data)
+          ;(Array.isArray(d?.members) ? d.members : []).forEach(m => addStudent(m.user?.id, m.user))
+        }
+        if (enrollRes.status === 'fulfilled') {
+          const d = unwrap<{ enrollments?: Enrollment[] }>(enrollRes.value.data)
+          ;(Array.isArray(d?.enrollments) ? d.enrollments : []).forEach(e => addStudent(e.user?.id, e.user))
+        }
+        setMembers(students)
+      } finally { setLoadingInit(false) }
+    }
+    init()
+  }, [cohortId, programId])
+
+  // Load issued certs when the selected cert def changes
+  useEffect(() => {
+    if (!certDef) { setIssuedUserIds(new Set()); return }
+    setLoadingIssued(true)
+    setSelectedStudents(new Set())
+    apiClient.get(`/admin/user-certificates?cohort_id=${cohortId}&certificate_id=${certDef.id}&size=200`)
+      .then(res => {
+        const raw = res.data?.data ?? res.data
+        const inner = raw?.data ?? raw
+        const list: AdminCertificate[] = Array.isArray(inner)              ? inner
+          : Array.isArray(inner?.certificates)                             ? inner.certificates
+          : Array.isArray(inner?.userCertificates)                         ? inner.userCertificates
+          : Array.isArray(inner?.content)                                  ? inner.content
+          : []
+        setIssuedUserIds(new Set(list.map(c => c.user?.id ?? c.user_id ?? 0).filter(Boolean)))
+      })
+      .catch(() => setIssuedUserIds(new Set()))
+      .finally(() => setLoadingIssued(false))
+  }, [cohortId, certDef])
+
+  async function handleIssue() {
+    if (!selectedTypeId || selectedStudents.size === 0) return
+    setIssuing(true); setError('')
+    try {
+      let defId = certDef?.id
+      if (!defId) {
+        const createRes = await apiClient.post('/admin/certificates', {
+          certificate_type_id: selectedTypeId, cohort_id: Number(cohortId),
+          ...(programId ? { program_id: programId } : {}), status: 'ACTIVE',
+        })
+        const created = createRes.data?.data ?? createRes.data
+        defId = created?.id
+        if (created) setCertDefs(prev => [...prev, created as AdminCertificateDef])
+      }
+      if (!defId) throw new Error('Could not get certificate definition')
+      const targetIds = Array.from(selectedStudents)
+      await apiClient.post('/admin/user-certificates/issue', {
+        certificate_id: defId, cohort_id: Number(cohortId), user_ids: targetIds,
+      })
+      setIssuedUserIds(prev => { const s = new Set(prev); targetIds.forEach(id => s.add(id)); return s })
+      setSelectedStudents(new Set())
+      setSuccessCount(targetIds.length)
+    } catch (e) { setError(getApiError(e)) } finally { setIssuing(false) }
+  }
+
+  function toggleStudent(uid: number) {
+    setSelectedStudents(prev => { const n = new Set(prev); if (n.has(uid)) { n.delete(uid) } else { n.add(uid) }; return n })
+  }
+  function toggleAll() {
+    setSelectedStudents(allUnissuedSelected ? new Set() : new Set(unissuedMembers.map(m => m.userId)))
+  }
+
+  const selectedTypeName = certTypes.find(t => t.id === selectedTypeId)?.name
+    ?? certTypes.find(t => t.id === selectedTypeId)?.title
+    ?? 'Certificate'
+
+  if (loadingInit) return (
+    <div className="p-8 flex flex-col gap-4">
+      {[120, 200, 160].map((w, i) => <div key={i} className="h-8 bg-[#f3f4f6] rounded-[8px] animate-pulse" style={{ width: w }} />)}
+    </div>
+  )
+
+  if (certTypes.length === 0) return (
+    <div className="flex flex-col items-center justify-center h-full py-24 text-center px-6">
+      <div className="w-16 h-16 rounded-[12px] bg-[#f9fafb] flex items-center justify-center mb-4">
+        <Certificate01Icon size={28} color="#d1d5db" strokeWidth={1.5} />
+      </div>
+      <p className="text-[15px] font-bold text-[#111827] font-display mb-2">No certificate types found</p>
+      <p className="text-[13px] text-[#4b5563] font-body max-w-[320px]">
+        Create certificate types first in <span className="font-semibold text-[#111827]">Certificates → Certificate Types</span> in the sidebar.
+      </p>
+    </div>
+  )
+
+  return (
+    <div className="p-8 flex flex-col gap-6 max-w-[760px]">
+      {/* Type selector */}
+      <div className="flex items-center gap-3">
+        <label className="text-[12px] font-semibold text-[#374151] font-display shrink-0">Certificate type</label>
+        <select value={selectedTypeId ?? ''} onChange={e => { setSelectedTypeId(Number(e.target.value)); setSuccessCount(null); setError('') }}
+          className="h-9 px-3 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body outline-none focus:border-[#d51520] bg-white">
+          {certTypes.map(t => <option key={t.id} value={t.id}>{t.name ?? t.title ?? `Type #${t.id}`}</option>)}
+        </select>
+        <span className="text-[12px] text-[#9ca3af] font-body">{issuedMembers.length} of {members.length} issued</span>
+      </div>
+
+      {successCount !== null && (
+        <div className="flex items-center gap-2 px-4 py-3 bg-[#ecfdf3] border border-[#a7f3d0] rounded-[8px]">
+          <CheckmarkCircle01Icon size={16} color="#16a34a" strokeWidth={1.5} />
+          <p className="text-[13px] font-semibold text-[#027a48] font-display">{successCount} certificate{successCount !== 1 ? 's' : ''} issued successfully</p>
+          <button onClick={() => setSuccessCount(null)} className="ml-auto text-[#027a48] hover:text-[#015c37]"><Cancel01Icon size={14} strokeWidth={2} /></button>
+        </div>
+      )}
+
+      {error && (
+        <div className="flex items-center gap-2 px-4 py-3 bg-[#fef2f2] border border-[#fecdca] rounded-[8px]">
+          <AlertCircleIcon size={14} color="#d51520" strokeWidth={1.5} />
+          <p className="text-[13px] text-[#d51520] font-body">{error}</p>
+        </div>
+      )}
+
+      {/* Already issued */}
+      {issuedMembers.length > 0 && (
+        <div className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] overflow-hidden">
+          <div className="px-5 py-3 border-b border-[#f3f4f6] bg-[#f9fafb]">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6b7280] font-display">
+              Issued — {issuedMembers.length} student{issuedMembers.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+          {loadingIssued
+            ? Array.from({ length: 3 }).map((_, i) => <div key={i} className="px-5 py-3 border-b border-[#f3f4f6]"><div className="h-4 w-48 bg-[#f3f4f6] rounded animate-pulse" /></div>)
+            : issuedMembers.map(m => (
+              <div key={m.userId} className="flex items-center gap-3 px-5 py-3 border-b border-[#f3f4f6] last:border-0 bg-[#fafafa]">
+                <div className="w-8 h-8 rounded-full bg-[#ecfdf3] flex items-center justify-center flex-shrink-0">
+                  <span className="text-[11px] font-bold text-[#027a48] font-display">{getInitials(m.name)}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-semibold text-[#111827] font-display truncate">{m.name}</p>
+                  <p className="text-[11px] text-[#4b5563] font-body">{m.email}</p>
+                </div>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <Certificate01Icon size={12} color="#16a34a" strokeWidth={1.5} />
+                  <span className="text-[10px] font-semibold text-[#027a48] font-display">Issued</span>
+                </div>
+              </div>
+            ))
+          }
+        </div>
+      )}
+
+      {/* Not yet issued */}
+      <div className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] overflow-hidden">
+        <div className="px-5 py-3 border-b border-[#f3f4f6] bg-[#f9fafb] flex items-center justify-between">
+          <button onClick={toggleAll} disabled={unissuedMembers.length === 0}
+            className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6b7280] font-display hover:text-[#d51520] transition-colors disabled:opacity-40">
+            <div className={`w-4 h-4 rounded-[4px] border-2 flex items-center justify-center transition-all ${allUnissuedSelected ? 'bg-[#d51520] border-[#d51520]' : 'border-[#d1d5db] bg-white'}`}>
+              {allUnissuedSelected && <svg width="8" height="6" viewBox="0 0 10 8" fill="none"><path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+            </div>
+            Not issued — {unissuedMembers.length} student{unissuedMembers.length !== 1 ? 's' : ''}
+          </button>
+          {selectedStudents.size > 0 && (
+            <span className="text-[11px] font-semibold text-[#d51520] font-display">{selectedStudents.size} selected</span>
+          )}
+        </div>
+        {unissuedMembers.length === 0 ? (
+          <div className="px-5 py-10 text-center">
+            <p className="text-[13px] text-[#9ca3af] font-body">All students have received this certificate.</p>
+          </div>
+        ) : unissuedMembers.map(m => (
+          <button key={m.userId} onClick={() => toggleStudent(m.userId)}
+            className={`w-full flex items-center gap-3 px-5 py-3.5 border-b border-[#f3f4f6] last:border-0 text-left transition-colors ${selectedStudents.has(m.userId) ? 'bg-[#fef2f2]' : 'hover:bg-[#fafafa]'}`}>
+            <div className={`w-5 h-5 rounded-[5px] border-2 flex items-center justify-center flex-shrink-0 transition-all ${selectedStudents.has(m.userId) ? 'bg-[#d51520] border-[#d51520]' : 'border-[#d1d5db] bg-white'}`}>
+              {selectedStudents.has(m.userId) && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+            </div>
+            <div className="w-8 h-8 rounded-full bg-[#fef2f2] flex items-center justify-center flex-shrink-0">
+              <span className="text-[11px] font-bold text-[#d51520] font-display">{getInitials(m.name)}</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] font-semibold text-[#111827] font-display truncate">{m.name}</p>
+              <p className="text-[11px] text-[#4b5563] font-body">{m.email}</p>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* Issue footer */}
+      {selectedStudents.size > 0 && (
+        <div className="sticky bottom-0 bg-white border border-[#eaecf0] rounded-[10px] shadow-[0px_4px_8px_rgba(16,24,40,0.10)] px-5 py-4 flex items-center justify-between gap-4">
+          <p className="text-[13px] font-body text-[#374151]">
+            Issue <span className="font-semibold text-[#111827]">{selectedTypeName}</span> to <span className="font-semibold text-[#111827]">{selectedStudents.size}</span> student{selectedStudents.size !== 1 ? 's' : ''}
+          </p>
+          <button onClick={handleIssue} disabled={issuing}
+            className="flex items-center gap-2 h-10 px-5 bg-[#d51520] text-white rounded-[8px] text-[13px] font-semibold font-display hover:bg-[#b81119] disabled:opacity-50 transition-colors">
+            {issuing && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
+            Issue {selectedStudents.size} Certificate{selectedStudents.size !== 1 ? 's' : ''}
+          </button>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -1852,7 +2117,7 @@ function PaymentsTab({ cohortId }: { cohortId: string }) {
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
-const TABS = ['Curriculum', 'People', 'Reviews', 'Payments'] as const
+const TABS = ['Curriculum', 'People', 'Reviews', 'Payments', 'Certificates'] as const
 type Tab = typeof TABS[number]
 
 const STATUS_STYLE: Record<string, string> = {
@@ -1964,7 +2229,8 @@ export default function CohortDetailPage() {
             {tab === 'Curriculum' && <BookOpen01Icon  size={14} strokeWidth={1.5} />}
             {tab === 'People'     && <UserGroup02Icon size={14} strokeWidth={1.5} />}
             {tab === 'Reviews'    && <StarIcon        size={14} strokeWidth={1.5} />}
-            {tab === 'Payments'   && <Payment01Icon   size={14} strokeWidth={1.5} />}
+            {tab === 'Payments'      && <Payment01Icon    size={14} strokeWidth={1.5} />}
+            {tab === 'Certificates'  && <Certificate01Icon size={14} strokeWidth={1.5} />}
             {tab}
           </button>
         ))}
@@ -1987,6 +2253,9 @@ export default function CohortDetailPage() {
         </div>
         <div style={activeTab === 'Payments' ? { display: 'contents' } : { display: 'none' }}>
           <PaymentsTab cohortId={cohortId} />
+        </div>
+        <div style={activeTab === 'Certificates' ? { display: 'contents' } : { display: 'none' }}>
+          <CertificatesTab cohortId={cohortId} programId={programId} />
         </div>
       </div>
     </div>

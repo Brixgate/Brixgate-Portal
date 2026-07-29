@@ -7,7 +7,7 @@ import {
   Delete01Icon, ArrowDown01Icon, ArrowRight01Icon,
   ArrowLeft01Icon, File01Icon, BookOpen01Icon, VideoReplayIcon,
   Upload01Icon, Link01Icon, PencilEdit01Icon, Invoice01Icon,
-  Payment01Icon, CheckmarkCircle01Icon,
+  Payment01Icon, CheckmarkCircle01Icon, Building04Icon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 
@@ -18,7 +18,14 @@ interface Lesson   {
   description?: string; duration?: number; order_index?: number
 }
 interface Module   { id: number; title: string; description?: string; order_index?: number; status?: string; lessons: Lesson[]; resources: Resource[] }
-interface Program  { id: number; title: string; level?: string; status?: string; description?: string }
+interface Program {
+  id: number; title: string; level?: string; status?: string; description?: string
+  slug?: string; category?: string; duration?: string; duration_weeks?: number; durationWeeks?: number
+  created_at?: string; createdAt?: string; updated_at?: string; updatedAt?: string
+  learning_format?: string; learningFormat?: string; frequency?: string
+  max_students?: number; maxStudents?: number; is_published?: boolean; isPublished?: boolean
+  cohort_count?: number; cohortCount?: number; enrollment_count?: number; enrollmentCount?: number
+}
 
 const CONTENT_TYPES   = ['VIDEO', 'ARTICLE', 'QUIZ']
 const RESOURCE_TYPES  = ['PDF', 'VIDEO', 'ARTICLE', 'IMAGE', 'PRESENTATION', 'LECTURE']
@@ -1373,6 +1380,79 @@ function PricingTab({ programId }: { programId: string }) {
   )
 }
 
+// ── General tab ───────────────────────────────────────────────────────────────
+function GeneralTab({ program, loading }: { program: Program | null; loading: boolean }) {
+  function fmtDate(d?: string) {
+    if (!d) return '—'
+    return new Date(d).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })
+  }
+
+  const PROG_STATUS: Record<string, string> = {
+    ACTIVE: 'bg-[#ecfdf3] text-[#027a48]', DRAFT: 'bg-[#fffbeb] text-[#b45309]',
+    ARCHIVED: 'bg-[#f3f4f6] text-[#4b5563]', PUBLISHED: 'bg-[#ecfdf3] text-[#027a48]',
+  }
+
+  const fields: { label: string; value: string | undefined }[] = [
+    { label: 'Programme ID',    value: program ? `#${program.id}` : undefined },
+    { label: 'Slug',            value: program?.slug },
+    { label: 'Level',           value: program?.level },
+    { label: 'Category',        value: program?.category },
+    { label: 'Learning Format', value: program?.learningFormat ?? program?.learning_format },
+    { label: 'Frequency',       value: program?.frequency },
+    { label: 'Duration',        value: program?.duration ?? (program?.durationWeeks ?? program?.duration_weeks ? `${program?.durationWeeks ?? program?.duration_weeks} weeks` : undefined) },
+    { label: 'Max Students',    value: program?.maxStudents ?? program?.max_students ? String(program?.maxStudents ?? program?.max_students) : undefined },
+    { label: 'Created',         value: fmtDate(program?.createdAt ?? program?.created_at) },
+    { label: 'Last Updated',    value: fmtDate(program?.updatedAt ?? program?.updated_at) },
+  ]
+
+  const skRow = (w: number) => (
+    <div className="h-4 bg-[#f3f4f6] rounded animate-pulse" style={{ width: w }} />
+  )
+
+  return (
+    <div className="p-8 flex flex-col gap-6 max-w-[860px]">
+      {/* Overview card */}
+      <div className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] p-6">
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div className="flex-1 min-w-0">
+            {loading
+              ? <div className="h-6 w-64 bg-[#f3f4f6] rounded animate-pulse mb-2" />
+              : <h2 className="text-[20px] font-bold text-[#111827] font-display leading-[28px]">{program?.title ?? '—'}</h2>
+            }
+            {loading
+              ? <div className="h-4 w-32 bg-[#f3f4f6] rounded animate-pulse mt-2" />
+              : program?.status && (
+                <span className={`mt-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold font-display ${PROG_STATUS[program.status] ?? 'bg-[#f3f4f6] text-[#374151]'}`}>
+                  {program.status}
+                </span>
+              )
+            }
+          </div>
+        </div>
+        <div className="h-px bg-[#f3f4f6] mb-4" />
+        <p className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[#9ca3af] font-display mb-2">Description</p>
+        {loading
+          ? <div className="space-y-2">{[280, 240, 180].map((w, i) => <div key={i} className="h-4 bg-[#f3f4f6] rounded animate-pulse" style={{ width: w }} />)}</div>
+          : <p className="text-[14px] text-[#374151] font-body leading-[22px]">{program?.description || 'No description provided.'}</p>
+        }
+      </div>
+
+      {/* Details grid */}
+      <div className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] p-6">
+        <p className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[#9ca3af] font-display mb-4">Programme Details</p>
+        <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+          {fields.map(f => (
+            <div key={f.label}>
+              <p className="text-[11px] font-semibold text-[#9ca3af] font-display uppercase tracking-[0.05em] mb-0.5">{f.label}</p>
+              {loading ? skRow(100) : <p className="text-[14px] font-medium text-[#111827] font-body">{f.value || '—'}</p>}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Cohort types (for cohorts tab) ────────────────────────────────────────────
 interface ApiCohort {
   id: number; title: string; status?: string
@@ -1642,9 +1722,9 @@ function CohortsTab({ programId }: { programId: string }) {
         <div className="rounded-[10px] border border-[#eaecf0] overflow-hidden">
           <table className="w-full">
             <thead>
-              <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
+              <tr className="bg-[#f9fafb] border-b border-[#eaecf0]">
                 {['Cohort', 'Status', 'Start Date', 'End Date', 'Students', ''].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display">{h}</th>
+                  <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6b7280] font-display bg-[#f9fafb]">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -1733,7 +1813,7 @@ function CohortsTab({ programId }: { programId: string }) {
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
-type PageTab = 'Cohorts' | 'Pricing' | 'General Curriculum'
+type PageTab = 'General' | 'Cohorts' | 'Pricing' | 'General Curriculum'
 
 export default function ProgramDetailPage() {
   const params    = useParams()
@@ -1744,7 +1824,7 @@ export default function ProgramDetailPage() {
   const [modules, setModules]       = useState<Module[]>([])
   const [selected, setSelected]     = useState<Module | null>(null)
   const [loading, setLoading]       = useState(true)
-  const [activeTab, setActiveTab]   = useState<PageTab>('Cohorts')
+  const [activeTab, setActiveTab]   = useState<PageTab>('General')
   const [showAddMod, setShowAddMod] = useState(false)
   const [modForm, setModForm]       = useState({ title: '', description: '', status: 'DRAFT' })
   const [modSaving, setModSaving]   = useState(false)
@@ -1801,7 +1881,10 @@ export default function ProgramDetailPage() {
             : <h1 className="text-[16px] font-bold text-[#111827] font-display truncate">{program?.title ?? 'Programme'}</h1>
           }
           <p className="text-[13px] text-[#4b5563] font-body mt-0.5">
-            {activeTab === 'Cohorts' ? 'Cohorts running this programme' : 'General curriculum — modules, lessons & resources'}
+            {activeTab === 'General'            ? 'Overview and programme details'
+            : activeTab === 'Cohorts'           ? 'Cohorts running this programme'
+            : activeTab === 'Pricing'           ? 'Pricing plans and payment options'
+            : 'General curriculum — modules, lessons & resources'}
           </p>
         </div>
         {activeTab === 'General Curriculum' && (
@@ -1814,20 +1897,27 @@ export default function ProgramDetailPage() {
 
       {/* Tab bar */}
       <div className="flex items-center gap-1 px-6 bg-white border-b border-[#f3f4f6] flex-shrink-0">
-        {(['Cohorts', 'Pricing', 'General Curriculum'] as PageTab[]).map(tab => (
+        {(['General', 'Cohorts', 'Pricing', 'General Curriculum'] as PageTab[]).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             className={`flex items-center gap-1.5 px-4 py-3 text-[13px] font-semibold font-display border-b-2 transition-colors ${
               activeTab === tab ? 'border-[#d51520] text-[#d51520]' : 'border-transparent text-[#4b5563] hover:text-[#374151]'
             }`}>
-            {tab === 'Cohorts'            && <BookOpen01Icon size={14} strokeWidth={1.5} />}
-            {tab === 'Pricing'            && <Invoice01Icon  size={14} strokeWidth={1.5} />}
-            {tab === 'General Curriculum' && <File01Icon     size={14} strokeWidth={1.5} />}
+            {tab === 'General'            && <Building04Icon  size={14} strokeWidth={1.5} />}
+            {tab === 'Cohorts'            && <BookOpen01Icon  size={14} strokeWidth={1.5} />}
+            {tab === 'Pricing'            && <Invoice01Icon   size={14} strokeWidth={1.5} />}
+            {tab === 'General Curriculum' && <File01Icon      size={14} strokeWidth={1.5} />}
             {tab}
           </button>
         ))}
       </div>
 
       {/* Tab content */}
+      {activeTab === 'General' && (
+        <div className="flex-1 overflow-y-auto bg-[#f9fafb]">
+          <GeneralTab program={program} loading={loading} />
+        </div>
+      )}
+
       {activeTab === 'Cohorts' && (
         <div className="flex-1 overflow-y-auto bg-[#f9fafb]">
           <CohortsTab programId={programId} />
