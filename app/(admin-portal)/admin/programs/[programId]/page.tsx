@@ -1022,7 +1022,7 @@ function PaymentOptionsModal({ planId, breakdown, planTitle, onClose }: {
                         >
                           {toggling === opt.id
                             ? <Loading01Icon size={12} className="absolute inset-0 m-auto animate-spin" color="white" strokeWidth={2} />
-                            : <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${isActive ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                            : <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${isActive ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
                           }
                         </button>
                         <button onClick={() => handleDelete(opt.id)}
