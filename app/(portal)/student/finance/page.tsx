@@ -181,7 +181,7 @@ function PlanStatusBadge({ status }: { status: string }) {
 }
 
 // ── Pay button ────────────────────────────────────────────────────────────────
-function PayButton({ plan, installment, onSuccess }: {
+function PayButton({ plan, installment: _installment, onSuccess: _onSuccess }: {
   plan: PaymentPlan
   installment: Installment
   onSuccess: () => void

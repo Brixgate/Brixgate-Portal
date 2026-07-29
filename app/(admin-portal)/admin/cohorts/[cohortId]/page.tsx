@@ -1753,7 +1753,7 @@ function PaymentsTab({ cohortId }: { cohortId: string }) {
           { label: 'Total Enrolled',   value: String(totalEnrolled),     icon: <Invoice01Icon  size={18} color="#7c3aed" strokeWidth={1.5} />, tint: '#f5f3ff', accent: '#7c3aed' },
           { label: 'Revenue Collected', value: fmt(totalRevenue),        icon: <Payment01Icon  size={18} color="#0d9488" strokeWidth={1.5} />, tint: '#f0fdfa', accent: '#0d9488' },
           { label: 'Outstanding',       value: fmt(totalOutstanding),    icon: <AlertCircleIcon size={18} color="#d97706" strokeWidth={1.5} />, tint: '#fffbeb', accent: '#d97706' },
-        ].map(({ label, value, icon, tint, accent }) => (
+        ].map(({ label, value, icon, tint }) => (
           <div key={label} className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] p-5">
             <div className="flex items-start justify-between mb-3">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">{label}</p>

@@ -5,9 +5,9 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft01Icon, Loading01Icon, AlertCircleIcon,
   CheckmarkCircle01Icon, Invoice01Icon, Wallet01Icon,
-  Money01Icon, UserCircleIcon, CreditCardIcon,
+  Money01Icon,
 } from 'hugeicons-react'
-import { apiClient, unwrap, getApiError } from '@/lib/api-client'
+import { apiClient, getApiError } from '@/lib/api-client'
 
 // ── API types ──────────────────────────────────────────────────────────────────
 interface ApiUser {
