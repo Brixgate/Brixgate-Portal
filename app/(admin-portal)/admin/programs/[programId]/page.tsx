@@ -881,9 +881,10 @@ function PaymentOptionsModal({ planId, breakdown, planTitle, onClose }: {
       const inner = raw?.data ?? raw
       const list: PaymentOption[] = Array.isArray(inner)
         ? inner
-        : Array.isArray(inner?.options)  ? inner.options
-        : Array.isArray(inner?.content)  ? inner.content
-        : Array.isArray(inner?.data)     ? inner.data
+        : Array.isArray(inner?.payment_options) ? inner.payment_options
+        : Array.isArray(inner?.options)          ? inner.options
+        : Array.isArray(inner?.content)          ? inner.content
+        : Array.isArray(inner?.data)             ? inner.data
         : []
       setOptions(list)
     } catch (e) { setError(getApiError(e)) } finally { setLoading(false) }
