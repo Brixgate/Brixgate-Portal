@@ -121,7 +121,7 @@ function ResourceTypeChip({ type }: { type: string }) {
 }
 
 // ── Tab: Curriculum ───────────────────────────────────────────────────────────
-function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId: string; programId: number | null; onProgramIdResolved?: (id: number) => void }) {
+function CurriculumTab({ cohortId, programId, parentLoading, onProgramIdResolved }: { cohortId: string; programId: number | null; parentLoading?: boolean; onProgramIdResolved?: (id: number) => void }) {
   const [allModules, setAllModules]               = useState<ProgramModule[]>([])
   const [cohortModuleIds, setCohortModuleIds]     = useState<Set<number>>(new Set())
   const [selectedModuleIds, setSelectedModuleIds] = useState<Set<number>>(new Set())
@@ -247,7 +247,11 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
     } finally { setLoading(false) }
   }, [cohortId, programId, onProgramIdResolved])
 
-  useEffect(() => { load() }, [load])
+  // Don't start loading until the parent page has resolved the cohort (and thus programId)
+  useEffect(() => {
+    if (parentLoading) return
+    load()
+  }, [load, parentLoading])
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
   function getLessons(moduleId: number): ProgramModuleLesson[] {
@@ -409,7 +413,7 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
         <div className="px-6 py-4 border-b border-[#f3f4f6] flex items-center justify-between flex-shrink-0 bg-white">
           <div>
             <p className="text-[13px] font-semibold text-[#111827] font-display">
-              {loading ? '…' : `${cohortModuleIds.size} module${cohortModuleIds.size !== 1 ? 's' : ''} assigned to this cohort`}
+              {(loading || parentLoading) ? '…' : `${cohortModuleIds.size} module${cohortModuleIds.size !== 1 ? 's' : ''} assigned to this cohort`}
             </p>
             <p className="text-[12px] text-[#4b5563] font-body mt-0.5">Click &ldquo;Edit Curriculum&rdquo; to change assignments</p>
           </div>
@@ -429,7 +433,7 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
           </div>
         </div>
         <div className="flex-1 overflow-y-auto bg-white">
-          {loading ? (
+          {(loading || parentLoading) ? (
             Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 px-6 py-4 border-b border-[#f3f4f6]">
                 <div className="w-5 h-5 rounded bg-[#e5e7eb] animate-pulse flex-shrink-0" />
@@ -555,7 +559,7 @@ function CurriculumTab({ cohortId, programId, onProgramIdResolved }: { cohortId:
           </p>
         </div>
         <div className="flex-1 overflow-y-auto bg-[#fafafa]">
-          {loading ? (
+          {(loading || parentLoading) ? (
             Array.from({ length: 5 }).map((_, i) => (
               <div key={i} className="flex items-start gap-3 px-5 py-3.5 border-b border-[#f3f4f6] bg-white">
                 <div className="w-5 h-5 rounded bg-[#e5e7eb] animate-pulse flex-shrink-0 mt-0.5" />
@@ -1960,7 +1964,7 @@ export default function CohortDetailPage() {
         style={activeTab === 'Curriculum' ? { display: 'flex', flexDirection: 'column', overflow: 'hidden' } : { overflowY: 'auto' }}
       >
         <div style={activeTab === 'Curriculum' ? { display: 'contents' } : { display: 'none' }}>
-          <CurriculumTab cohortId={cohortId} programId={programId} onProgramIdResolved={id => setCohort(prev => prev ? { ...prev, program_id: id } : prev)} />
+          <CurriculumTab cohortId={cohortId} programId={programId} parentLoading={loading} onProgramIdResolved={id => setCohort(prev => prev ? { ...prev, program_id: id } : prev)} />
         </div>
         <div style={activeTab === 'People' ? { display: 'contents' } : { display: 'none' }}>
           <PeopleTab cohortId={cohortId} programId={programId} />

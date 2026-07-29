@@ -1184,7 +1184,21 @@ function PricingTab({ programId }: { programId: string }) {
           if (Array.isArray(v)) list.push(...(v as PricingPlan[]))
         })
       }
-      setPlans(list)
+
+      // Fetch each plan's detail to get breakdowns (list endpoint omits them)
+      const details = await Promise.allSettled(
+        list.map(p => apiClient.get(`/admin/pricing-plans/${p.id}`))
+      )
+      const enriched = list.map((p, i) => {
+        const r = details[i]
+        if (r.status === 'fulfilled') {
+          const d = r.value.data
+          const full = (d?.data ?? d) as PricingPlan
+          return { ...p, breakdowns: full?.breakdowns ?? p.breakdowns ?? [] }
+        }
+        return p
+      })
+      setPlans(enriched)
     } catch { setPlans([]) } finally { setLoading(false) }
   }, [programId])
 
