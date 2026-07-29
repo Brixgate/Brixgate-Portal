@@ -26,7 +26,8 @@ const MODULE_STATUSES = ['DRAFT', 'PUBLISHED']
 
 // ── Pricing types ─────────────────────────────────────────────────────────────
 interface PricingBreakdown {
-  id: number; currency: string
+  id?: number; breakdownId?: number; breakdown_id?: number
+  currency: string
   basePrice?: number; base_price?: number
   finalPrice?: number; final_price?: number
 }
@@ -869,9 +870,10 @@ function PaymentOptionsModal({ planId, breakdown, planTitle, onClose }: {
     { amount_type: 'PERCENTAGE', amount_value: '', due_offset_days: '0' }
   ])
 
-  const bdId = breakdown.id
+  const bdId = breakdown.id ?? breakdown.breakdownId ?? breakdown.breakdown_id
 
   const loadOptions = useCallback(async () => {
+    if (!bdId) { setError('Breakdown ID missing — cannot load options.'); setLoading(false); return }
     setLoading(true)
     try {
       const res = await apiClient.get(`/admin/pricing-plans/${planId}/breakdowns/${bdId}/payment-options`)
@@ -884,7 +886,7 @@ function PaymentOptionsModal({ planId, breakdown, planTitle, onClose }: {
         : Array.isArray(inner?.data)     ? inner.data
         : []
       setOptions(list)
-    } catch { setOptions([]) } finally { setLoading(false) }
+    } catch (e) { setError(getApiError(e)) } finally { setLoading(false) }
   }, [planId, bdId])
 
   useEffect(() => { loadOptions() }, [loadOptions])
@@ -902,6 +904,7 @@ function PaymentOptionsModal({ planId, breakdown, planTitle, onClose }: {
   }
 
   async function handleCreate() {
+    if (!bdId) { setError('Breakdown ID missing — cannot save option.'); return }
     setSaving(true); setError('')
     try {
       const payload: Record<string, unknown> = {
