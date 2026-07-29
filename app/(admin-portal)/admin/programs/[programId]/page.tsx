@@ -846,9 +846,10 @@ interface PaymentOption {
 
 interface InstallmentDef { amount_type: 'FIXED_AMOUNT' | 'PERCENTAGE'; amount_value: string; due_offset_days: string }
 
-function PaymentOptionsModal({ planId, breakdown, onClose }: {
+function PaymentOptionsModal({ planId, breakdown, planTitle, onClose }: {
   planId: number
   breakdown: PricingBreakdown
+  planTitle: string
   onClose: () => void
 }) {
   const [options,  setOptions]  = useState<PaymentOption[]>([])
@@ -904,6 +905,7 @@ function PaymentOptionsModal({ planId, breakdown, onClose }: {
     setSaving(true); setError('')
     try {
       const payload: Record<string, unknown> = {
+        title: planTitle,
         payment_mode: mode,
         grace_period_days: Number(graceDays) || 5,
         suspend_access_on_overdue: suspendOnOverdue,
@@ -1175,7 +1177,7 @@ function PricingTab({ programId }: { programId: string }) {
   const [deleting, setDeleting]     = useState(false)
   const [deleteError, setDeleteError] = useState('')
   // { planId, breakdown } — opens the payment options modal for a specific breakdown
-  const [payOptTarget, setPayOptTarget] = useState<{ planId: number; breakdown: PricingBreakdown } | null>(null)
+  const [payOptTarget, setPayOptTarget] = useState<{ planId: number; breakdown: PricingBreakdown; planTitle: string } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -1291,7 +1293,7 @@ function PricingTab({ programId }: { programId: string }) {
                         {bds.map(bd => (
                           <button
                             key={bd.id}
-                            onClick={() => setPayOptTarget({ planId: plan.id, breakdown: bd })}
+                            onClick={() => setPayOptTarget({ planId: plan.id, breakdown: bd, planTitle: plan.title ?? '' })}
                             className="flex items-center gap-1.5 h-7 px-2.5 rounded-[6px] border border-[#e5e7eb] text-[11px] font-semibold font-display text-[#374151] hover:bg-[#f9fafb] hover:border-[#d51520] hover:text-[#d51520] transition-colors"
                           >
                             <Payment01Icon size={11} strokeWidth={1.5} />
@@ -1331,6 +1333,7 @@ function PricingTab({ programId }: { programId: string }) {
         <PaymentOptionsModal
           planId={payOptTarget.planId}
           breakdown={payOptTarget.breakdown}
+          planTitle={payOptTarget.planTitle}
           onClose={() => setPayOptTarget(null)}
         />
       )}
