@@ -801,7 +801,8 @@ function AddFacilitatorModal({ cohortId, onClose, onAdded }: { cohortId: string;
             const id = u.id ?? u.userId ?? 0
             const firstName = u.firstName ?? u.first_name ?? ''
             const lastName  = u.lastName  ?? u.last_name  ?? ''
-            const name = u.name ?? u.full_name ?? (`${firstName} ${lastName}`.trim() || u.email ?? '')
+            const fullName  = `${firstName} ${lastName}`.trim()
+            const name = u.name ?? u.full_name ?? (fullName || u.email ?? '')
             return { id, name, email: u.email ?? '', role: u.role }
           })
           .filter(u => u.id !== 0)
