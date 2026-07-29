@@ -810,7 +810,7 @@ function AddFacilitatorModal({ cohortId, onClose, onAdded }: { cohortId: string;
     if (!selected) return
     setSaving(true); setError('')
     try {
-      await apiClient.post(`/admin/cohorts/${cohortId}/facilitators`, { userId: selected.id, role })
+      await apiClient.post(`/admin/cohorts/${cohortId}/facilitators`, { user_id: selected.id, role })
       onAdded()
       onClose()
     } catch (err) { setError(getApiError(err)) } finally { setSaving(false) }
@@ -848,7 +848,7 @@ function AddFacilitatorModal({ cohortId, onClose, onAdded }: { cohortId: string;
               {/* Results dropdown — absolutely positioned so it overlays content below */}
               {results.length > 0 && !selected && (
                 <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-white border border-[#e5e7eb] rounded-[8px] shadow-[0px_4px_8px_rgba(16,24,40,0.10)] overflow-hidden"
-                  style={{ maxHeight: '212px', overflowY: 'auto' }}>
+                  style={{ maxHeight: '320px', overflowY: 'auto' }}>
                   {results.map(u => (
                     <button
                       key={u.id}
@@ -1226,7 +1226,7 @@ function PeopleTab({ cohortId, programId }: { cohortId: string; programId: numbe
       const [membRes, enrollRes, certRes] = await Promise.allSettled([
         apiClient.get(`/admin/cohorts/${cohortId}/members?size=100`),
         apiClient.get(`/admin/cohort-enrollments?cohort_id=${cohortId}&size=100`),
-        apiClient.get(`/admin/user-certificates?cohort_id=${cohortId}&size=200`),
+        apiClient.get(`/admin/user-certificates?cohort_id=${cohortId}&size=100`),
       ])
 
         const members: Member[] = membRes.status === 'fulfilled'
