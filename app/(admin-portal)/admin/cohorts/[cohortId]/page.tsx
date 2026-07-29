@@ -772,42 +772,55 @@ function CurriculumTab({ cohortId, programId, parentLoading, onProgramIdResolved
 }
 
 // ── Add Facilitator Modal ─────────────────────────────────────────────────────
-interface AdminUserRaw    { id?: number; userId?: number; name?: string; full_name?: string; firstName?: string; first_name?: string; lastName?: string; last_name?: string; email: string; role?: string }
+interface AdminUserRaw    { id?: number; userId?: number; name?: string; full_name?: string; firstName?: string; first_name?: string; lastName?: string; last_name?: string; email?: string; role?: string; expertise_area?: string }
 interface AdminUserResult { id: number; name: string; email: string; role?: string }
 
 function AddFacilitatorModal({ cohortId, onClose, onAdded }: { cohortId: string; onClose: () => void; onAdded: () => void }) {
-  const [query, setQuery]       = useState('')
-  const [results, setResults]   = useState<AdminUserResult[]>([])
-  const [searching, setSearching] = useState(false)
-  const [selected, setSelected] = useState<AdminUserResult | null>(null)
-  const [role, setRole]         = useState<'INSTRUCTOR' | 'ADMIN'>('INSTRUCTOR')
-  const [saving, setSaving]     = useState(false)
-  const [error, setError]       = useState('')
-  const searchRef               = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [query, setQuery]         = useState('')
+  const [allExperts, setAllExperts] = useState<AdminUserResult[]>([])
+  const [loadingExperts, setLoadingExperts] = useState(true)
+  const [selected, setSelected]   = useState<AdminUserResult | null>(null)
+  const [role, setRole]           = useState<'INSTRUCTOR' | 'ADMIN'>('INSTRUCTOR')
+  const [saving, setSaving]       = useState(false)
+  const [error, setError]         = useState('')
 
-  function onQueryChange(v: string) {
-    setQuery(v)
-    setSelected(null)
-    if (searchRef.current) clearTimeout(searchRef.current)
-    if (!v.trim()) { setResults([]); return }
-    searchRef.current = setTimeout(async () => {
-      setSearching(true)
+  useEffect(() => {
+    async function loadExperts() {
       try {
-        const res = await apiClient.get(`/admin/users?search=${encodeURIComponent(v.trim())}&size=20`)
-        const d = unwrap<{ users?: AdminUserRaw[]; content?: AdminUserRaw[] } | AdminUserRaw[]>(res.data)
-        const raw: AdminUserRaw[] = Array.isArray(d) ? d : ((d as { users?: AdminUserRaw[] })?.users ?? (d as { content?: AdminUserRaw[] })?.content ?? [])
-        const list: AdminUserResult[] = raw
+        const res = await apiClient.get('/experts?page=1&size=20')
+        const raw = res.data
+        const inner = raw?.data ?? raw
+        const arr: AdminUserRaw[] = Array.isArray(inner)
+          ? inner
+          : Array.isArray(inner?.content)  ? inner.content
+          : Array.isArray(inner?.experts)  ? inner.experts
+          : Array.isArray(inner?.data)     ? inner.data
+          : []
+        const list: AdminUserResult[] = arr
           .map(u => {
             const id = u.id ?? u.userId ?? 0
             const firstName = u.firstName ?? u.first_name ?? ''
             const lastName  = u.lastName  ?? u.last_name  ?? ''
-            const name = u.name ?? u.full_name ?? (`${firstName} ${lastName}`.trim() || u.email)
-            return { id, name, email: u.email, role: u.role }
+            const name = u.name ?? u.full_name ?? (`${firstName} ${lastName}`.trim() || u.email ?? '')
+            return { id, name, email: u.email ?? '', role: u.role }
           })
           .filter(u => u.id !== 0)
-        setResults(list)
-      } catch { setResults([]) } finally { setSearching(false) }
-    }, 350)
+        setAllExperts(list)
+      } catch { setAllExperts([]) } finally { setLoadingExperts(false) }
+    }
+    loadExperts()
+  }, [])
+
+  const results = query.trim()
+    ? allExperts.filter(u =>
+        u.name.toLowerCase().includes(query.toLowerCase()) ||
+        u.email.toLowerCase().includes(query.toLowerCase())
+      )
+    : allExperts
+
+  function onQueryChange(v: string) {
+    setQuery(v)
+    setSelected(null)
   }
 
   async function handleAdd() {
@@ -823,7 +836,7 @@ function AddFacilitatorModal({ cohortId, onClose, onAdded }: { cohortId: string;
   return (
     <>
       <div className="fixed inset-0 bg-black/30 z-[59]" onClick={onClose} />
-      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] bg-white rounded-[12px] shadow-[0px_12px_32px_rgba(16,24,40,0.16)] w-[480px] flex flex-col overflow-hidden">
+      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] bg-white rounded-[12px] shadow-[0px_12px_32px_rgba(16,24,40,0.16)] w-[480px] min-h-[520px] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="px-6 pt-5 pb-4 border-b border-[#f3f4f6] flex items-center justify-between">
           <div>
@@ -847,7 +860,7 @@ function AddFacilitatorModal({ cohortId, onClose, onAdded }: { cohortId: string;
                 placeholder="Name or email…"
                 className="w-full h-10 pl-9 pr-3.5 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#9ca3af] focus:outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10"
               />
-              {searching && <Loading01Icon size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin" color="#9ca3af" strokeWidth={2} />}
+              {loadingExperts && <Loading01Icon size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin" color="#9ca3af" strokeWidth={2} />}
 
               {/* Results dropdown — absolutely positioned so it overlays content below */}
               {results.length > 0 && !selected && (
@@ -861,7 +874,6 @@ function AddFacilitatorModal({ cohortId, onClose, onAdded }: { cohortId: string;
                         e.preventDefault() // prevent input blur before click fires
                         setSelected(u)
                         setQuery(u.name)
-                        setResults([])
                       }}
                       className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#f9fafb] transition-colors text-left border-b border-[#f3f4f6] last:border-0"
                     >
