@@ -875,7 +875,13 @@ function PaymentOptionsModal({ planId, breakdown, onClose }: {
     try {
       const res = await apiClient.get(`/admin/pricing-plans/${planId}/breakdowns/${bdId}/payment-options`)
       const raw = res.data
-      const list = (Array.isArray(raw) ? raw : (raw?.data ?? raw?.options ?? raw?.content ?? [])) as PaymentOption[]
+      const inner = raw?.data ?? raw
+      const list: PaymentOption[] = Array.isArray(inner)
+        ? inner
+        : Array.isArray(inner?.options)  ? inner.options
+        : Array.isArray(inner?.content)  ? inner.content
+        : Array.isArray(inner?.data)     ? inner.data
+        : []
       setOptions(list)
     } catch { setOptions([]) } finally { setLoading(false) }
   }, [planId, bdId])
@@ -1194,7 +1200,8 @@ function PricingTab({ programId }: { programId: string }) {
         if (r.status === 'fulfilled') {
           const d = r.value.data
           const full = (d?.data ?? d) as PricingPlan
-          return { ...p, breakdowns: full?.breakdowns ?? p.breakdowns ?? [] }
+          const bds = Array.isArray(full?.breakdowns) ? full.breakdowns : (p.breakdowns ?? [])
+          return { ...p, breakdowns: bds }
         }
         return p
       })
