@@ -19,12 +19,21 @@ interface Lesson   {
 }
 interface Module   { id: number; title: string; description?: string; order_index?: number; status?: string; lessons: Lesson[]; resources: Resource[] }
 interface Program {
-  id: number; title: string; level?: string; status?: string; description?: string
-  slug?: string; category?: string; duration?: string; duration_weeks?: number; durationWeeks?: number
-  created_at?: string; createdAt?: string; updated_at?: string; updatedAt?: string
-  learning_format?: string; learningFormat?: string; frequency?: string
-  max_students?: number; maxStudents?: number; is_published?: boolean; isPublished?: boolean
-  cohort_count?: number; cohortCount?: number; enrollment_count?: number; enrollmentCount?: number
+  id: number; title: string; slug?: string; type?: string
+  status?: string; level?: string
+  description?: string; subtitle?: string
+  duration?: string; flexibility?: string; languages?: string
+  main_price?: number; final_price?: number
+  discounted_amount?: number; discounted_percent?: number
+  brochure_url?: string; sample_certificate_url?: string
+  auto_percent_completion?: number
+  created_at?: string; updated_at?: string; published_at?: string
+  // JSON-string content fields
+  audience?: string; outcomes?: string; skills?: string
+  faqs?: string; projects?: string; key_features?: string
+  partners?: string; testimonials?: string; tools?: string
+  images?: string; includes_summary?: string; demand?: string
+  eligibility?: string; application_process?: string
 }
 
 const CONTENT_TYPES   = ['VIDEO', 'ARTICLE', 'QUIZ']
@@ -1386,69 +1395,169 @@ function GeneralTab({ program, loading }: { program: Program | null; loading: bo
     if (!d) return '—'
     return new Date(d).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })
   }
-
-  const PROG_STATUS: Record<string, string> = {
-    ACTIVE: 'bg-[#ecfdf3] text-[#027a48]', DRAFT: 'bg-[#fffbeb] text-[#b45309]',
-    ARCHIVED: 'bg-[#f3f4f6] text-[#4b5563]', PUBLISHED: 'bg-[#ecfdf3] text-[#027a48]',
+  function fmtPrice(n?: number) {
+    if (n == null) return '—'
+    return `₦${n.toLocaleString('en-NG')}`
+  }
+  // Safely parse a JSON string field and return the object (or null)
+  function tryParse(s?: string): Record<string, unknown> | null {
+    if (!s) return null
+    try { return JSON.parse(s) } catch { return null }
+  }
+  function countArray(s?: string, key?: string): number | null {
+    const p = tryParse(s)
+    if (!p) return null
+    const arr = key ? p[key] : null
+    return Array.isArray(arr) ? arr.length : null
   }
 
-  const fields: { label: string; value: string | undefined }[] = [
+  const PROG_STATUS: Record<string, string> = {
+    ACTIVE:    'bg-[#ecfdf3] text-[#027a48]',
+    PUBLISHED: 'bg-[#ecfdf3] text-[#027a48]',
+    DRAFT:     'bg-[#fffbeb] text-[#b45309]',
+    INACTIVE:  'bg-[#f3f4f6] text-[#4b5563]',
+    ARCHIVED:  'bg-[#f3f4f6] text-[#4b5563]',
+  }
+
+  const sk = (w: number) => <div className="h-4 bg-[#f3f4f6] rounded animate-pulse" style={{ width: w }} />
+
+  const details: { label: string; value: string | undefined }[] = [
     { label: 'Programme ID',    value: program ? `#${program.id}` : undefined },
+    { label: 'Type',            value: program?.type },
     { label: 'Slug',            value: program?.slug },
     { label: 'Level',           value: program?.level },
-    { label: 'Category',        value: program?.category },
-    { label: 'Learning Format', value: program?.learningFormat ?? program?.learning_format },
-    { label: 'Frequency',       value: program?.frequency },
-    { label: 'Duration',        value: program?.duration ?? (program?.durationWeeks ?? program?.duration_weeks ? `${program?.durationWeeks ?? program?.duration_weeks} weeks` : undefined) },
-    { label: 'Max Students',    value: program?.maxStudents ?? program?.max_students ? String(program?.maxStudents ?? program?.max_students) : undefined },
-    { label: 'Created',         value: fmtDate(program?.createdAt ?? program?.created_at) },
-    { label: 'Last Updated',    value: fmtDate(program?.updatedAt ?? program?.updated_at) },
+    { label: 'Duration',        value: program?.duration },
+    { label: 'Flexibility',     value: program?.flexibility },
+    { label: 'Language',        value: program?.languages },
+    { label: 'Completion',      value: program?.auto_percent_completion != null ? `${program.auto_percent_completion}%` : undefined },
+    { label: 'Published',       value: fmtDate(program?.published_at) },
+    { label: 'Created',         value: fmtDate(program?.created_at) },
+    { label: 'Last Updated',    value: fmtDate(program?.updated_at) },
   ]
 
-  const skRow = (w: number) => (
-    <div className="h-4 bg-[#f3f4f6] rounded animate-pulse" style={{ width: w }} />
-  )
+  const pricing: { label: string; value: string }[] = program ? [
+    { label: 'Main Price',          value: fmtPrice(program.main_price) },
+    { label: 'Final Price',         value: fmtPrice(program.final_price) },
+    { label: 'Discount Amount',     value: fmtPrice(program.discounted_amount) },
+    { label: 'Discount %',          value: program.discounted_percent != null ? `${program.discounted_percent}%` : '—' },
+  ] : []
+
+  // Content summary — parse JSON strings to show counts
+  const contentStats: { label: string; count: number | null }[] = [
+    { label: 'Outcomes',      count: countArray(program?.outcomes, 'outcomes') },
+    { label: 'Skills',        count: countArray(program?.skills, 'skills') },
+    { label: 'FAQs',          count: countArray(program?.faqs, 'faqs') },
+    { label: 'Projects',      count: countArray(program?.projects, 'projects') },
+    { label: 'Apply Steps',   count: countArray(program?.application_process, 'steps') },
+    { label: 'Tools',         count: countArray(program?.tools, 'tools') },
+    { label: 'Testimonials',  count: countArray(program?.testimonials, 'testimonies') },
+  ].filter(s => s.count !== null && s.count > 0) as { label: string; count: number }[]
 
   return (
-    <div className="p-8 flex flex-col gap-6 max-w-[860px]">
-      {/* Overview card */}
+    <div className="p-8 flex flex-col gap-6 max-w-[900px]">
+
+      {/* Overview */}
       <div className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] p-6">
-        <div className="flex items-start justify-between gap-4 mb-4">
+        <div className="flex items-start gap-4 mb-3">
           <div className="flex-1 min-w-0">
             {loading
-              ? <div className="h-6 w-64 bg-[#f3f4f6] rounded animate-pulse mb-2" />
-              : <h2 className="text-[20px] font-bold text-[#111827] font-display leading-[28px]">{program?.title ?? '—'}</h2>
+              ? <div className="h-6 w-72 bg-[#f3f4f6] rounded animate-pulse mb-2" />
+              : <h2 className="text-[20px] font-bold text-[#111827] font-display leading-snug">{program?.title ?? '—'}</h2>
             }
             {loading
-              ? <div className="h-4 w-32 bg-[#f3f4f6] rounded animate-pulse mt-2" />
-              : program?.status && (
-                <span className={`mt-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold font-display ${PROG_STATUS[program.status] ?? 'bg-[#f3f4f6] text-[#374151]'}`}>
-                  {program.status}
-                </span>
+              ? <div className="h-4 w-64 bg-[#f3f4f6] rounded animate-pulse mt-2" />
+              : program?.subtitle && (
+                <p className="text-[13px] text-[#475467] font-body mt-1 leading-[1.6]">{program.subtitle}</p>
               )
             }
           </div>
+          {!loading && program?.status && (
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {program.type && (
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold font-display bg-[#eff6ff] text-[#1d4ed8]">
+                  {program.type}
+                </span>
+              )}
+              <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold font-display ${PROG_STATUS[program.status] ?? 'bg-[#f3f4f6] text-[#374151]'}`}>
+                {program.status}
+              </span>
+            </div>
+          )}
         </div>
-        <div className="h-px bg-[#f3f4f6] mb-4" />
-        <p className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[#9ca3af] font-display mb-2">Description</p>
+
+        <div className="h-px bg-[#f3f4f6] my-4" />
+
+        <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#9ca3af] font-display mb-2">Description</p>
         {loading
-          ? <div className="space-y-2">{[280, 240, 180].map((w, i) => <div key={i} className="h-4 bg-[#f3f4f6] rounded animate-pulse" style={{ width: w }} />)}</div>
-          : <p className="text-[14px] text-[#374151] font-body leading-[22px]">{program?.description || 'No description provided.'}</p>
+          ? <div className="flex flex-col gap-2">{[300, 260, 200].map((w, i) => <div key={i} className="h-4 bg-[#f3f4f6] rounded animate-pulse" style={{ width: w }} />)}</div>
+          : <p className="text-[14px] text-[#374151] font-body leading-[1.7]">{program?.description || 'No description provided.'}</p>
         }
+
+        {/* Links row */}
+        {!loading && (program?.brochure_url || program?.sample_certificate_url) && (
+          <div className="flex items-center gap-3 mt-4 flex-wrap">
+            {program.brochure_url && (
+              <a href={program.brochure_url} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#d51520] hover:underline font-display">
+                <Invoice01Icon size={13} strokeWidth={1.5} />
+                View Brochure
+              </a>
+            )}
+            {program.sample_certificate_url && (
+              <span className="inline-flex items-center gap-1.5 text-[12px] text-[#4b5563] font-body">
+                <CheckmarkCircle01Icon size={13} strokeWidth={1.5} color="#12b76a" />
+                Certificate available
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Details grid */}
       <div className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] p-6">
-        <p className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[#9ca3af] font-display mb-4">Programme Details</p>
-        <div className="grid grid-cols-2 gap-x-8 gap-y-4">
-          {fields.map(f => (
+        <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#9ca3af] font-display mb-4">Programme Details</p>
+        <div className="grid grid-cols-2 gap-x-10 gap-y-4">
+          {details.map(f => (
             <div key={f.label}>
               <p className="text-[11px] font-semibold text-[#9ca3af] font-display uppercase tracking-[0.05em] mb-0.5">{f.label}</p>
-              {loading ? skRow(100) : <p className="text-[14px] font-medium text-[#111827] font-body">{f.value || '—'}</p>}
+              {loading ? sk(100) : <p className="text-[14px] font-medium text-[#111827] font-body">{f.value || '—'}</p>}
             </div>
           ))}
         </div>
       </div>
+
+      {/* Pricing */}
+      <div className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] p-6">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#9ca3af] font-display mb-4">Pricing</p>
+        {loading ? (
+          <div className="grid grid-cols-4 gap-6">{[1,2,3,4].map(i => <div key={i} className="h-10 bg-[#f3f4f6] rounded animate-pulse" />)}</div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {pricing.map(p => (
+              <div key={p.label}>
+                <p className="text-[11px] font-semibold text-[#9ca3af] font-display uppercase tracking-[0.05em] mb-0.5">{p.label}</p>
+                <p className="text-[18px] font-bold text-[#111827] font-display leading-tight">{p.value}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Content summary */}
+      {(!loading && contentStats.length > 0) && (
+        <div className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] p-6">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#9ca3af] font-display mb-4">Content Summary</p>
+          <div className="flex flex-wrap gap-3">
+            {contentStats.map(s => (
+              <div key={s.label} className="flex items-center gap-2 px-4 py-2 bg-[#f9fafb] border border-[#f3f4f6] rounded-[8px]">
+                <span className="text-[20px] font-bold text-[#111827] font-display leading-none">{s.count}</span>
+                <span className="text-[12px] text-[#4b5563] font-body">{s.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
