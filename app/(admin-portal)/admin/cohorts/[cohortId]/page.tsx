@@ -9,6 +9,8 @@ import {
   ArrowDown01Icon, ArrowRight01Icon, VideoReplayIcon, File01Icon,
   PencilEdit01Icon, Cancel01Icon, Building01Icon, UserAdd01Icon,
   Certificate01Icon, Payment01Icon, Invoice01Icon,
+  MessageQuestionIcon, Add01Icon, Delete01Icon,
+  BarChartIcon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 import { useSidebar } from '@/lib/sidebar-context'
@@ -51,11 +53,6 @@ interface Enrollment {
   created_at?: string; createdAt?: string
   organization_name?: string; organizationName?: string
 }
-interface Review {
-  id: number; user?: { name?: string; email: string }; rating?: number
-  comment?: string; is_anonymous?: boolean; created_at?: string
-}
-
 interface AdminCertificate {
   id: number
   user_id?: number; userId?: number
@@ -1903,53 +1900,666 @@ function PeopleTab({ cohortId, programId }: { cohortId: string; programId: numbe
   )
 }
 
-// ── Tab: Reviews ──────────────────────────────────────────────────────────────
-function ReviewsTab({ cohortId }: { cohortId: string }) {
-  const [reviews, setReviews] = useState<Review[]>([])
+// ── Tab: Reviews — form builder ────────────────────────────────────────────────
+interface AdminReviewForm {
+  id: number
+  title?: string
+  description?: string
+  form_stage?: string;   formStage?: string
+  status?: string
+  is_anonymous?: boolean
+  allow_multiple_submissions?: boolean
+  available_from?: string; availableFrom?: string
+  available_until?: string; availableUntil?: string
+  questions?: AdminReviewQuestion[]
+  question_count?: number; questionCount?: number
+}
+interface AdminReviewQuestion {
+  id: number
+  question_text?: string; questionText?: string
+  question_type?: string; questionType?: string
+  is_required?: boolean;  isRequired?: boolean
+  display_order?: number; displayOrder?: number
+  configuration?: { minimum?: number; maximum?: number }
+  option_values?: { options?: { value: string; label?: string; numericScore?: number }[] }
+  optionValues?:  { options?: { value: string; label?: string; numericScore?: number }[] }
+  status?: string
+}
+interface QuestionAnalytics {
+  answer_count?: number; answerCount?: number
+  average_numeric_value?: number; averageNumericValue?: number
+  numeric_answer_count?: number
+  answers?: { answer_value?: unknown; user_id?: number }[]
+  distribution?: Record<string, number>
+}
+
+const FORM_STAGES = ['PRE_PROGRAM', 'MID_PROGRAM', 'END_OF_PROGRAM', 'MODULE_REVIEW', 'CUSTOM']
+const QUESTION_TYPES = ['RATING', 'RADIO', 'SINGLE_SELECT', 'CHECKBOX', 'MULTI_SELECT']
+
+// Question option editor (for choice-type questions)
+function OptionEditor({ opts, onChange }: {
+  opts: { value: string; label?: string }[]
+  onChange: (opts: { value: string; label?: string }[]) => void
+}) {
+  function addOpt() { onChange([...opts, { value: '', label: '' }]) }
+  function removeOpt(i: number) { onChange(opts.filter((_, j) => j !== i)) }
+  function updateOpt(i: number, field: 'value' | 'label', v: string) {
+    onChange(opts.map((o, j) => j === i ? { ...o, [field]: v } : o))
+  }
+  return (
+    <div className="flex flex-col gap-2 mt-2">
+      {opts.map((opt, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <input value={opt.value} onChange={e => updateOpt(i, 'value', e.target.value)}
+            placeholder="Value (e.g. YES)"
+            className="flex-1 h-8 px-2.5 border border-[#e5e7eb] rounded-[6px] text-[12px] font-body focus:outline-none focus:border-[#d51520]" />
+          <input value={opt.label ?? ''} onChange={e => updateOpt(i, 'label', e.target.value)}
+            placeholder="Label (optional)"
+            className="flex-1 h-8 px-2.5 border border-[#e5e7eb] rounded-[6px] text-[12px] font-body focus:outline-none focus:border-[#d51520]" />
+          <button onClick={() => removeOpt(i)}
+            className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#fef2f2] flex-shrink-0">
+            <Delete01Icon size={13} color="#d51520" strokeWidth={1.5} />
+          </button>
+        </div>
+      ))}
+      <button onClick={addOpt}
+        className="flex items-center gap-1.5 text-[12px] font-semibold text-[#d51520] font-display hover:underline w-fit mt-1">
+        <Add01Icon size={12} strokeWidth={2} />
+        Add option
+      </button>
+    </div>
+  )
+}
+
+// Question modal (create/edit)
+function QuestionModal({ formId, question, onClose, onSaved }: {
+  formId: number
+  question: AdminReviewQuestion | null
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [text,      setText]      = useState(question?.question_text ?? question?.questionText ?? '')
+  const [type,      setType]      = useState(question?.question_type ?? question?.questionType ?? 'RATING')
+  const [required,  setRequired]  = useState(question?.is_required  ?? question?.isRequired  ?? true)
+  const [order,     setOrder]     = useState(question?.display_order ?? question?.displayOrder ?? 1)
+  const [rMin,      setRMin]      = useState(question?.configuration?.minimum ?? 1)
+  const [rMax,      setRMax]      = useState(question?.configuration?.maximum ?? 5)
+  const [opts,      setOpts]      = useState<{ value: string; label?: string }[]>(
+    (question?.option_values ?? question?.optionValues)?.options ?? []
+  )
+  const [saving,    setSaving]    = useState(false)
+  const [error,     setError]     = useState('')
+
+  const isChoice = ['RADIO', 'SINGLE_SELECT', 'CHECKBOX', 'MULTI_SELECT'].includes(type)
+
+  async function save() {
+    if (!text.trim()) { setError('Question text is required.'); return }
+    setSaving(true); setError('')
+    const payload: Record<string, unknown> = {
+      question_text: text.trim(),
+      question_type: type,
+      is_required: required,
+      display_order: order,
+      status: 'ACTIVE',
+    }
+    if (type === 'RATING') payload.configuration = { minimum: rMin, maximum: rMax }
+    if (isChoice) payload.option_values = { options: opts.filter(o => o.value.trim()) }
+
+    try {
+      if (question) {
+        await apiClient.put(`/admin/review-questions/${question.id}`, payload)
+      } else {
+        await apiClient.post(`/admin/review-forms/${formId}/questions`, payload)
+      }
+      onSaved()
+    } catch (e) { setError(getApiError(e)) } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="bg-white rounded-[12px] shadow-[0px_12px_16px_-4px_rgba(16,24,40,0.08)] w-full max-w-[520px] max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#f3f4f6]">
+          <h3 className="text-[15px] font-bold text-[#111827] font-display">{question ? 'Edit Question' : 'Add Question'}</h3>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#f3f4f6]">
+            <Cancel01Icon size={15} color="#6b7280" strokeWidth={1.5} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-4">
+          {/* Question text */}
+          <div>
+            <label className="text-[12px] font-semibold text-[#374151] font-display block mb-1.5">Question text <span className="text-[#d51520]">*</span></label>
+            <textarea value={text} onChange={e => { setText(e.target.value); setError('') }} rows={3}
+              placeholder="e.g. How clear were the facilitator's explanations?"
+              className="w-full border border-[#e5e7eb] rounded-[6px] px-3 py-2 text-[13px] font-body resize-none focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520]" />
+          </div>
+          {/* Type + order row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[12px] font-semibold text-[#374151] font-display block mb-1.5">Question type</label>
+              <select value={type} onChange={e => setType(e.target.value)}
+                className="w-full h-9 px-2.5 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body focus:outline-none focus:border-[#d51520] bg-white">
+                {QUESTION_TYPES.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[12px] font-semibold text-[#374151] font-display block mb-1.5">Display order</label>
+              <input type="number" value={order} onChange={e => setOrder(Number(e.target.value))} min={1}
+                className="w-full h-9 px-2.5 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body focus:outline-none focus:border-[#d51520]" />
+            </div>
+          </div>
+          {/* Rating config */}
+          {type === 'RATING' && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[12px] font-semibold text-[#374151] font-display block mb-1.5">Minimum</label>
+                <input type="number" value={rMin} onChange={e => setRMin(Number(e.target.value))}
+                  className="w-full h-9 px-2.5 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body focus:outline-none focus:border-[#d51520]" />
+              </div>
+              <div>
+                <label className="text-[12px] font-semibold text-[#374151] font-display block mb-1.5">Maximum</label>
+                <input type="number" value={rMax} onChange={e => setRMax(Number(e.target.value))}
+                  className="w-full h-9 px-2.5 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body focus:outline-none focus:border-[#d51520]" />
+              </div>
+            </div>
+          )}
+          {/* Choice options */}
+          {isChoice && (
+            <div>
+              <label className="text-[12px] font-semibold text-[#374151] font-display block mb-0.5">Answer options</label>
+              <OptionEditor opts={opts} onChange={setOpts} />
+            </div>
+          )}
+          {/* Required toggle */}
+          <label className="flex items-center gap-2.5 cursor-pointer">
+            <div onClick={() => setRequired(v => !v)}
+              className={`w-9 h-5 rounded-full transition-colors flex-shrink-0 ${required ? 'bg-[#d51520]' : 'bg-[#e5e7eb]'}`}>
+              <div className={`w-4 h-4 bg-white rounded-full shadow mt-0.5 transition-transform ${required ? 'translate-x-4' : 'translate-x-0.5'}`} />
+            </div>
+            <span className="text-[13px] text-[#374151] font-body">Required question</span>
+          </label>
+          {error && <p className="text-[12px] text-[#d51520] font-body">{error}</p>}
+        </div>
+        <div className="px-6 py-4 border-t border-[#f3f4f6] flex items-center justify-end gap-2">
+          <button onClick={onClose} className="h-9 px-4 border border-[#e5e7eb] text-[#374151] text-[13px] font-semibold font-display rounded-[8px] hover:bg-[#f9fafb]">Cancel</button>
+          <button onClick={save} disabled={saving}
+            className="flex items-center gap-2 h-9 px-5 bg-[#d51520] hover:bg-[#b81119] text-white text-[13px] font-semibold font-display rounded-[8px] disabled:opacity-50 transition-colors">
+            {saving && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
+            {question ? 'Save changes' : 'Add question'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Form modal (create/edit the review form itself)
+function FormModal({ cohortId, programId, form, onClose, onSaved }: {
+  cohortId: string; programId: number | null
+  form: AdminReviewForm | null
+  onClose: () => void; onSaved: () => void
+}) {
+  const [title,   setTitle]   = useState(form?.title ?? '')
+  const [desc,    setDesc]    = useState(form?.description ?? '')
+  const [stage,   setStage]   = useState(form?.form_stage ?? form?.formStage ?? 'END_OF_PROGRAM')
+  const [status,  setStatus]  = useState(form?.status ?? 'ACTIVE')
+  const [anon,    setAnon]    = useState(form?.is_anonymous ?? false)
+  const [multi,   setMulti]   = useState(form?.allow_multiple_submissions ?? false)
+  const [from,    setFrom]    = useState((form?.available_from ?? form?.availableFrom ?? '').slice(0, 16))
+  const [until,   setUntil]   = useState((form?.available_until ?? form?.availableUntil ?? '').slice(0, 16))
+  const [saving,  setSaving]  = useState(false)
+  const [error,   setError]   = useState('')
+
+  async function save() {
+    if (!title.trim()) { setError('Title is required.'); return }
+    setSaving(true); setError('')
+    const payload: Record<string, unknown> = {
+      title: title.trim(), description: desc.trim() || undefined,
+      form_stage: stage, status,
+      is_anonymous: anon, allow_multiple_submissions: multi,
+      cohort_id: Number(cohortId),
+      ...(programId ? { program_id: programId } : {}),
+      ...(from  ? { available_from:  new Date(from).toISOString()  } : {}),
+      ...(until ? { available_until: new Date(until).toISOString() } : {}),
+    }
+    try {
+      if (form) { await apiClient.put(`/admin/review-forms/${form.id}`, payload) }
+      else      { await apiClient.post('/admin/review-forms', payload) }
+      onSaved()
+    } catch (e) { setError(getApiError(e)) } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="bg-white rounded-[12px] shadow-[0px_12px_16px_-4px_rgba(16,24,40,0.08)] w-full max-w-[480px] max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#f3f4f6]">
+          <h3 className="text-[15px] font-bold text-[#111827] font-display">{form ? 'Edit Review Form' : 'Create Review Form'}</h3>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#f3f4f6]">
+            <Cancel01Icon size={15} color="#6b7280" strokeWidth={1.5} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-4">
+          <div>
+            <label className="text-[12px] font-semibold text-[#374151] font-display block mb-1.5">Title <span className="text-[#d51520]">*</span></label>
+            <input value={title} onChange={e => { setTitle(e.target.value); setError('') }}
+              placeholder="e.g. End-of-programme review"
+              className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520]" />
+          </div>
+          <div>
+            <label className="text-[12px] font-semibold text-[#374151] font-display block mb-1.5">Description</label>
+            <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={2}
+              placeholder="Brief intro shown to students before they start"
+              className="w-full border border-[#e5e7eb] rounded-[6px] px-3 py-2 text-[13px] font-body resize-none focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520]" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[12px] font-semibold text-[#374151] font-display block mb-1.5">Form stage</label>
+              <select value={stage} onChange={e => setStage(e.target.value)}
+                className="w-full h-9 px-2.5 border border-[#e5e7eb] rounded-[6px] text-[12px] font-body focus:outline-none focus:border-[#d51520] bg-white">
+                {FORM_STAGES.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[12px] font-semibold text-[#374151] font-display block mb-1.5">Status</label>
+              <select value={status} onChange={e => setStatus(e.target.value)}
+                className="w-full h-9 px-2.5 border border-[#e5e7eb] rounded-[6px] text-[12px] font-body focus:outline-none focus:border-[#d51520] bg-white">
+                <option value="ACTIVE">Active</option>
+                <option value="DRAFT">Draft</option>
+                <option value="INACTIVE">Inactive</option>
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[12px] font-semibold text-[#374151] font-display block mb-1.5">Available from</label>
+              <input type="datetime-local" value={from} onChange={e => setFrom(e.target.value)}
+                className="w-full h-9 px-2.5 border border-[#e5e7eb] rounded-[6px] text-[12px] font-body focus:outline-none focus:border-[#d51520]" />
+            </div>
+            <div>
+              <label className="text-[12px] font-semibold text-[#374151] font-display block mb-1.5">Available until</label>
+              <input type="datetime-local" value={until} onChange={e => setUntil(e.target.value)}
+                className="w-full h-9 px-2.5 border border-[#e5e7eb] rounded-[6px] text-[12px] font-body focus:outline-none focus:border-[#d51520]" />
+            </div>
+          </div>
+          <div className="flex flex-col gap-3">
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <div onClick={() => setAnon(v => !v)}
+                className={`w-9 h-5 rounded-full transition-colors flex-shrink-0 ${anon ? 'bg-[#d51520]' : 'bg-[#e5e7eb]'}`}>
+                <div className={`w-4 h-4 bg-white rounded-full shadow mt-0.5 transition-transform ${anon ? 'translate-x-4' : 'translate-x-0.5'}`} />
+              </div>
+              <span className="text-[13px] text-[#374151] font-body">Anonymous responses</span>
+            </label>
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <div onClick={() => setMulti(v => !v)}
+                className={`w-9 h-5 rounded-full transition-colors flex-shrink-0 ${multi ? 'bg-[#d51520]' : 'bg-[#e5e7eb]'}`}>
+                <div className={`w-4 h-4 bg-white rounded-full shadow mt-0.5 transition-transform ${multi ? 'translate-x-4' : 'translate-x-0.5'}`} />
+              </div>
+              <span className="text-[13px] text-[#374151] font-body">Allow multiple submissions</span>
+            </label>
+          </div>
+          {error && <p className="text-[12px] text-[#d51520] font-body">{error}</p>}
+        </div>
+        <div className="px-6 py-4 border-t border-[#f3f4f6] flex items-center justify-end gap-2">
+          <button onClick={onClose} className="h-9 px-4 border border-[#e5e7eb] text-[#374151] text-[13px] font-semibold font-display rounded-[8px] hover:bg-[#f9fafb]">Cancel</button>
+          <button onClick={save} disabled={saving}
+            className="flex items-center gap-2 h-9 px-5 bg-[#d51520] hover:bg-[#b81119] text-white text-[13px] font-semibold font-display rounded-[8px] disabled:opacity-50 transition-colors">
+            {saving && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
+            {form ? 'Save changes' : 'Create form'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Analytics panel for a single question
+function QuestionAnalyticsPanel({ question, onClose }: { question: AdminReviewQuestion; onClose: () => void }) {
+  const [data, setData]     = useState<QuestionAnalytics | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    apiClient.get(`/admin/cohorts/${cohortId}/reviews?size=50`).then(res => {
-      const data = unwrap<{ reviews?: Review[] }>(res.data)
-      setReviews(Array.isArray(data?.reviews) ? data.reviews : [])
-    }).catch(() => {}).finally(() => setLoading(false))
-  }, [cohortId])
-
-  if (loading) return (
-    <div className="flex items-center justify-center py-16">
-      <Loading01Icon size={20} className="animate-spin text-[#d51520]" strokeWidth={1.5} />
-    </div>
-  )
+    apiClient.get(`/admin/review-questions/${question.id}/answers`)
+      .then(res => {
+        const raw = res.data?.data ?? res.data
+        setData(raw?.data ?? raw)
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [question.id])
 
   return (
-    <div className="px-6 py-4 overflow-x-auto">
-      <table className="w-full">
-        <thead>
-          <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
-            {['Reviewer', 'Rating', 'Comment', 'Date'].map(h => (
-              <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display">{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {reviews.length === 0 ? (
-            <tr><td colSpan={4} className="px-4 py-12 text-center text-[13px] text-[#4b5563] font-body">No reviews yet</td></tr>
-          ) : reviews.map(r => (
-            <tr key={r.id} className="border-b border-[#f3f4f6] hover:bg-[#fafafa]">
-              <td className="px-4 py-3.5"><p className="text-[13px] font-medium text-[#111827] font-body">{r.is_anonymous ? 'Anonymous' : userName(r.user)}</p></td>
-              <td className="px-4 py-3.5">
-                <div className="flex items-center gap-0.5">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <StarIcon key={i} size={13} color={i < (r.rating ?? 0) ? '#d97706' : '#e5e7eb'} strokeWidth={1.5} />
-                  ))}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="bg-white rounded-[12px] shadow-[0px_12px_16px_-4px_rgba(16,24,40,0.08)] w-full max-w-[440px]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#f3f4f6]">
+          <h3 className="text-[14px] font-bold text-[#111827] font-display truncate pr-4">
+            {question.question_text ?? question.questionText ?? 'Question'}
+          </h3>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#f3f4f6] flex-shrink-0">
+            <Cancel01Icon size={15} color="#6b7280" strokeWidth={1.5} />
+          </button>
+        </div>
+        <div className="px-6 py-5">
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loading01Icon size={18} className="animate-spin" color="#d51520" strokeWidth={1.5} />
+            </div>
+          ) : !data ? (
+            <p className="text-[13px] text-[#4b5563] font-body text-center py-6">No data yet.</p>
+          ) : (
+            <div className="flex flex-col gap-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-[#f9fafb] rounded-[8px] p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-[#6b7280] font-display mb-1">Responses</p>
+                  <p className="text-[22px] font-bold text-[#111827] font-display">{data.answer_count ?? data.answerCount ?? 0}</p>
                 </div>
-              </td>
-              <td className="px-4 py-3.5 max-w-[300px]"><p className="text-[12px] text-[#4b5563] font-body line-clamp-2">{r.comment ?? '—'}</p></td>
-              <td className="px-4 py-3.5"><p className="text-[12px] text-[#4b5563] font-body">{formatDate(r.created_at)}</p></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                {(data.average_numeric_value != null || data.averageNumericValue != null) && (
+                  <div className="bg-[#f9fafb] rounded-[8px] p-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-widest text-[#6b7280] font-display mb-1">Avg score</p>
+                    <p className="text-[22px] font-bold text-[#111827] font-display">
+                      {(data.average_numeric_value ?? data.averageNumericValue ?? 0).toFixed(1)}
+                    </p>
+                  </div>
+                )}
+              </div>
+              {data.distribution && Object.keys(data.distribution).length > 0 && (
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-[#6b7280] font-display mb-3">Distribution</p>
+                  {Object.entries(data.distribution).map(([key, count]) => {
+                    const total = Object.values(data.distribution!).reduce((a, b) => a + b, 0)
+                    const pct = total > 0 ? Math.round((count / total) * 100) : 0
+                    return (
+                      <div key={key} className="flex items-center gap-2 mb-2">
+                        <span className="text-[12px] text-[#374151] font-body w-24 truncate">{key}</span>
+                        <div className="flex-1 h-2 bg-[#f3f4f6] rounded-full overflow-hidden">
+                          <div className="h-2 bg-[#d51520] rounded-full transition-all" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-[11px] text-[#9ca3af] font-body w-8 text-right">{pct}%</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ReviewsTab({ cohortId, programId }: { cohortId: string; programId: number | null }) {
+  const [forms,         setForms]         = useState<AdminReviewForm[]>([])
+  const [loading,       setLoading]       = useState(true)
+  const [selectedForm,  setSelectedForm]  = useState<AdminReviewForm | null>(null)
+  const [formQuestions, setFormQuestions] = useState<AdminReviewQuestion[]>([])
+  const [loadingQs,     setLoadingQs]     = useState(false)
+  const [showFormModal, setShowFormModal] = useState(false)
+  const [editingForm,   setEditingForm]   = useState<AdminReviewForm | null>(null)
+  const [showQModal,    setShowQModal]    = useState(false)
+  const [editingQ,      setEditingQ]      = useState<AdminReviewQuestion | null>(null)
+  const [deleteFormId,  setDeleteFormId]  = useState<number | null>(null)
+  const [deleting,      setDeleting]      = useState(false)
+  const [analyticsQ,    setAnalyticsQ]    = useState<AdminReviewQuestion | null>(null)
+  const [deleteQId,     setDeleteQId]     = useState<number | null>(null)
+
+  function loadForms() {
+    setLoading(true)
+    const params = new URLSearchParams({ cohort_id: cohortId, size: '50' })
+    if (programId) params.set('program_id', String(programId))
+    apiClient.get(`/admin/review-forms?${params}`)
+      .then(res => {
+        const raw = res.data?.data ?? res.data
+        const inner = raw?.data ?? raw
+        const list: AdminReviewForm[] = Array.isArray(inner)           ? inner
+          : Array.isArray(inner?.forms)   ? inner.forms
+          : Array.isArray(inner?.content) ? inner.content
+          : []
+        setForms(list)
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => { loadForms() }, [cohortId, programId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function loadFormDetail(form: AdminReviewForm) {
+    setSelectedForm(form); setLoadingQs(true)
+    apiClient.get(`/admin/review-forms/${form.id}`)
+      .then(res => {
+        const raw = res.data?.data ?? res.data
+        const data: AdminReviewForm = raw?.data ?? raw
+        const qs: AdminReviewQuestion[] = Array.isArray(data?.questions)
+          ? [...data.questions].sort((a, b) => (a.display_order ?? a.displayOrder ?? 0) - (b.display_order ?? b.displayOrder ?? 0))
+          : []
+        setFormQuestions(qs)
+        // also update form in list with latest data
+        setSelectedForm(data ?? form)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingQs(false))
+  }
+
+  async function deleteForm() {
+    if (!deleteFormId) return
+    setDeleting(true)
+    try {
+      await apiClient.delete(`/admin/review-forms/${deleteFormId}`)
+      setDeleteFormId(null)
+      if (selectedForm?.id === deleteFormId) setSelectedForm(null)
+      loadForms()
+    } catch { } finally { setDeleting(false) }
+  }
+
+  async function deleteQuestion() {
+    if (!deleteQId) return
+    setDeleting(true)
+    try {
+      await apiClient.delete(`/admin/review-questions/${deleteQId}`)
+      setDeleteQId(null)
+      if (selectedForm) loadFormDetail(selectedForm)
+    } catch { } finally { setDeleting(false) }
+  }
+
+  // ── Forms list view ────────────────────────────────────────────────────────
+  if (!selectedForm) {
+    return (
+      <div className="flex flex-col h-full">
+        {/* Toolbar */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#f3f4f6]">
+          <div>
+            <p className="text-[14px] font-bold text-[#111827] font-display">Review Forms</p>
+            <p className="text-[12px] text-[#4b5563] font-body mt-0.5">{forms.length} form{forms.length !== 1 ? 's' : ''} for this cohort</p>
+          </div>
+          <button onClick={() => { setEditingForm(null); setShowFormModal(true) }}
+            className="flex items-center gap-2 h-9 px-4 bg-[#d51520] hover:bg-[#b81119] text-white text-[13px] font-semibold font-display rounded-[8px] transition-colors">
+            <Add01Icon size={14} strokeWidth={2} />
+            Create form
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loading01Icon size={20} className="animate-spin" color="#d51520" strokeWidth={1.5} />
+          </div>
+        ) : forms.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center px-6">
+            <div className="w-14 h-14 rounded-[12px] bg-[#f9fafb] flex items-center justify-center mb-4">
+              <MessageQuestionIcon size={24} color="#d1d5db" strokeWidth={1.5} />
+            </div>
+            <p className="text-[14px] font-semibold text-[#374151] font-display mb-1">No review forms yet</p>
+            <p className="text-[13px] text-[#4b5563] font-body max-w-[280px]">
+              Create your first review form. Students will answer it as part of the curriculum.
+            </p>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto">
+            {forms.map(f => {
+              const stage = (f.form_stage ?? f.formStage ?? '').replace(/_/g, ' ')
+              const qCount = f.question_count ?? f.questionCount ?? f.questions?.length ?? 0
+              const isActive = (f.status ?? '').toUpperCase() === 'ACTIVE'
+              return (
+                <div key={f.id}
+                  className="flex items-center gap-4 px-6 py-4 border-b border-[#f3f4f6] hover:bg-[#fafafa] transition-colors cursor-pointer"
+                  onClick={() => loadFormDetail(f)}>
+                  <div className="w-10 h-10 rounded-[8px] bg-[#fef2f2] flex items-center justify-center flex-shrink-0">
+                    <MessageQuestionIcon size={18} color="#d51520" strokeWidth={1.5} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-semibold text-[#111827] font-display truncate">{f.title ?? 'Untitled Form'}</p>
+                    <p className="text-[11px] text-[#4b5563] font-body mt-0.5">
+                      {stage.toLowerCase() || 'No stage'} · {qCount} question{qCount !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                  <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full flex-shrink-0 ${
+                    isActive ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#f3f4f6] text-[#6b7280]'
+                  }`}>
+                    {f.status ?? 'DRAFT'}
+                  </span>
+                  <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                    <button onClick={() => { setEditingForm(f); setShowFormModal(true) }}
+                      className="w-8 h-8 flex items-center justify-center rounded-[6px] hover:bg-[#f3f4f6]">
+                      <PencilEdit01Icon size={14} color="#4b5563" strokeWidth={1.5} />
+                    </button>
+                    <button onClick={() => setDeleteFormId(f.id)}
+                      className="w-8 h-8 flex items-center justify-center rounded-[6px] hover:bg-[#fef2f2]">
+                      <Delete01Icon size={14} color="#d51520" strokeWidth={1.5} />
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Form modal */}
+        {showFormModal && (
+          <FormModal cohortId={cohortId} programId={programId}
+            form={editingForm}
+            onClose={() => setShowFormModal(false)}
+            onSaved={() => { setShowFormModal(false); loadForms() }}
+          />
+        )}
+
+        {/* Delete confirm */}
+        {deleteFormId && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+            <div className="bg-white rounded-[12px] shadow-lg w-full max-w-[360px] p-6">
+              <p className="text-[15px] font-bold text-[#111827] font-display mb-2">Delete form?</p>
+              <p className="text-[13px] text-[#4b5563] font-body mb-5">This will permanently delete the form and all its questions.</p>
+              <div className="flex items-center justify-end gap-2">
+                <button onClick={() => setDeleteFormId(null)} className="h-9 px-4 border border-[#e5e7eb] text-[#374151] text-[13px] font-semibold font-display rounded-[8px] hover:bg-[#f9fafb]">Cancel</button>
+                <button onClick={deleteForm} disabled={deleting}
+                  className="flex items-center gap-2 h-9 px-5 bg-[#d51520] text-white text-[13px] font-semibold font-display rounded-[8px] disabled:opacity-50">
+                  {deleting && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // ── Form detail / question builder ─────────────────────────────────────────
+  return (
+    <div className="flex flex-col h-full">
+      {/* Detail header */}
+      <div className="flex items-center gap-3 px-6 py-4 border-b border-[#f3f4f6]">
+        <button onClick={() => setSelectedForm(null)}
+          className="w-8 h-8 flex items-center justify-center rounded-[6px] hover:bg-[#f3f4f6] flex-shrink-0">
+          <ArrowLeft01Icon size={16} color="#4b5563" strokeWidth={1.5} />
+        </button>
+        <div className="flex-1 min-w-0">
+          <p className="text-[14px] font-bold text-[#111827] font-display truncate">{selectedForm.title}</p>
+          <p className="text-[11px] text-[#4b5563] font-body mt-0.5">
+            {(selectedForm.form_stage ?? selectedForm.formStage ?? '').replace(/_/g, ' ').toLowerCase() || 'No stage'}
+            {' · '}{formQuestions.length} question{formQuestions.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+        <button onClick={() => { setEditingQ(null); setShowQModal(true) }}
+          className="flex items-center gap-2 h-8 px-3 bg-[#d51520] hover:bg-[#b81119] text-white text-[12px] font-semibold font-display rounded-[7px] transition-colors flex-shrink-0">
+          <Add01Icon size={13} strokeWidth={2} />
+          Add question
+        </button>
+      </div>
+
+      {loadingQs ? (
+        <div className="flex items-center justify-center py-16">
+          <Loading01Icon size={20} className="animate-spin" color="#d51520" strokeWidth={1.5} />
+        </div>
+      ) : formQuestions.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center px-6">
+          <p className="text-[13px] font-semibold text-[#374151] font-display mb-1">No questions yet</p>
+          <p className="text-[12px] text-[#4b5563] font-body">Click &quot;Add question&quot; to build this review form.</p>
+        </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto">
+          {formQuestions.map((q, i) => {
+            const qType = q.question_type ?? q.questionType ?? ''
+            const qText = q.question_text ?? q.questionText ?? `Question ${i + 1}`
+            return (
+              <div key={q.id} className="flex items-start gap-3 px-6 py-4 border-b border-[#f3f4f6] hover:bg-[#fafafa]">
+                <div className="w-7 h-7 rounded-[6px] bg-[#f3f4f6] flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span className="text-[10px] font-bold text-[#6b7280] font-display">{String(i + 1).padStart(2, '0')}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-semibold text-[#111827] font-display leading-snug">{qText}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[10px] font-semibold text-[#6b7280] bg-[#f3f4f6] px-2 py-0.5 rounded-full font-display">
+                      {qType.replace(/_/g, ' ')}
+                    </span>
+                    {(q.is_required ?? q.isRequired) && (
+                      <span className="text-[10px] font-semibold text-[#d51520] bg-[#fef2f2] px-2 py-0.5 rounded-full font-display">Required</span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button onClick={() => setAnalyticsQ(q)}
+                    className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#f3f4f6]" title="View responses">
+                    <BarChartIcon size={13} color="#4b5563" strokeWidth={1.5} />
+                  </button>
+                  <button onClick={() => { setEditingQ(q); setShowQModal(true) }}
+                    className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#f3f4f6]">
+                    <PencilEdit01Icon size={13} color="#4b5563" strokeWidth={1.5} />
+                  </button>
+                  <button onClick={() => setDeleteQId(q.id)}
+                    className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#fef2f2]">
+                    <Delete01Icon size={13} color="#d51520" strokeWidth={1.5} />
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {showQModal && (
+        <QuestionModal formId={selectedForm.id} question={editingQ}
+          onClose={() => setShowQModal(false)}
+          onSaved={() => { setShowQModal(false); loadFormDetail(selectedForm) }}
+        />
+      )}
+
+      {analyticsQ && (
+        <QuestionAnalyticsPanel question={analyticsQ} onClose={() => setAnalyticsQ(null)} />
+      )}
+
+      {deleteQId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-[12px] shadow-lg w-full max-w-[360px] p-6">
+            <p className="text-[15px] font-bold text-[#111827] font-display mb-2">Delete question?</p>
+            <p className="text-[13px] text-[#4b5563] font-body mb-5">This will permanently remove this question and all its responses.</p>
+            <div className="flex items-center justify-end gap-2">
+              <button onClick={() => setDeleteQId(null)} className="h-9 px-4 border border-[#e5e7eb] text-[#374151] text-[13px] font-semibold font-display rounded-[8px] hover:bg-[#f9fafb]">Cancel</button>
+              <button onClick={deleteQuestion} disabled={deleting}
+                className="flex items-center gap-2 h-9 px-5 bg-[#d51520] text-white text-[13px] font-semibold font-display rounded-[8px] disabled:opacity-50">
+                {deleting && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -2249,7 +2859,7 @@ export default function CohortDetailPage() {
           <PeopleTab cohortId={cohortId} programId={programId} />
         </div>
         <div style={activeTab === 'Reviews' ? { display: 'contents' } : { display: 'none' }}>
-          <ReviewsTab cohortId={cohortId} />
+          <ReviewsTab cohortId={cohortId} programId={programId} />
         </div>
         <div style={activeTab === 'Payments' ? { display: 'contents' } : { display: 'none' }}>
           <PaymentsTab cohortId={cohortId} />
