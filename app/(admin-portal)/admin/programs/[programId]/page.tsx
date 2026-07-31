@@ -1945,7 +1945,14 @@ export default function ProgramDetailPage() {
         apiClient.get(`/admin/programs/${programId}`),
         apiClient.get(`/admin/programs/${programId}/modules`),
       ])
-      if (progRes.status === 'fulfilled') setProgram(unwrap<Program>(progRes.value.data))
+      if (progRes.status === 'fulfilled') {
+        const progRaw = unwrap<Record<string, unknown>>(progRes.value.data)
+        // Handle both bare { id, title, ... } and wrapped { program: { id, title, ... } }
+        const prog = (progRaw?.program && typeof progRaw.program === 'object'
+          ? progRaw.program
+          : progRaw) as Program
+        setProgram(prog)
+      }
       if (modRes.status === 'fulfilled') {
         const data = unwrap<{ modules?: Module[] } | Module[]>(modRes.value.data)
         const list = Array.isArray(data) ? data : (data as { modules?: Module[] })?.modules ?? []
