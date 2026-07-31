@@ -1925,11 +1925,17 @@ interface AdminReviewQuestion {
   optionValues?:  { options?: { value: string; label?: string; numericScore?: number }[] }
   status?: string
 }
+interface AnswerEntry {
+  answer_value?: unknown
+  user_id?: number; userId?: number
+  user?: { id?: number; name?: string; first_name?: string; firstName?: string; last_name?: string; lastName?: string; email?: string }
+  created_at?: string; createdAt?: string
+}
 interface QuestionAnalytics {
   answer_count?: number; answerCount?: number
   average_numeric_value?: number; averageNumericValue?: number
   numeric_answer_count?: number
-  answers?: { answer_value?: unknown; user_id?: number }[]
+  answers?: AnswerEntry[]
   distribution?: Record<string, number>
 }
 
@@ -2212,75 +2218,235 @@ function FormModal({ cohortId, programId, form, onClose, onSaved }: {
 }
 
 // Analytics panel for a single question
-function QuestionAnalyticsPanel({ question, onClose }: { question: AdminReviewQuestion; onClose: () => void }) {
-  const [data, setData]     = useState<QuestionAnalytics | null>(null)
+function QuestionAnalyticsPanel({
+  question, cohortId, onClose,
+}: { question: AdminReviewQuestion; cohortId: string; onClose: () => void }) {
+  const [data,    setData]    = useState<QuestionAnalytics | null>(null)
+  const [members, setMembers] = useState<Record<number, string>>({}) // userId → displayName
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    apiClient.get(`/admin/review-questions/${question.id}/answers`)
+    const fetchData = apiClient.get(`/admin/review-questions/${question.id}/answers`)
       .then(res => {
         const raw = res.data?.data ?? res.data
         setData(raw?.data ?? raw)
       })
       .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [question.id])
+
+    const fetchMembers = apiClient.get(`/admin/cohorts/${cohortId}/members?size=200`)
+      .then(res => {
+        const d = unwrap<{ members?: Member[] }>(res.data)
+        const map: Record<number, string> = {}
+        ;(Array.isArray(d?.members) ? d.members : []).forEach(m => {
+          const uid = m.user?.id
+          if (!uid) return
+          const fn = (m.user as { firstName?: string; first_name?: string })?.firstName
+            ?? (m.user as { firstName?: string; first_name?: string })?.first_name ?? ''
+          const ln = (m.user as { lastName?: string; last_name?: string })?.lastName
+            ?? (m.user as { lastName?: string; last_name?: string })?.last_name ?? ''
+          const fullName = `${fn} ${ln}`.trim()
+          const nameFromUser = (m.user as { name?: string })?.name ?? fullName
+          const name = nameFromUser || (m.user?.email ?? `User #${uid}`)
+          map[uid] = name
+        })
+        setMembers(map)
+      })
+      .catch(() => {})
+
+    Promise.allSettled([fetchData, fetchMembers]).finally(() => setLoading(false))
+  }, [question.id, cohortId])
+
+  // Render a single answer value in a human-readable way
+  function renderValue(val: unknown, qType: string): string {
+    if (val === null || val === undefined) return '—'
+    if (Array.isArray(val)) return val.length > 0 ? val.join(', ') : '—'
+    if (typeof val === 'number') {
+      if (qType === 'RATING') return `${val} / ${question.configuration?.maximum ?? 5}`
+      return String(val)
+    }
+    return String(val) || '—'
+  }
+
+  function getStudentName(entry: AnswerEntry): string {
+    // Try embedded user object first
+    if (entry.user) {
+      const u = entry.user
+      const fn = (u as { firstName?: string; first_name?: string }).firstName
+        ?? (u as { firstName?: string; first_name?: string }).first_name ?? ''
+      const ln = (u as { lastName?: string; last_name?: string }).lastName
+        ?? (u as { lastName?: string; last_name?: string }).last_name ?? ''
+      const uFullName = `${fn} ${ln}`.trim()
+      const uNameFromObj = (u as { name?: string }).name ?? uFullName
+      return uNameFromObj || (u.email ?? 'Anonymous')
+    }
+    const uid = entry.user_id ?? entry.userId
+    if (uid && members[uid]) return members[uid]
+    if (uid) return `Student #${uid}`
+    return 'Anonymous'
+  }
+
+  function getInitialsFromName(name: string): string {
+    const parts = name.trim().split(' ').filter(Boolean)
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    return name.slice(0, 2).toUpperCase()
+  }
+
+  const qType = (question.question_type ?? question.questionType ?? '').toUpperCase()
+  const answers = data?.answers ?? []
+  const totalCount = data?.answer_count ?? data?.answerCount ?? answers.length
+  const avgScore   = data?.average_numeric_value ?? data?.averageNumericValue
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-      <div className="bg-white rounded-[12px] shadow-[0px_12px_16px_-4px_rgba(16,24,40,0.08)] w-full max-w-[440px]">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#f3f4f6]">
-          <h3 className="text-[14px] font-bold text-[#111827] font-display truncate pr-4">
-            {question.question_text ?? question.questionText ?? 'Question'}
-          </h3>
-          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#f3f4f6] flex-shrink-0">
+      <div className="bg-white rounded-[12px] shadow-[0px_12px_16px_-4px_rgba(16,24,40,0.08)] w-full max-w-[560px] max-h-[88vh] flex flex-col">
+
+        {/* Header */}
+        <div className="flex items-start justify-between px-6 py-4 border-b border-[#f3f4f6] gap-4">
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display mb-1">
+              {qType.replace(/_/g, ' ')} question
+            </p>
+            <h3 className="text-[14px] font-bold text-[#111827] font-display leading-snug">
+              {question.question_text ?? question.questionText ?? 'Question'}
+            </h3>
+          </div>
+          <button onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#f3f4f6] flex-shrink-0 mt-0.5">
             <Cancel01Icon size={15} color="#6b7280" strokeWidth={1.5} />
           </button>
         </div>
-        <div className="px-6 py-5">
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loading01Icon size={18} className="animate-spin" color="#d51520" strokeWidth={1.5} />
-            </div>
-          ) : !data ? (
-            <p className="text-[13px] text-[#4b5563] font-body text-center py-6">No data yet.</p>
-          ) : (
-            <div className="flex flex-col gap-4">
+
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loading01Icon size={20} className="animate-spin" color="#d51520" strokeWidth={1.5} />
+          </div>
+        ) : !data ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center px-6">
+            <p className="text-[14px] font-semibold text-[#374151] font-display mb-1">No responses yet</p>
+            <p className="text-[13px] text-[#4b5563] font-body">Students haven&apos;t answered this question.</p>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto">
+
+            {/* Aggregate stats */}
+            <div className="px-6 py-5 border-b border-[#f3f4f6]">
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-[#f9fafb] rounded-[8px] p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-widest text-[#6b7280] font-display mb-1">Responses</p>
-                  <p className="text-[22px] font-bold text-[#111827] font-display">{data.answer_count ?? data.answerCount ?? 0}</p>
+                <div className="bg-[#f9fafb] rounded-[8px] p-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-[#6b7280] font-display mb-1">Total responses</p>
+                  <p className="text-[28px] font-bold text-[#111827] font-display leading-none">{totalCount}</p>
                 </div>
-                {(data.average_numeric_value != null || data.averageNumericValue != null) && (
-                  <div className="bg-[#f9fafb] rounded-[8px] p-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-widest text-[#6b7280] font-display mb-1">Avg score</p>
-                    <p className="text-[22px] font-bold text-[#111827] font-display">
-                      {(data.average_numeric_value ?? data.averageNumericValue ?? 0).toFixed(1)}
+                {avgScore != null && (
+                  <div className="bg-[#f9fafb] rounded-[8px] p-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-widest text-[#6b7280] font-display mb-1">Average score</p>
+                    <p className="text-[28px] font-bold text-[#111827] font-display leading-none">
+                      {avgScore.toFixed(1)}
+                      <span className="text-[14px] font-medium text-[#9ca3af] ml-1">/ {question.configuration?.maximum ?? 5}</span>
                     </p>
                   </div>
                 )}
               </div>
+
+              {/* Distribution */}
               {data.distribution && Object.keys(data.distribution).length > 0 && (
-                <div>
+                <div className="mt-4">
                   <p className="text-[11px] font-semibold uppercase tracking-widest text-[#6b7280] font-display mb-3">Distribution</p>
                   {Object.entries(data.distribution).map(([key, count]) => {
                     const total = Object.values(data.distribution!).reduce((a, b) => a + b, 0)
                     const pct = total > 0 ? Math.round((count / total) * 100) : 0
                     return (
-                      <div key={key} className="flex items-center gap-2 mb-2">
-                        <span className="text-[12px] text-[#374151] font-body w-24 truncate">{key}</span>
+                      <div key={key} className="flex items-center gap-3 mb-2">
+                        <span className="text-[12px] font-medium text-[#374151] font-body w-28 truncate shrink-0">{key}</span>
                         <div className="flex-1 h-2 bg-[#f3f4f6] rounded-full overflow-hidden">
-                          <div className="h-2 bg-[#d51520] rounded-full transition-all" style={{ width: `${pct}%` }} />
+                          <div className="h-2 bg-[#d51520] rounded-full transition-all duration-300" style={{ width: `${pct}%` }} />
                         </div>
-                        <span className="text-[11px] text-[#9ca3af] font-body w-8 text-right">{pct}%</span>
+                        <span className="text-[11px] text-[#9ca3af] font-body w-12 text-right shrink-0">{count} ({pct}%)</span>
                       </div>
                     )
                   })}
                 </div>
               )}
             </div>
-          )}
-        </div>
+
+            {/* Individual responses */}
+            <div className="px-6 pt-4 pb-2">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-[#6b7280] font-display mb-3">
+                Individual responses{answers.length > 0 ? ` — ${answers.length}` : ''}
+              </p>
+            </div>
+
+            {answers.length === 0 ? (
+              <div className="px-6 pb-6">
+                <p className="text-[13px] text-[#9ca3af] font-body">No individual response data returned by the API.</p>
+              </div>
+            ) : (
+              <div className="pb-4">
+                {answers.map((entry, i) => {
+                  const name    = getStudentName(entry)
+                  const initials = getInitialsFromName(name)
+                  const isAnon  = !entry.user_id && !entry.userId && !entry.user
+                  const val     = renderValue(entry.answer_value, qType)
+                  const isNumeric = typeof entry.answer_value === 'number'
+                  const max = question.configuration?.maximum ?? 5
+
+                  return (
+                    <div key={i}
+                      className="flex items-start gap-3 px-6 py-3.5 border-b border-[#f9fafb] last:border-0 hover:bg-[#fafafa] transition-colors">
+                      {/* Avatar */}
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                        isAnon ? 'bg-[#f3f4f6]' : 'bg-[#fef2f2]'
+                      }`}>
+                        <span className={`text-[10px] font-bold font-display ${
+                          isAnon ? 'text-[#9ca3af]' : 'text-[#d51520]'
+                        }`}>
+                          {isAnon ? '?' : initials}
+                        </span>
+                      </div>
+
+                      {/* Name */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-semibold text-[#111827] font-display leading-tight">{name}</p>
+                        {(entry.created_at ?? entry.createdAt) && (
+                          <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">
+                            {new Date(entry.created_at ?? entry.createdAt ?? '').toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Answer */}
+                      <div className="flex-shrink-0 text-right max-w-[180px]">
+                        {qType === 'RATING' && isNumeric ? (
+                          <div className="flex items-center gap-1 justify-end">
+                            {Array.from({ length: max }, (_, n) => (
+                              <div key={n} className={`w-4 h-4 rounded-[3px] ${
+                                n < (entry.answer_value as number)
+                                  ? 'bg-[#d51520]'
+                                  : 'bg-[#f3f4f6]'
+                              }`} />
+                            ))}
+                            <span className="text-[12px] font-bold text-[#111827] font-display ml-1">
+                              {entry.answer_value as number}
+                            </span>
+                          </div>
+                        ) : Array.isArray(entry.answer_value) ? (
+                          <div className="flex flex-wrap gap-1 justify-end">
+                            {(entry.answer_value as string[]).map((v, vi) => (
+                              <span key={vi} className="text-[11px] font-medium text-[#374151] bg-[#f3f4f6] px-2 py-0.5 rounded-[4px] font-body">
+                                {v}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-[13px] font-medium text-[#111827] font-body text-right leading-snug">{val}</p>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+          </div>
+        )}
       </div>
     </div>
   )
@@ -2541,7 +2707,7 @@ function ReviewsTab({ cohortId, programId }: { cohortId: string; programId: numb
       )}
 
       {analyticsQ && (
-        <QuestionAnalyticsPanel question={analyticsQ} onClose={() => setAnalyticsQ(null)} />
+        <QuestionAnalyticsPanel question={analyticsQ} cohortId={cohortId} onClose={() => setAnalyticsQ(null)} />
       )}
 
       {deleteQId && (
