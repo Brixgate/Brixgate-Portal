@@ -186,9 +186,10 @@ function CertTypesTab() {
       const res = await apiClient.get('/admin/certificate-types?size=100')
       const raw = res.data?.data ?? res.data
       const inner = raw?.data ?? raw
-      const list: CertType[] = Array.isArray(inner) ? inner
-        : Array.isArray(inner?.content) ? inner.content
-        : Array.isArray(inner?.types)   ? inner.types
+      const list: CertType[] = Array.isArray(inner)                         ? inner
+        : Array.isArray(inner?.certificate_types) ? inner.certificate_types
+        : Array.isArray(inner?.content)           ? inner.content
+        : Array.isArray(inner?.types)             ? inner.types
         : []
       setTypes(list)
     } catch { setTypes([]) } finally { setLoading(false) }
