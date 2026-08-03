@@ -382,18 +382,20 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
           setError('File exceeds the 20 MB limit. Please choose a smaller file.')
           return
         }
+        // Backend stores file on AWS via /program-resources; download served via /program-resources/{id}/download
         const formData = new FormData()
         formData.append('file', uploadFile)
+        formData.append('program_id', programId)
+        formData.append('program_module_id', String(mod!.id))
         formData.append('title', resourceForm.title.trim())
         formData.append('type', resourceForm.type)
-        // Backend validates link presence; use filename as placeholder — server overwrites with storage URL
-        formData.append('link', uploadFile.name)
-        await apiClient.post(`${base}/resources`, formData)
+        formData.append('status', 'PUBLISHED')
+        await apiClient.post('/program-resources', formData)
       } else {
         const link = resourceForm.link.trim()
         if (!link) { setError('URL is required.'); return }
         await apiClient.post(`${base}/resources`, {
-          title: resourceForm.title.trim(), type: resourceForm.type, link,
+          title: resourceForm.title.trim(), type: resourceForm.type, link, status: 'PUBLISHED',
         })
       }
       setShowAddResource(false)
