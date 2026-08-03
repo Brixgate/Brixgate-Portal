@@ -31,21 +31,18 @@ export function clearRoleCookie() {
 export const apiClient = axios.create({
   baseURL: BASE_URL,
   headers: {
-    'Content-Type': 'application/json',
+    // Do NOT set Content-Type here — axios sets application/json automatically
+    // for plain-object bodies, and multipart/form-data (with boundary) for FormData.
+    // A hardcoded default would override the FormData boundary and break uploads.
     Accept: 'application/json',
   },
 })
 
-// Attach Bearer token on every request.
-// Also remove the default Content-Type for FormData so axios can set
-// multipart/form-data with the correct boundary automatically.
+// Attach Bearer token on every request
 apiClient.interceptors.request.use((config) => {
   const token = getTokenFromCookie()
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
-  }
-  if (config.data instanceof FormData) {
-    delete config.headers['Content-Type']
   }
   return config
 })
