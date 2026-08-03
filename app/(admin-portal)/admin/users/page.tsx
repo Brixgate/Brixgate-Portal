@@ -15,6 +15,7 @@ interface ApiUser {
   first_name?: string; last_name?: string
   firstName?: string; lastName?: string
   email: string
+  phone?: string; phone_number?: string; phoneNumber?: string
   role?: string
   status?: string
   created_at?: string; createdAt?: string
@@ -334,7 +335,7 @@ export default function AdminUsersPage() {
           <table className="w-full">
             <thead>
               <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
-                {['Name', 'Email', 'Role', 'Status', 'Joined'].map(h => (
+                {['Name', 'Email', 'Phone', 'Role', 'Status', 'Joined'].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display">
                     {h}
                   </th>
@@ -345,16 +346,16 @@ export default function AdminUsersPage() {
               {loading ? (
                 Array.from({ length: 8 }).map((_, i) => (
                   <tr key={i} className="border-b border-[#f3f4f6]">
-                    {Array.from({ length: 5 }).map((__, j) => (
+                    {Array.from({ length: 6 }).map((__, j) => (
                       <td key={j} className="px-4 py-3.5">
-                        <div className="h-4 bg-[#f3f4f6] rounded animate-pulse" style={{ width: j === 0 ? 140 : j === 1 ? 180 : 80 }} />
+                        <div className="h-4 bg-[#f3f4f6] rounded animate-pulse" style={{ width: j === 0 ? 140 : j === 1 ? 180 : j === 2 ? 120 : 80 }} />
                       </td>
                     ))}
                   </tr>
                 ))
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-16 text-center">
+                  <td colSpan={6} className="px-4 py-16 text-center">
                     <UserGroup02Icon size={32} color="#d1d5db" strokeWidth={1.5} className="mx-auto mb-3" />
                     <p className="text-[14px] font-semibold text-[#111827] font-display">No users found</p>
                     <p className="text-[13px] text-[#4b5563] font-body mt-1">Try adjusting your filters</p>
@@ -368,6 +369,11 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="px-4 py-3.5">
                       <p className="text-[13px] text-[#4b5563] font-body">{u.email}</p>
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <p className="text-[13px] text-[#4b5563] font-body">
+                        {u.phone ?? u.phone_number ?? u.phoneNumber ?? <span className="text-[#d1d5db]">—</span>}
+                      </p>
                     </td>
                     <td className="px-4 py-3.5">
                       {u.role ? <RoleBadge role={u.role} /> : <span className="text-[#d1d5db]">—</span>}

@@ -743,8 +743,8 @@ function PricingPlanModal({
         planId = plan!.id
       } else {
         const res   = await apiClient.post('/admin/pricing-plans', {
-          programId: parseInt(programId), title: form.title.trim(),
-          planType: form.planType, status: form.status, billingCycle: 'ONEOFF',
+          program_id: parseInt(programId), title: form.title.trim(),
+          plan_type: form.planType, status: form.status, billing_cycle: 'ONEOFF',
         })
         const raw   = res.data as Record<string, unknown>
         const inner = (raw?.data ?? raw) as Record<string, unknown>

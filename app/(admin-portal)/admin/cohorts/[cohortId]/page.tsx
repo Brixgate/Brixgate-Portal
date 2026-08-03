@@ -2475,9 +2475,10 @@ function ReviewsTab({ cohortId, programId }: { cohortId: string; programId: numb
       .then(res => {
         const raw = res.data?.data ?? res.data
         const inner = raw?.data ?? raw
-        const list: AdminReviewForm[] = Array.isArray(inner)           ? inner
-          : Array.isArray(inner?.forms)   ? inner.forms
-          : Array.isArray(inner?.content) ? inner.content
+        const list: AdminReviewForm[] = Array.isArray(inner)                   ? inner
+          : Array.isArray(inner?.review_forms) ? inner.review_forms
+          : Array.isArray(inner?.forms)        ? inner.forms
+          : Array.isArray(inner?.content)      ? inner.content
           : []
         setForms(list)
       })
