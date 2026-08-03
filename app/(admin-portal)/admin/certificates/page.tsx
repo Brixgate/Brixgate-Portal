@@ -11,6 +11,7 @@ import { apiClient, getApiError } from '@/lib/api-client'
 interface CertType {
   id: number
   name?: string; title?: string
+  code?: string
   description?: string
   status?: string
   template_url?: string; templateUrl?: string
@@ -60,18 +61,36 @@ function CertTypeModal({ editing, onClose, onSaved }: {
   onSaved: () => void
 }) {
   const [name, setName]           = useState(editing ? certTypeName(editing) : '')
+  const [code, setCode]           = useState(editing?.code ?? '')
+  const [codeEdited, setCodeEdited] = useState(false)
   const [desc, setDesc]           = useState(editing?.description ?? '')
   const [tmpl, setTmpl]           = useState(editing?.template_url ?? editing?.templateUrl ?? '')
   const [status, setStatus]       = useState(editing?.status ?? 'ACTIVE')
   const [saving, setSaving]       = useState(false)
   const [error, setError]         = useState('')
 
+  function nameToCode(n: string) {
+    return n.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '')
+  }
+
+  function handleNameChange(v: string) {
+    setName(v)
+    if (!codeEdited) setCode(nameToCode(v))
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setError('')
     if (!name.trim()) { setError('Name is required.'); return }
+    if (!code.trim()) { setError('Code is required.'); return }
     setSaving(true)
     try {
-      const payload = { name: name.trim(), description: desc.trim() || undefined, template_url: tmpl.trim() || undefined, status }
+      const payload = {
+        name: name.trim(),
+        code: code.trim().toUpperCase().replace(/\s+/g, '_'),
+        description: desc.trim() || undefined,
+        template_url: tmpl.trim() || undefined,
+        status,
+      }
       if (editing) {
         await apiClient.patch(`/admin/certificate-types/${editing.id}`, payload)
       } else {
@@ -95,7 +114,19 @@ function CertTypeModal({ editing, onClose, onSaved }: {
         <form onSubmit={handleSubmit} className="px-6 py-5 flex flex-col gap-4">
           <div>
             <label className="text-[12px] font-medium text-[#374151] font-body block mb-1.5">Name <span className="text-[#d51520]">*</span></label>
-            <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Certificate of Attendance" className={cls} />
+            <input value={name} onChange={e => handleNameChange(e.target.value)} placeholder="e.g. Certificate of Attendance" className={cls} />
+          </div>
+          <div>
+            <label className="text-[12px] font-medium text-[#374151] font-body block mb-1.5">
+              Code <span className="text-[#d51520]">*</span>
+              <span className="text-[#9ca3af] font-normal ml-1">(auto-generated, editable)</span>
+            </label>
+            <input
+              value={code}
+              onChange={e => { setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, '')); setCodeEdited(true) }}
+              placeholder="e.g. CERT_OF_ATTENDANCE"
+              className={cls}
+            />
           </div>
           <div>
             <label className="text-[12px] font-medium text-[#374151] font-body block mb-1.5">Description</label>

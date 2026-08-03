@@ -386,6 +386,8 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
         formData.append('file', uploadFile)
         formData.append('title', resourceForm.title.trim())
         formData.append('type', resourceForm.type)
+        // Backend validates link presence; use filename as placeholder — server overwrites with storage URL
+        formData.append('link', uploadFile.name)
         await apiClient.post(`${base}/resources`, formData)
       } else {
         const link = resourceForm.link.trim()
