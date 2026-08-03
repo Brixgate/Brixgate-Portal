@@ -36,11 +36,16 @@ export const apiClient = axios.create({
   },
 })
 
-// Attach Bearer token on every request
+// Attach Bearer token on every request.
+// Also remove the default Content-Type for FormData so axios can set
+// multipart/form-data with the correct boundary automatically.
 apiClient.interceptors.request.use((config) => {
   const token = getTokenFromCookie()
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
+  }
+  if (config.data instanceof FormData) {
+    delete config.headers['Content-Type']
   }
   return config
 })
