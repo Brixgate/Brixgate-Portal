@@ -12,6 +12,7 @@ interface CertType {
   id: number
   name?: string; title?: string
   code?: string
+  category?: string
   description?: string
   status?: string
   template_url?: string; templateUrl?: string
@@ -60,14 +61,15 @@ function CertTypeModal({ editing, onClose, onSaved }: {
   onClose: () => void
   onSaved: () => void
 }) {
-  const [name, setName]           = useState(editing ? certTypeName(editing) : '')
-  const [code, setCode]           = useState(editing?.code ?? '')
+  const [name,     setName]        = useState(editing ? certTypeName(editing) : '')
+  const [code,     setCode]        = useState(editing?.code ?? '')
+  const [category, setCategory]    = useState(editing?.category ?? 'COMPLETION')
   const [codeEdited, setCodeEdited] = useState(false)
-  const [desc, setDesc]           = useState(editing?.description ?? '')
-  const [tmpl, setTmpl]           = useState(editing?.template_url ?? editing?.templateUrl ?? '')
-  const [status, setStatus]       = useState(editing?.status ?? 'ACTIVE')
-  const [saving, setSaving]       = useState(false)
-  const [error, setError]         = useState('')
+  const [desc,     setDesc]        = useState(editing?.description ?? '')
+  const [tmpl,     setTmpl]        = useState(editing?.template_url ?? editing?.templateUrl ?? '')
+  const [status,   setStatus]      = useState(editing?.status ?? 'ACTIVE')
+  const [saving,   setSaving]      = useState(false)
+  const [error,    setError]       = useState('')
 
   function nameToCode(n: string) {
     return n.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '')
@@ -87,6 +89,7 @@ function CertTypeModal({ editing, onClose, onSaved }: {
       const payload = {
         name: name.trim(),
         code: code.trim().toUpperCase().replace(/\s+/g, '_'),
+        category,
         description: desc.trim() || undefined,
         template_url: tmpl.trim() || undefined,
         status,
@@ -127,6 +130,16 @@ function CertTypeModal({ editing, onClose, onSaved }: {
               placeholder="e.g. CERT_OF_ATTENDANCE"
               className={cls}
             />
+          </div>
+          <div>
+            <label className="text-[12px] font-medium text-[#374151] font-body block mb-1.5">Category <span className="text-[#d51520]">*</span></label>
+            <select value={category} onChange={e => setCategory(e.target.value)} className={cls}>
+              <option value="COMPLETION">Completion</option>
+              <option value="ATTENDANCE">Attendance</option>
+              <option value="ACHIEVEMENT">Achievement</option>
+              <option value="PARTICIPATION">Participation</option>
+              <option value="EXCELLENCE">Excellence</option>
+            </select>
           </div>
           <div>
             <label className="text-[12px] font-medium text-[#374151] font-body block mb-1.5">Description</label>
