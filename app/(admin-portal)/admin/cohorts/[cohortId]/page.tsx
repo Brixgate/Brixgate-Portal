@@ -966,272 +966,6 @@ interface CertTypeItem {
 }
 interface SimpleStudent { userId: number; name: string; email: string }
 
-// ── Generate Certificates Modal ───────────────────────────────────────────────
-
-function GenerateCertificatesModal({
-  cohortId, programId, rows, initialCertMap, onClose, onDone,
-}: {
-  cohortId: string
-  programId: number | null
-  rows: PersonRow[]
-  initialCertMap: Map<string, number>
-  onClose: () => void
-  onDone: (newMap: Map<string, number>) => void
-}) {
-  const [certMap, setCertMap]         = useState<Map<string, number>>(new Map(initialCertMap))
-  const [selected, setSelected]       = useState<Set<string>>(new Set())
-  const [issuing, setIssuing]         = useState(false)
-  const [error, setError]             = useState('')
-  const [doneCount, setDoneCount]     = useState<number | null>(null)
-  const [certDefs, setCertDefs]       = useState<AdminCertificateDef[]>([])
-  const [certLoading, setCertLoading] = useState(true)
-  const [selectedCertId, setSelectedCertId] = useState<number | null>(null)
-
-  const selectedCert = certDefs.find(c => c.id === selectedCertId) ?? null
-
-  // Fetch all certificate definitions for this cohort on mount
-  useEffect(() => {
-    const params = new URLSearchParams()
-    params.set('cohort_id', cohortId)
-    if (programId) params.set('program_id', String(programId))
-    apiClient.get(`/admin/certificates?${params}`)
-      .then(res => {
-        const raw = res.data?.data ?? res.data
-        const list: AdminCertificateDef[] = Array.isArray(raw) ? raw : (raw ? [raw] : [])
-        setCertDefs(list)
-        // Auto-select when there is exactly one certificate
-        if (list.length === 1) setSelectedCertId(list[0].id)
-      })
-      .catch(() => { /* cert def fetch failed — admin can still proceed if backend allows */ })
-      .finally(() => setCertLoading(false))
-  }, [cohortId, programId])
-
-  // Only students who don't already have a cert are selectable
-  const selectable = rows.filter(r => r.userId && !certMap.has(r.email))
-  const allSelected = selectable.length > 0 && selectable.every(r => selected.has(r.email))
-
-  function toggleAll() {
-    if (allSelected) {
-      setSelected(new Set())
-    } else {
-      setSelected(new Set(selectable.map(r => r.email)))
-    }
-  }
-
-  function toggleRow(email: string) {
-    setSelected(prev => {
-      const next = new Set(prev)
-      if (next.has(email)) next.delete(email); else next.add(email)
-      return next
-    })
-  }
-
-  async function handleIssue() {
-    const targets = rows.filter(r => selected.has(r.email) && r.userId && !certMap.has(r.email))
-    if (targets.length === 0) return
-    setIssuing(true); setError('')
-    try {
-      await apiClient.post('/admin/user-certificates/issue', {
-        ...(selectedCert?.id                                                              ? { certificate_id: selectedCert.id }  : {}),
-        cohort_id:  Number(cohortId),
-        user_ids:   targets.map(r => r.userId!),
-        ...(selectedCert?.template_url ?? selectedCert?.templateUrl                      ? { file_url: selectedCert.template_url ?? selectedCert.templateUrl } : {}),
-      })
-      const newMap = new Map(certMap)
-      // Mark each issued student in the local map so rows re-render as "already issued"
-      targets.forEach(r => { if (!newMap.has(r.email)) newMap.set(r.email, 1) })
-      setCertMap(newMap)
-      setDoneCount(targets.length)
-      onDone(newMap)
-    } catch (e) {
-      setError(getApiError(e))
-    } finally {
-      setIssuing(false)
-    }
-  }
-
-  const newSelectionCount = Array.from(selected).filter(e => !certMap.has(e)).length
-
-  return (
-    <>
-      <div className="fixed inset-0 bg-black/30 z-[59]" onClick={doneCount !== null ? onClose : undefined} />
-      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] bg-white rounded-[12px] shadow-[0px_12px_32px_rgba(16,24,40,0.16)] w-[540px] max-h-[80vh] flex flex-col overflow-hidden">
-
-        {/* Header */}
-        <div className="px-6 pt-5 pb-4 border-b border-[#f3f4f6] flex items-center justify-between flex-shrink-0">
-          <div>
-            <h3 className="text-[15px] font-bold text-[#111827] font-display">Generate Certificates</h3>
-            <p className="text-[12px] text-[#4b5563] font-body mt-0.5">
-              Select students to issue a certificate of completion
-            </p>
-          </div>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f3f4f6] transition-colors">
-            <Cancel01Icon size={16} color="#4b5563" strokeWidth={1.5} />
-          </button>
-        </div>
-
-        {/* Certificate picker — shown when multiple certs exist for this cohort */}
-        {!certLoading && certDefs.length > 1 && doneCount === null && (
-          <div className="px-6 py-4 border-b border-[#f3f4f6] bg-[#fafafa] flex-shrink-0">
-            <p className="text-[11px] font-semibold text-[#374151] font-display uppercase tracking-wider mb-2">
-              Select Certificate to Issue
-            </p>
-            <div className="flex flex-col gap-2">
-              {certDefs.map(cd => (
-                <button
-                  key={cd.id}
-                  onClick={() => setSelectedCertId(cd.id)}
-                  className={`flex items-center gap-3 px-3.5 py-2.5 rounded-[8px] border text-left transition-colors ${
-                    selectedCertId === cd.id
-                      ? 'border-[#d51520] bg-[#fef2f2]'
-                      : 'border-[#e5e7eb] bg-white hover:border-[#d1d5db]'
-                  }`}
-                >
-                  <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
-                    selectedCertId === cd.id ? 'border-[#d51520]' : 'border-[#d1d5db]'
-                  }`}>
-                    {selectedCertId === cd.id && <div className="w-2 h-2 rounded-full bg-[#d51520]" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-semibold text-[#111827] font-display truncate">
-                      {cd.title ?? `Certificate #${cd.id}`}
-                    </p>
-                    {cd.status && (
-                      <p className="text-[11px] text-[#6b7280] font-body">{cd.status}</p>
-                    )}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Empty cert state */}
-        {!certLoading && certDefs.length === 0 && doneCount === null && (
-          <div className="px-6 py-4 border-b border-[#fef2f2] bg-[#fef2f2] flex-shrink-0 flex items-center gap-2">
-            <AlertCircleIcon size={14} color="#d51520" strokeWidth={1.5} />
-            <p className="text-[12px] text-[#d51520] font-body">
-              No certificate template configured for this cohort. Create one under the programme settings first.
-            </p>
-          </div>
-        )}
-
-        {/* Success state */}
-        {doneCount !== null ? (
-          <div className="flex-1 flex flex-col items-center justify-center py-12 px-8 text-center">
-            <div className="w-16 h-16 rounded-full bg-[#ecfdf3] flex items-center justify-center mb-4">
-              <CheckmarkCircle01Icon size={28} color="#16a34a" strokeWidth={1.5} />
-            </div>
-            <p className="text-[16px] font-bold text-[#111827] font-display mb-1">
-              {doneCount} certificate{doneCount !== 1 ? 's' : ''} issued
-            </p>
-            <p className="text-[13px] text-[#4b5563] font-body mb-6">
-              Selected students can now view and download their certificate.
-            </p>
-            <button onClick={onClose}
-              className="h-10 px-6 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] transition-colors">
-              Done
-            </button>
-          </div>
-        ) : (
-          <>
-            {/* Select All bar */}
-            <div className="px-6 py-3 border-b border-[#f3f4f6] flex items-center justify-between flex-shrink-0 bg-[#fafafa]">
-              <button
-                onClick={toggleAll}
-                disabled={selectable.length === 0}
-                className="flex items-center gap-2.5 text-[13px] font-semibold text-[#374151] font-display hover:text-[#d51520] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <div className={`w-5 h-5 rounded-[5px] border-2 flex items-center justify-center transition-all ${
-                  allSelected ? 'bg-[#d51520] border-[#d51520]' : 'border-[#d1d5db] bg-white'
-                }`}>
-                  {allSelected && (
-                    <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                      <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  )}
-                </div>
-                Select All ({selectable.length} eligible)
-              </button>
-              {newSelectionCount > 0 && (
-                <span className="text-[11px] font-semibold text-[#d51520] font-display">
-                  {newSelectionCount} selected
-                </span>
-              )}
-            </div>
-
-            {/* Student list */}
-            <div className="flex-1 overflow-y-auto">
-              {rows.length === 0 ? (
-                <div className="py-12 text-center text-[13px] text-[#9ca3af] font-body">
-                  No students in this cohort
-                </div>
-              ) : rows.map(row => {
-                const alreadyIssued = certMap.has(row.email)
-                const isChecked     = alreadyIssued || selected.has(row.email)
-                const canToggle     = !alreadyIssued && !!row.userId
-                return (
-                  <button
-                    key={row.key}
-                    onClick={() => canToggle && toggleRow(row.email)}
-                    disabled={!canToggle}
-                    className={`w-full flex items-center gap-3.5 px-6 py-3.5 border-b border-[#f3f4f6] text-left transition-colors ${
-                      alreadyIssued ? 'bg-[#f9fafb] cursor-default' : canToggle ? 'hover:bg-[#fef2f2] cursor-pointer' : 'opacity-40 cursor-not-allowed'
-                    }`}
-                  >
-                    <div className={`w-5 h-5 rounded-[5px] border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-                      isChecked ? 'bg-[#d51520] border-[#d51520]' : 'border-[#d1d5db] bg-white'
-                    }`}>
-                      {isChecked && (
-                        <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                          <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      )}
-                    </div>
-                    <div className="w-9 h-9 rounded-full bg-[#fef2f2] flex items-center justify-center flex-shrink-0">
-                      <span className="text-[13px] font-bold text-[#d51520] font-display">{getInitials(row.name)}</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-semibold text-[#111827] font-display truncate">{row.name}</p>
-                      <p className="text-[12px] text-[#4b5563] font-body truncate">{row.email}</p>
-                    </div>
-                    {alreadyIssued && (
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <Certificate01Icon size={12} color="#16a34a" strokeWidth={1.5} />
-                        <span className="text-[10px] font-semibold text-[#16a34a] font-display">Issued</span>
-                      </div>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-
-            {/* Footer */}
-            {error && (
-              <div className="px-6 py-2 bg-[#fef2f2] border-t border-[#fecdca]">
-                <p className="text-[12px] text-[#d51520] font-body flex items-center gap-1.5">
-                  <AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} />{error}
-                </p>
-              </div>
-            )}
-            <div className="px-6 py-4 border-t border-[#f3f4f6] flex gap-2 flex-shrink-0">
-              <button onClick={onClose}
-                className="flex-1 h-10 rounded-[8px] border border-[#e5e7eb] text-[13px] font-medium text-[#374151] font-body hover:bg-[#f9fafb] transition-colors">
-                Cancel
-              </button>
-              <button onClick={handleIssue} disabled={newSelectionCount === 0 || issuing || (certDefs.length > 1 && selectedCertId === null)}
-                className="flex-1 h-10 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-50 flex items-center justify-center gap-2 transition-colors">
-                {issuing && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
-                Issue {newSelectionCount > 0 ? `${newSelectionCount} ` : ''}Certificate{newSelectionCount !== 1 ? 's' : ''}
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </>
-  )
-}
-
 // ── Tab: Certificates ─────────────────────────────────────────────────────────
 function CertificatesTab({ cohortId, programId }: { cohortId: string; programId: number | null }) {
   const [certTypes, setCertTypes]               = useState<CertTypeItem[]>([])
@@ -1488,22 +1222,19 @@ function CertificatesTab({ cohortId, programId }: { cohortId: string; programId:
 }
 
 // ── Tab: People (merged Members + Enrollments) ────────────────────────────────
-function PeopleTab({ cohortId, programId }: { cohortId: string; programId: number | null }) {
+function PeopleTab({ cohortId }: { cohortId: string }) {
   const router                            = useRouter()
   const [rows, setRows]                   = useState<PersonRow[]>([])
   const [loading, setLoading]             = useState(true)
   const [selectedPerson, setSelectedPerson] = useState<PersonRow | null>(null)
   const [showAddFacilitator, setShowAddFacilitator] = useState(false)
-  // email → certificate id — used to show "issued" indicator per row in the table
-  const [certMap, setCertMap]             = useState<Map<string, number>>(new Map())
 
   const loadPeople = useCallback(async () => {
     setLoading(true)
     try {
-      const [membRes, enrollRes, certRes] = await Promise.allSettled([
+      const [membRes, enrollRes] = await Promise.allSettled([
         apiClient.get(`/admin/cohorts/${cohortId}/members?size=100`),
         apiClient.get(`/admin/cohort-enrollments?cohort_id=${cohortId}&size=100`),
-        apiClient.get(`/admin/user-certificates?cohort_id=${cohortId}&size=100`),
       ])
 
         const members: Member[] = membRes.status === 'fulfilled'
@@ -1513,17 +1244,6 @@ function PeopleTab({ cohortId, programId }: { cohortId: string; programId: numbe
         const enrollments: Enrollment[] = enrollRes.status === 'fulfilled'
           ? (() => { const d = unwrap<{ enrollments?: Enrollment[] }>(enrollRes.value.data); return Array.isArray(d?.enrollments) ? d.enrollments : [] })()
           : []
-
-        // Build email → certId map from admin certificates
-        if (certRes.status === 'fulfilled') {
-          const cd = unwrap<{ certificates?: AdminCertificate[]; data?: AdminCertificate[] } | AdminCertificate[]>(certRes.value.data)
-          const certs: AdminCertificate[] = Array.isArray(cd)
-            ? cd
-            : ((cd as { certificates?: AdminCertificate[] })?.certificates ?? [])
-          const map = new Map<string, number>()
-          certs.forEach(c => { if (c.user?.email && c.id) map.set(c.user.email, c.id) })
-          setCertMap(map)
-        }
 
         const roleByEmail: Record<string, string> = {}
         members.forEach(m => {
@@ -3006,7 +2726,7 @@ export default function CohortDetailPage() {
           <CurriculumTab cohortId={cohortId} programId={programId} parentLoading={loading} onProgramIdResolved={id => setCohort(prev => prev ? { ...prev, program_id: id } : prev)} />
         </div>
         <div style={activeTab === 'People' ? { display: 'contents' } : { display: 'none' }}>
-          <PeopleTab cohortId={cohortId} programId={programId} />
+          <PeopleTab cohortId={cohortId} />
         </div>
         <div style={activeTab === 'Reviews' ? { display: 'contents' } : { display: 'none' }}>
           <ReviewsTab cohortId={cohortId} programId={programId} />
