@@ -1259,9 +1259,8 @@ function CertificatesTab({ cohortId, programId }: { cohortId: string; programId:
     async function init() {
       setLoadingInit(true)
       try {
-        const [typesRes, defsRes, membRes, enrollRes] = await Promise.allSettled([
+        const [typesRes, membRes, enrollRes] = await Promise.allSettled([
           apiClient.get('/admin/certificate-types?size=100'),
-          apiClient.get(`/admin/certificates?cohort_id=${cohortId}${programId ? `&program_id=${programId}` : ''}`),
           apiClient.get(`/admin/cohorts/${cohortId}/members?size=100`),
           apiClient.get(`/admin/cohort-enrollments?cohort_id=${cohortId}&size=100`),
         ])
@@ -1269,16 +1268,16 @@ function CertificatesTab({ cohortId, programId }: { cohortId: string; programId:
         if (typesRes.status === 'fulfilled') {
           const raw = typesRes.value.data?.data ?? typesRes.value.data
           const inner = raw?.data ?? raw
-          const list: CertTypeItem[] = Array.isArray(inner) ? inner : Array.isArray(inner?.content) ? inner.content : []
+          const list: CertTypeItem[] = Array.isArray(inner)                         ? inner
+            : Array.isArray(inner?.certificate_types) ? inner.certificate_types
+            : Array.isArray(inner?.content)           ? inner.content
+            : []
           setCertTypes(list)
           if (list.length > 0) setSelectedTypeId(list[0].id)
         }
 
-        if (defsRes.status === 'fulfilled') {
-          const raw = defsRes.value.data?.data ?? defsRes.value.data
-          const list: AdminCertificateDef[] = Array.isArray(raw) ? raw : (raw ? [raw] : [])
-          setCertDefs(list)
-        }
+        // Skip fetching cert defs — GET /admin/certificates is not supported;
+        // a def is created on-demand at issue time if one doesn't exist yet.
 
         // Merge members + enrollments into a unified student list (deduplicated by email)
         const seen = new Set<string>()
@@ -1343,7 +1342,7 @@ function CertificatesTab({ cohortId, programId }: { cohortId: string; programId:
       if (!defId) throw new Error('Could not get certificate definition')
       const targetIds = Array.from(selectedStudents)
       await apiClient.post('/admin/user-certificates/issue', {
-        certificate_id: defId, cohort_id: Number(cohortId), user_ids: targetIds,
+        certificateId: defId, cohortId: Number(cohortId), userIds: targetIds,
       })
       setIssuedUserIds(prev => { const s = new Set(prev); targetIds.forEach(id => s.add(id)); return s })
       setSelectedStudents(new Set())
@@ -1495,8 +1494,7 @@ function PeopleTab({ cohortId, programId }: { cohortId: string; programId: numbe
   const [loading, setLoading]             = useState(true)
   const [selectedPerson, setSelectedPerson] = useState<PersonRow | null>(null)
   const [showAddFacilitator, setShowAddFacilitator] = useState(false)
-  const [showGenCerts, setShowGenCerts]   = useState(false)
-  // email → certificate id for issued certs (used by Generate Certificates modal)
+  // email → certificate id — used to show "issued" indicator per row in the table
   const [certMap, setCertMap]             = useState<Map<string, number>>(new Map())
 
   const loadPeople = useCallback(async () => {
@@ -1613,24 +1611,9 @@ function PeopleTab({ cohortId, programId }: { cohortId: string; programId: numbe
           onAdded={() => { setShowAddFacilitator(false); loadPeople() }}
         />
       )}
-      {showGenCerts && (
-        <GenerateCertificatesModal
-          cohortId={cohortId}
-          programId={programId}
-          rows={rows}
-          initialCertMap={certMap}
-          onClose={() => setShowGenCerts(false)}
-          onDone={(newMap) => { setCertMap(newMap); setShowGenCerts(false) }}
-        />
-      )}
       <div className="px-6 pt-4 pb-2 flex items-center justify-between">
         <p className="text-[12px] text-[#4b5563] font-body">{rows.length} member{rows.length !== 1 ? 's' : ''} in this cohort</p>
         <div className="flex items-center gap-2">
-          <button onClick={() => setShowGenCerts(true)}
-            className="flex items-center gap-2 h-9 px-4 bg-white border border-[#e5e7eb] text-[#374151] rounded-[8px] text-[12px] font-semibold font-display hover:bg-[#f9fafb] transition-colors">
-            <Certificate01Icon size={14} color="#374151" strokeWidth={1.5} />
-            Generate Certificates
-          </button>
           <button onClick={() => setShowAddFacilitator(true)}
             className="flex items-center gap-2 h-9 px-4 bg-[#d51520] text-white rounded-[8px] text-[12px] font-semibold font-display hover:bg-[#b81119] transition-colors">
             <UserAdd01Icon size={14} color="white" strokeWidth={1.5} />
