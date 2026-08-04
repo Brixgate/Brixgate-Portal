@@ -15,7 +15,7 @@ interface ApiUser {
   first_name?: string; last_name?: string
   firstName?: string; lastName?: string
   email: string
-  phone?: string; phone_number?: string; phoneNumber?: string
+  phone?: string; phone_number?: string; phoneNumber?: string; full_phone_number?: string
   role?: string
   status?: string
   created_at?: string; createdAt?: string
@@ -372,7 +372,7 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="px-4 py-3.5">
                       <p className="text-[13px] text-[#4b5563] font-body">
-                        {u.phone ?? u.phone_number ?? u.phoneNumber ?? <span className="text-[#d1d5db]">—</span>}
+                        {u.full_phone_number ?? u.phone ?? u.phone_number ?? u.phoneNumber ?? <span className="text-[#d1d5db]">—</span>}
                       </p>
                     </td>
                     <td className="px-4 py-3.5">
