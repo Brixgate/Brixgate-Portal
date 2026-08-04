@@ -768,7 +768,11 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
           </div>
           <div className="flex-1 overflow-auto bg-[#1a1a1a] flex items-center justify-center">
             {previewResource.contentType.includes('pdf') || previewResource.title.toLowerCase().endsWith('.pdf') ? (
-              <iframe src={previewResource.s3Url} className="w-full h-full border-0" title={previewResource.title} />
+              <iframe
+                src={`https://docs.google.com/viewer?url=${encodeURIComponent(previewResource.s3Url)}&embedded=true`}
+                className="w-full h-full border-0"
+                title={previewResource.title}
+              />
             ) : previewResource.contentType.startsWith('image/') ? (
               <img src={previewResource.s3Url} alt={previewResource.title} className="max-w-full max-h-full object-contain p-8" />
             ) : (

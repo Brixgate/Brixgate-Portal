@@ -239,7 +239,11 @@ function ResourceRow({ resource }: { resource: Resource }) {
           </div>
           <div className="flex-1 overflow-auto bg-[#1a1a1a] flex items-center justify-center">
             {preview.contentType.includes('pdf') || resource.title.toLowerCase().endsWith('.pdf') ? (
-              <iframe src={preview.s3Url} className="w-full h-full border-0" title={resource.title} />
+              <iframe
+                src={`https://docs.google.com/viewer?url=${encodeURIComponent(preview.s3Url)}&embedded=true`}
+                className="w-full h-full border-0"
+                title={resource.title}
+              />
             ) : preview.contentType.startsWith('image/') ? (
               <img src={preview.s3Url} alt={resource.title} className="max-w-full max-h-full object-contain p-8" />
             ) : (
