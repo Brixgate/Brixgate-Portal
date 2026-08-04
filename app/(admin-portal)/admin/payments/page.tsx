@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { Invoice01Icon, Cancel01Icon, Copy01Icon } from 'hugeicons-react'
-import { apiClient, unwrap } from '@/lib/api-client'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { Invoice01Icon, Cancel01Icon, Copy01Icon, RefreshIcon, ArrowDown01Icon, Loading01Icon } from 'hugeicons-react'
+import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 import AdminPageLoader from '@/components/admin/AdminPageLoader'
 
 interface Payment {
@@ -60,8 +60,109 @@ const STATUS_DOT: Record<string, string> = {
   SUCCESS: '#027a48', PENDING: '#b45309', FAILED: '#d51520',
 }
 
+// ── Requery status pill (PENDING only gets dropdown) ─────────────────────────
+function StatusPill({
+  payment, size = 'sm', onUpdated,
+}: {
+  payment: Payment
+  size?: 'sm' | 'md'
+  onUpdated: (updated: Payment) => void
+}) {
+  const [open, setOpen]       = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [toast, setToast]     = useState<{ msg: string; ok: boolean } | null>(null)
+  const ref = useRef<HTMLDivElement>(null)
+  const status = resolveStatus(payment)
+  const payRef = resolvePayRef(payment)
+  const isPending = status === 'PENDING'
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!open) return
+    function handle(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [open])
+
+  // Auto-dismiss toast
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 4000)
+    return () => clearTimeout(t)
+  }, [toast])
+
+  async function requery(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (payRef === '—' || loading) return
+    setOpen(false); setLoading(true)
+    try {
+      const res = await apiClient.get(`/payments/requery/${payRef}`)
+      const body = res.data as Record<string, unknown>
+      const inner = (body?.data ?? body) as Record<string, unknown>
+      const newStatus = ((inner?.payment_status ?? inner?.paymentStatus ?? inner?.status ?? status) as string).toUpperCase()
+      onUpdated({ ...payment, payment_status: newStatus, paymentStatus: newStatus })
+      setToast({ msg: `Status updated to ${newStatus}`, ok: true })
+    } catch (err) {
+      setToast({ msg: getApiError(err), ok: false })
+    } finally { setLoading(false) }
+  }
+
+  const pillCls = size === 'md'
+    ? 'px-3 py-1 text-[12px]'
+    : 'px-2 py-0.5 text-[11px]'
+
+  const base = `inline-flex items-center gap-1.5 rounded-full font-semibold font-display ${pillCls}`
+
+  return (
+    <div className="relative inline-block" ref={ref}>
+      {/* Toast */}
+      {toast && (
+        <div className={`absolute bottom-full mb-2 right-0 whitespace-nowrap px-3 py-1.5 rounded-[8px] text-[12px] font-body shadow-md z-20 ${
+          toast.ok ? 'bg-[#ecfdf3] text-[#15803d] border border-[#bbf7d0]' : 'bg-[#fef2f2] text-[#dc2626] border border-[#fecaca]'
+        }`}>
+          {toast.msg}
+        </div>
+      )}
+
+      {!isPending ? (
+        <span className={`${base} ${STATUS_STYLE[status] ?? 'bg-[#f3f4f6] text-[#374151]'}`}>
+          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: STATUS_DOT[status] ?? '#6b7280' }} />
+          {status}
+        </span>
+      ) : (
+        <>
+          <button
+            onClick={e => { e.stopPropagation(); setOpen(o => !o) }}
+            disabled={loading}
+            className={`${base} ${STATUS_STYLE.PENDING} hover:opacity-80 transition-opacity disabled:opacity-60 cursor-pointer`}
+          >
+            {loading
+              ? <Loading01Icon size={11} className="animate-spin flex-shrink-0" strokeWidth={2} />
+              : <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-[#b45309]" />}
+            {loading ? 'Checking…' : 'PENDING'}
+            {!loading && <ArrowDown01Icon size={10} strokeWidth={2} />}
+          </button>
+          {open && (
+            <div className="absolute top-full left-0 mt-1.5 bg-white border border-[#e5e7eb] rounded-[8px] shadow-lg z-10 min-w-[150px] overflow-hidden">
+              <button
+                onClick={requery}
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[12px] font-medium text-[#374151] hover:bg-[#f9fafb] transition-colors font-body"
+              >
+                <RefreshIcon size={13} color="#374151" strokeWidth={1.5} />
+                Refresh Status
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 // ── Detail panel ──────────────────────────────────────────────────────────────
-function PaymentDetailPanel({ payment, onClose }: { payment: Payment; onClose: () => void }) {
+function PaymentDetailPanel({ payment, onClose, onUpdated }: { payment: Payment; onClose: () => void; onUpdated: (p: Payment) => void }) {
   const [copied, setCopied] = useState<string | null>(null)
 
   function copy(val: string, key: string) {
@@ -70,8 +171,6 @@ function PaymentDetailPanel({ payment, onClose }: { payment: Payment; onClose: (
       setTimeout(() => setCopied(null), 1500)
     })
   }
-
-  const status = resolveStatus(payment)
 
   return (
     <>
@@ -99,12 +198,7 @@ function PaymentDetailPanel({ payment, onClose }: { payment: Payment; onClose: (
               <p className="text-[11px] font-semibold uppercase tracking-widest text-[#4b5563] font-display mb-1">Amount Paid</p>
               <p className="text-[28px] font-bold text-[#111827] font-display leading-none">{resolveAmount(payment)}</p>
             </div>
-            {status && (
-              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-semibold font-display ${STATUS_STYLE[status] ?? 'bg-[#f3f4f6] text-[#374151]'}`}>
-                <span className="w-1.5 h-1.5 rounded-full" style={{ background: STATUS_DOT[status] ?? '#6b7280' }} />
-                {status}
-              </span>
-            )}
+            <StatusPill payment={payment} size="md" onUpdated={onUpdated} />
           </div>
 
           {/* User */}
@@ -197,6 +291,11 @@ export default function AdminPaymentsPage() {
   const [loading, setLoading]           = useState(true)
   const [selectedPayment, setSelected]  = useState<Payment | null>(null)
 
+  function handleUpdated(updated: Payment) {
+    setPayments(prev => prev.map(p => p.id === updated.id ? updated : p))
+    setSelected(prev => prev?.id === updated.id ? updated : prev)
+  }
+
   const fetchPayments = useCallback(async () => {
     setLoading(true)
     try {
@@ -217,7 +316,7 @@ export default function AdminPaymentsPage() {
       {loading && payments.length === 0 && <AdminPageLoader />}
 
       {selectedPayment && (
-        <PaymentDetailPanel payment={selectedPayment} onClose={() => setSelected(null)} />
+        <PaymentDetailPanel payment={selectedPayment} onClose={() => setSelected(null)} onUpdated={handleUpdated} />
       )}
 
       <div className="flex items-center justify-between mb-8">
@@ -285,12 +384,7 @@ export default function AdminPaymentsPage() {
                         : <span className="text-[#d1d5db] text-[12px] font-body">—</span>}
                     </td>
                     <td className="px-4 py-3.5">
-                      {status && (
-                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold font-display ${STATUS_STYLE[status] ?? 'bg-[#f3f4f6] text-[#374151]'}`}>
-                          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: STATUS_DOT[status] ?? '#6b7280' }} />
-                          {status}
-                        </span>
-                      )}
+                      <StatusPill payment={p} onUpdated={handleUpdated} />
                     </td>
                     <td className="px-4 py-3.5"><p className="text-[12px] text-[#4b5563] font-body">{formatDate(p.createdAt ?? p.created_at)}</p></td>
                   </tr>

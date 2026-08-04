@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import TopNav from '@/components/layout/TopNav'
 import {
   Wallet01Icon,
@@ -12,6 +12,8 @@ import {
   Invoice01Icon,
   Money01Icon,
   LockIcon,
+  RefreshIcon,
+  ArrowDown01Icon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 
@@ -430,6 +432,178 @@ function WalletCard({ wallet }: { wallet: Wallet | null; loading: boolean }) {
   )
 }
 
+// ── Recent Payments (with requery for PENDING) ────────────────────────────────
+interface StudentPayment {
+  id: number
+  amount?: number; payable_amount?: number; payableAmount?: number
+  currency?: string; payable_currency?: string; payableCurrency?: string
+  payment_status?: string; paymentStatus?: string; status?: string
+  payment_reference?: string; paymentReference?: string
+  payment_type?: string; paymentType?: string
+  created_at?: string; createdAt?: string
+}
+
+const SP_STYLE: Record<string, string> = {
+  SUCCESS: 'bg-[#ecfdf3] text-[#15803d] border border-[#bbf7d0]',
+  PENDING: 'bg-[#fffbeb] text-[#b45309] border border-[#fde68a]',
+  FAILED:  'bg-[#fef2f2] text-[#dc2626] border border-[#fecaca]',
+}
+const SP_DOT: Record<string, string> = {
+  SUCCESS: '#15803d', PENDING: '#b45309', FAILED: '#dc2626',
+}
+
+function spStatus(p: StudentPayment)  { return (p.payment_status ?? p.paymentStatus ?? p.status ?? '').toUpperCase() }
+function spRef(p: StudentPayment)     { return p.payment_reference ?? p.paymentReference ?? '' }
+function spAmount(p: StudentPayment)  {
+  const amt = p.payable_amount ?? p.payableAmount ?? p.amount
+  const cur = p.payable_currency ?? p.payableCurrency ?? p.currency ?? 'NGN'
+  if (amt == null) return '—'
+  return `${cur === 'USD' ? '$' : '₦'}${amt.toLocaleString('en-NG')}`
+}
+
+function PaymentStatusPill({ payment, onUpdated }: { payment: StudentPayment; onUpdated: (p: StudentPayment) => void }) {
+  const [open, setOpen]       = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [toast, setToast]     = useState<{ msg: string; ok: boolean } | null>(null)
+  const wrapRef               = useRef<HTMLDivElement>(null)
+  const status  = spStatus(payment)
+  const ref     = spRef(payment)
+  const pending = status === 'PENDING'
+
+  useEffect(() => {
+    if (!open) return
+    function h(e: MouseEvent) { if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [open])
+
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 4000)
+    return () => clearTimeout(t)
+  }, [toast])
+
+  async function requery(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (!ref || loading) return
+    setOpen(false); setLoading(true)
+    try {
+      const res   = await apiClient.get(`/payments/requery/${ref}`)
+      const body  = res.data as Record<string, unknown>
+      const inner = (body?.data ?? body) as Record<string, unknown>
+      const newStatus = ((inner?.payment_status ?? inner?.paymentStatus ?? inner?.status ?? status) as string).toUpperCase()
+      onUpdated({ ...payment, payment_status: newStatus, paymentStatus: newStatus })
+      setToast({ msg: `Status updated to ${newStatus}`, ok: true })
+    } catch (err) {
+      setToast({ msg: getApiError(err), ok: false })
+    } finally { setLoading(false) }
+  }
+
+  const base = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold font-display'
+
+  return (
+    <div className="relative inline-block" ref={wrapRef}>
+      {toast && (
+        <div className={`absolute bottom-full mb-2 right-0 whitespace-nowrap px-3 py-1.5 rounded-[8px] text-[12px] font-body shadow-md z-20 ${
+          toast.ok ? 'bg-[#ecfdf3] text-[#15803d] border border-[#bbf7d0]' : 'bg-[#fef2f2] text-[#dc2626] border border-[#fecaca]'
+        }`}>{toast.msg}</div>
+      )}
+      {!pending ? (
+        <span className={`${base} ${SP_STYLE[status] ?? 'bg-[#f3f4f6] text-[#374151] border border-[#e5e7eb]'}`}>
+          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: SP_DOT[status] ?? '#6b7280' }} />
+          {status || '—'}
+        </span>
+      ) : (
+        <>
+          <button
+            onClick={e => { e.stopPropagation(); setOpen(o => !o) }}
+            disabled={loading}
+            className={`${base} ${SP_STYLE.PENDING} hover:opacity-80 transition-opacity disabled:opacity-60 cursor-pointer`}
+          >
+            {loading
+              ? <Loading01Icon size={11} className="animate-spin flex-shrink-0" strokeWidth={2} />
+              : <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-[#b45309]" />}
+            {loading ? 'Checking…' : 'PENDING'}
+            {!loading && <ArrowDown01Icon size={10} strokeWidth={2} />}
+          </button>
+          {open && (
+            <div className="absolute top-full left-0 mt-1.5 bg-white border border-[#e5e7eb] rounded-[8px] shadow-lg z-10 min-w-[150px] overflow-hidden">
+              <button
+                onClick={requery}
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[12px] font-medium text-[#374151] hover:bg-[#f9fafb] transition-colors font-body"
+              >
+                <RefreshIcon size={13} color="#374151" strokeWidth={1.5} />
+                Refresh Status
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+function RecentPayments() {
+  const [payments, setPayments]   = useState<StudentPayment[]>([])
+  const [loading, setLoading]     = useState(true)
+
+  useEffect(() => {
+    apiClient.get('/payments?size=10')
+      .then(res => {
+        const body  = res.data as Record<string, unknown>
+        const inner = (body?.data ?? body) as Record<string, unknown>
+        const list  = Array.isArray(inner?.payments) ? inner.payments
+          : Array.isArray(inner)                     ? inner
+          : []
+        setPayments(list as StudentPayment[])
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  function handleUpdated(updated: StudentPayment) {
+    setPayments(prev => prev.map(p => p.id === updated.id ? updated : p))
+  }
+
+  if (loading) return (
+    <div className="bg-white rounded-[10px] border border-[#eaecf0] p-6">
+      <div className="h-4 w-40 bg-[#f3f4f6] rounded animate-pulse mb-4" />
+      {[1,2,3].map(i => <div key={i} className="h-12 bg-[#f3f4f6] rounded animate-pulse mb-2" />)}
+    </div>
+  )
+
+  if (payments.length === 0) return null
+
+  return (
+    <div className="bg-white rounded-[10px] border border-[#eaecf0]">
+      <div className="px-5 py-4 border-b border-[#f3f4f6]">
+        <p className="text-[14px] font-semibold text-[#111827] font-display">Payment History</p>
+        <p className="text-[12px] text-[#6b7280] font-body mt-0.5">Your recent transactions</p>
+      </div>
+      <div className="divide-y divide-[#f3f4f6]">
+        {payments.map(p => (
+          <div key={p.id} className="flex items-center gap-4 px-5 py-3.5">
+            <div className="w-8 h-8 rounded-full bg-[#f3f4f6] flex items-center justify-center flex-shrink-0">
+              <Payment01Icon size={14} color="#6b7280" strokeWidth={1.5} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] font-medium text-[#111827] font-body truncate">
+                {p.payment_type ?? p.paymentType ?? 'Payment'}
+              </p>
+              <p className="text-[11px] text-[#6b7280] font-body mt-0.5">
+                {new Date(p.created_at ?? p.createdAt ?? '').toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}
+                {spRef(p) ? ` · ${spRef(p)}` : ''}
+              </p>
+            </div>
+            <p className="text-[13px] font-semibold text-[#111827] font-display flex-shrink-0">{spAmount(p)}</p>
+            <PaymentStatusPill payment={p} onUpdated={handleUpdated} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function FinancePage() {
   const [plans,         setPlans]         = useState<PaymentPlan[]>([])
@@ -551,6 +725,7 @@ export default function FinancePage() {
                 ))}
               </div>
             )}
+            <RecentPayments />
           </div>
         )}
       </div>
