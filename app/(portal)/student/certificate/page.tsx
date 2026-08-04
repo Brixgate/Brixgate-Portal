@@ -6,6 +6,7 @@ import { Award01Icon, LockIcon, Download01Icon, CheckmarkCircle01Icon, Loading01
 import EmptyState from '@/components/shared/EmptyState'
 import { apiClient, unwrap } from '@/lib/api-client'
 import { useAuth } from '@/lib/auth-context'
+import { useToast, ToastContainer } from '@/components/shared/Toast'
 
 // ── API shapes ────────────────────────────────────────────────────────────────
 interface ApiCohort {
@@ -111,6 +112,7 @@ function CertificateCard({ row, fullName }: { row: CertRow; fullName: string }) 
   // Unlocked = admin has issued the certificate (not based on progress)
   const isUnlocked = issuedAt !== null
   const [sharing, setSharing] = useState(false)
+  const { toasts, toast, removeToast } = useToast()
 
   async function handleDownload() {
     try {
@@ -164,12 +166,13 @@ function CertificateCard({ row, fullName }: { row: CertRow; fullName: string }) 
         await navigator.share({ title: 'My Brixgate Certificate', text })
       } else {
         await navigator.clipboard.writeText(text)
-        alert('Share text copied to clipboard!')
+        toast.success('Share text copied to clipboard!')
       }
     } catch { /* user cancelled */ } finally { setSharing(false) }
   }
 
   return (
+    <>
     <div className="grid grid-cols-[1fr_340px] gap-5">
       {/* Left: certificate visual */}
       <div className="flex flex-col gap-4">
@@ -330,6 +333,8 @@ function CertificateCard({ row, fullName }: { row: CertRow; fullName: string }) 
         )}
       </div>
     </div>
+    <ToastContainer toasts={toasts} onRemove={removeToast} />
+    </>
   )
 }
 

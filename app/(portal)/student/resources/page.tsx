@@ -19,6 +19,7 @@ import {
 import EmptyState from '@/components/shared/EmptyState'
 import { cn } from '@/lib/utils'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
+import { useToast, ToastContainer } from '@/components/shared/Toast'
 
 // ── Filter chips ──────────────────────────────────────────────────────────────
 const FILTER_CHIPS: { label: string; apiType: string | null }[] = [
@@ -116,7 +117,8 @@ function groupByWeek(resources: Resource[]): Record<number, { title: string; ite
 function ResourceRow({ resource }: { resource: Resource }) {
   const [downloading, setDownloading] = useState(false)
   const [previewing, setPreviewing]   = useState(false)
-  const [preview, setPreview]         = useState<{ blobUrl: string; mime: string; s3Url: string } | null>(null)
+  const [preview, setPreview]         = useState<{ s3Url: string; contentType: string } | null>(null)
+  const { toasts, toast, removeToast } = useToast()
 
   const FileIcon = FILE_ICONS[resource.fileType] ?? File01Icon
   const colours  = FILE_COLOURS[resource.fileType] ?? { bg: '#F7F8FA', text: '#6b7280' }
@@ -124,8 +126,7 @@ function ResourceRow({ resource }: { resource: Resource }) {
     ? new Date(resource.uploadedAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })
     : ''
 
-  // Get the pre-signed S3 URL from the download endpoint
-  async function getPresignedUrl(): Promise<{ url: string; contentType: string; filename: string }> {
+  async function getPresignedUrl(): Promise<{ url: string; contentType: string }> {
     const res = await apiClient.get(`/program-resources/${resource.id}/download`)
     const body = res.data as Record<string, unknown>
     const inner = (body?.data ?? body) as Record<string, unknown>
@@ -134,7 +135,6 @@ function ResourceRow({ resource }: { resource: Resource }) {
     return {
       url,
       contentType: ((inner?.content_type ?? inner?.contentType ?? '') as string),
-      filename:    ((inner?.filename ?? resource.title) as string),
     }
   }
 
@@ -143,9 +143,8 @@ function ResourceRow({ resource }: { resource: Resource }) {
     setDownloading(true)
     try {
       const { url } = await getPresignedUrl()
-      // Pre-signed URL already has response-content-disposition=attachment — opens as download
       window.open(url, '_blank')
-    } catch (err) { alert(`Download failed: ${getApiError(err)}`) }
+    } catch (err) { toast.error(`Download failed: ${getApiError(err)}`) }
     finally { setDownloading(false) }
   }
 
@@ -154,21 +153,14 @@ function ResourceRow({ resource }: { resource: Resource }) {
     setPreviewing(true)
     try {
       const { url, contentType } = await getPresignedUrl()
-      // Fetch the S3 file as a blob so the browser renders it inline
-      // (strips the Content-Disposition: attachment header that would otherwise force a download)
-      const fileRes = await fetch(url)
-      const blob = await fileRes.blob()
-      const mime = contentType || blob.type || ''
-      const blobUrl = URL.createObjectURL(blob)
-      setPreview({ blobUrl, mime, s3Url: url })
-    } catch (err) { alert(`Preview failed: ${getApiError(err)}`) }
+      // Use the pre-signed URL directly — <iframe src> and <img src> are simple
+      // resource loads, not CORS fetch requests, so S3 bucket policy won't block them.
+      setPreview({ s3Url: url, contentType })
+    } catch (err) { toast.error(`Preview failed: ${getApiError(err)}`) }
     finally { setPreviewing(false) }
   }
 
-  function closePreview() {
-    if (preview) URL.revokeObjectURL(preview.blobUrl)
-    setPreview(null)
-  }
+  function closePreview() { setPreview(null) }
 
   return (
     <>
@@ -246,10 +238,10 @@ function ResourceRow({ resource }: { resource: Resource }) {
             </div>
           </div>
           <div className="flex-1 overflow-auto bg-[#1a1a1a] flex items-center justify-center">
-            {preview.mime.includes('pdf') ? (
-              <iframe src={preview.blobUrl} className="w-full h-full border-0" title={resource.title} />
-            ) : preview.mime.startsWith('image/') ? (
-              <img src={preview.blobUrl} alt={resource.title} className="max-w-full max-h-full object-contain p-8" />
+            {preview.contentType.includes('pdf') || resource.title.toLowerCase().endsWith('.pdf') ? (
+              <iframe src={preview.s3Url} className="w-full h-full border-0" title={resource.title} />
+            ) : preview.contentType.startsWith('image/') ? (
+              <img src={preview.s3Url} alt={resource.title} className="max-w-full max-h-full object-contain p-8" />
             ) : (
               <div className="text-center text-white px-6">
                 <File01Icon size={40} color="#6b7280" strokeWidth={1} className="mx-auto mb-3" />
@@ -260,6 +252,8 @@ function ResourceRow({ resource }: { resource: Resource }) {
           </div>
         </div>
       )}
+
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
     </>
   )
 }

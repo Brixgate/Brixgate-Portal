@@ -11,6 +11,7 @@ import {
   EyeIcon, Download01Icon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
+import { useToast, ToastContainer } from '@/components/shared/Toast'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Resource { id: number; title: string; type: string; link: string; status?: string }
@@ -317,8 +318,9 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
   const [confirmLesson, setConfirmLesson]     = useState<Lesson | null>(null)
   const [confirmResource, setConfirmResource] = useState<Resource | null>(null)
   // Resource preview
-  const [previewResource, setPreviewResource] = useState<{ id: number; title: string; blobUrl: string; mime: string; s3Url: string } | null>(null)
+  const [previewResource, setPreviewResource] = useState<{ id: number; title: string; s3Url: string; contentType: string } | null>(null)
   const [previewingId, setPreviewingId]       = useState<number | null>(null)
+  const { toasts, toast, removeToast }        = useToast()
 
   async function getPresignedUrl(id: number): Promise<{ url: string; contentType: string }> {
     const res = await apiClient.get(`/program-resources/${id}/download`)
@@ -334,29 +336,24 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
     setPreviewingId(r.id)
     try {
       const { url, contentType } = await getPresignedUrl(r.id)
-      // Fetch as blob to strip Content-Disposition: attachment so browser renders inline
-      const fileRes = await fetch(url)
-      const blob = await fileRes.blob()
-      const mime = contentType || blob.type || ''
-      const blobUrl = URL.createObjectURL(blob)
-      setPreviewResource({ id: r.id, title: r.title, blobUrl, mime, s3Url: url })
+      // Use the pre-signed S3 URL directly in the iframe/img src — no fetch() needed.
+      // <iframe src> and <img src> are simple resource loads, not CORS requests,
+      // so the S3 bucket's CORS policy doesn't block them.
+      setPreviewResource({ id: r.id, title: r.title, s3Url: url, contentType })
     } catch (e) {
-      alert('Preview failed: ' + getApiError(e))
+      toast.error('Preview failed: ' + getApiError(e))
     } finally {
       setPreviewingId(null)
     }
   }
 
-  function closePreview() {
-    if (previewResource) URL.revokeObjectURL(previewResource.blobUrl)
-    setPreviewResource(null)
-  }
+  function closePreview() { setPreviewResource(null) }
 
   async function downloadResource(r: Resource) {
     try {
       const { url } = await getPresignedUrl(r.id)
       window.open(url, '_blank')
-    } catch (e) { alert('Download failed: ' + getApiError(e)) }
+    } catch (e) { toast.error('Download failed: ' + getApiError(e)) }
   }
 
   const base = `/admin/programs/${programId}/modules/${mod?.id}`
@@ -770,10 +767,10 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
             </div>
           </div>
           <div className="flex-1 overflow-auto bg-[#1a1a1a] flex items-center justify-center">
-            {previewResource.mime.includes('pdf') ? (
-              <iframe src={previewResource.blobUrl} className="w-full h-full border-0" title={previewResource.title} />
-            ) : previewResource.mime.startsWith('image/') ? (
-              <img src={previewResource.blobUrl} alt={previewResource.title} className="max-w-full max-h-full object-contain p-8" />
+            {previewResource.contentType.includes('pdf') || previewResource.title.toLowerCase().endsWith('.pdf') ? (
+              <iframe src={previewResource.s3Url} className="w-full h-full border-0" title={previewResource.title} />
+            ) : previewResource.contentType.startsWith('image/') ? (
+              <img src={previewResource.s3Url} alt={previewResource.title} className="max-w-full max-h-full object-contain p-8" />
             ) : (
               <div className="text-center text-white px-6">
                 <File01Icon size={40} color="#6b7280" strokeWidth={1} className="mx-auto mb-3" />
@@ -784,6 +781,8 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
           </div>
         </div>
       )}
+
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
   )
 }

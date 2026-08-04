@@ -146,6 +146,11 @@
   100% { transform: translateX(350%); }
 }
 
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
 /* ─── Select inputs — consistent cross-browser padding + custom chevron ───────── */
 select {
   -webkit-appearance: none;
