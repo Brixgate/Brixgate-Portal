@@ -362,7 +362,6 @@ export default function AdminPaymentsPage() {
                   <p className="text-[14px] font-semibold text-[#111827] font-display">No payments found</p>
                 </td></tr>
               ) : payments.map(p => {
-                const status = resolveStatus(p)
                 return (
                   <tr
                     key={p.id}
