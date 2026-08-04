@@ -116,7 +116,7 @@ function groupByWeek(resources: Resource[]): Record<number, { title: string; ite
 function ResourceRow({ resource }: { resource: Resource }) {
   const [downloading, setDownloading] = useState(false)
   const [previewing, setPreviewing]   = useState(false)
-  const [preview, setPreview]         = useState<{ url: string; mime: string } | null>(null)
+  const [preview, setPreview]         = useState<{ blobUrl: string; mime: string; s3Url: string } | null>(null)
 
   const FileIcon = FILE_ICONS[resource.fileType] ?? File01Icon
   const colours  = FILE_COLOURS[resource.fileType] ?? { bg: '#F7F8FA', text: '#6b7280' }
@@ -124,55 +124,49 @@ function ResourceRow({ resource }: { resource: Resource }) {
     ? new Date(resource.uploadedAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })
     : ''
 
-  async function fetchBlob(): Promise<{ blob: Blob; mime: string } | { redirectUrl: string } | null> {
-    const res = await apiClient.get(`/program-resources/${resource.id}/download`, { responseType: 'blob' })
-    const blob: Blob = res.data
-    const mime: string = (res.headers['content-type'] as string) ?? ''
-    if (mime.includes('json') || mime.includes('text')) {
-      const text = await blob.text()
-      try {
-        const json = JSON.parse(text) as Record<string, unknown>
-        const url = (json.url ?? json.link ?? json.downloadUrl ?? json.download_url) as string | undefined
-        if (url) return { redirectUrl: url }
-      } catch { /* not JSON */ }
+  // Get the pre-signed S3 URL from the download endpoint
+  async function getPresignedUrl(): Promise<{ url: string; contentType: string; filename: string }> {
+    const res = await apiClient.get(`/program-resources/${resource.id}/download`)
+    const body = res.data as Record<string, unknown>
+    const inner = (body?.data ?? body) as Record<string, unknown>
+    const url = (inner?.url ?? inner?.link ?? body?.url) as string | undefined
+    if (!url) throw new Error('No download URL in response')
+    return {
+      url,
+      contentType: ((inner?.content_type ?? inner?.contentType ?? '') as string),
+      filename:    ((inner?.filename ?? resource.title) as string),
     }
-    return { blob, mime }
   }
 
   async function handleDownload() {
     if (downloading) return
     setDownloading(true)
     try {
-      const result = await fetchBlob()
-      if (!result) return
-      if ('redirectUrl' in result) { window.open(result.redirectUrl, '_blank'); return }
-      const objectUrl = URL.createObjectURL(result.blob)
-      const a = document.createElement('a')
-      a.href = objectUrl; a.download = resource.title || 'download'
-      document.body.appendChild(a); a.click(); document.body.removeChild(a)
-      URL.revokeObjectURL(objectUrl)
-    } catch (err) {
-      const fallback = resource.downloadUrl
-      if (fallback && fallback !== '#') { window.open(fallback, '_blank') }
-      else { alert(`Download failed: ${getApiError(err)}`) }
-    } finally { setDownloading(false) }
+      const { url } = await getPresignedUrl()
+      // Pre-signed URL already has response-content-disposition=attachment — opens as download
+      window.open(url, '_blank')
+    } catch (err) { alert(`Download failed: ${getApiError(err)}`) }
+    finally { setDownloading(false) }
   }
 
   async function handlePreview() {
     if (previewing) return
     setPreviewing(true)
     try {
-      const result = await fetchBlob()
-      if (!result) return
-      if ('redirectUrl' in result) { window.open(result.redirectUrl, '_blank'); return }
-      const objectUrl = URL.createObjectURL(result.blob)
-      setPreview({ url: objectUrl, mime: result.mime })
+      const { url, contentType } = await getPresignedUrl()
+      // Fetch the S3 file as a blob so the browser renders it inline
+      // (strips the Content-Disposition: attachment header that would otherwise force a download)
+      const fileRes = await fetch(url)
+      const blob = await fileRes.blob()
+      const mime = contentType || blob.type || ''
+      const blobUrl = URL.createObjectURL(blob)
+      setPreview({ blobUrl, mime, s3Url: url })
     } catch (err) { alert(`Preview failed: ${getApiError(err)}`) }
     finally { setPreviewing(false) }
   }
 
   function closePreview() {
-    if (preview) URL.revokeObjectURL(preview.url)
+    if (preview) URL.revokeObjectURL(preview.blobUrl)
     setPreview(null)
   }
 
@@ -239,11 +233,7 @@ function ResourceRow({ resource }: { resource: Resource }) {
             </div>
             <div className="flex items-center gap-2 flex-shrink-0 ml-4">
               <button
-                onClick={() => {
-                  const a = document.createElement('a')
-                  a.href = preview.url; a.download = resource.title
-                  document.body.appendChild(a); a.click(); document.body.removeChild(a)
-                }}
+                onClick={() => window.open(preview.s3Url, '_blank')}
                 className="flex items-center gap-1.5 h-8 px-3 rounded-[6px] border border-[#e5e7eb] text-[12px] font-medium text-[#374151] font-body hover:bg-[#f3f4f6] transition-colors"
               >
                 <Download01Icon size={13} color="#374151" strokeWidth={1.5} />
@@ -257,9 +247,9 @@ function ResourceRow({ resource }: { resource: Resource }) {
           </div>
           <div className="flex-1 overflow-auto bg-[#1a1a1a] flex items-center justify-center">
             {preview.mime.includes('pdf') ? (
-              <iframe src={preview.url} className="w-full h-full border-0" title={resource.title} />
+              <iframe src={preview.blobUrl} className="w-full h-full border-0" title={resource.title} />
             ) : preview.mime.startsWith('image/') ? (
-              <img src={preview.url} alt={resource.title} className="max-w-full max-h-full object-contain p-8" />
+              <img src={preview.blobUrl} alt={resource.title} className="max-w-full max-h-full object-contain p-8" />
             ) : (
               <div className="text-center text-white px-6">
                 <File01Icon size={40} color="#6b7280" strokeWidth={1} className="mx-auto mb-3" />

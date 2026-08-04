@@ -317,26 +317,29 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
   const [confirmLesson, setConfirmLesson]     = useState<Lesson | null>(null)
   const [confirmResource, setConfirmResource] = useState<Resource | null>(null)
   // Resource preview
-  const [previewResource, setPreviewResource] = useState<{ id: number; title: string; url: string; mime: string } | null>(null)
+  const [previewResource, setPreviewResource] = useState<{ id: number; title: string; blobUrl: string; mime: string; s3Url: string } | null>(null)
   const [previewingId, setPreviewingId]       = useState<number | null>(null)
+
+  async function getPresignedUrl(id: number): Promise<{ url: string; contentType: string }> {
+    const res = await apiClient.get(`/program-resources/${id}/download`)
+    const body = res.data as Record<string, unknown>
+    const inner = (body?.data ?? body) as Record<string, unknown>
+    const url = (inner?.url ?? inner?.link ?? body?.url) as string | undefined
+    if (!url) throw new Error('No download URL in response')
+    return { url, contentType: ((inner?.content_type ?? inner?.contentType ?? '') as string) }
+  }
 
   async function openPreview(r: Resource) {
     if (previewingId === r.id) return
     setPreviewingId(r.id)
     try {
-      const res = await apiClient.get(`/program-resources/${r.id}/download`, { responseType: 'blob' })
-      const blob: Blob = res.data
-      const mime = (res.headers['content-type'] as string) || blob.type || ''
-      if (mime.includes('json') || mime.includes('text')) {
-        const text = await blob.text()
-        try {
-          const json = JSON.parse(text) as Record<string, unknown>
-          const url = (json.url ?? json.link ?? json.downloadUrl ?? json.download_url) as string | undefined
-          if (url) { window.open(url, '_blank'); return }
-        } catch { /* not json */ }
-      }
-      const objectUrl = URL.createObjectURL(blob)
-      setPreviewResource({ id: r.id, title: r.title, url: objectUrl, mime })
+      const { url, contentType } = await getPresignedUrl(r.id)
+      // Fetch as blob to strip Content-Disposition: attachment so browser renders inline
+      const fileRes = await fetch(url)
+      const blob = await fileRes.blob()
+      const mime = contentType || blob.type || ''
+      const blobUrl = URL.createObjectURL(blob)
+      setPreviewResource({ id: r.id, title: r.title, blobUrl, mime, s3Url: url })
     } catch (e) {
       alert('Preview failed: ' + getApiError(e))
     } finally {
@@ -345,28 +348,14 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
   }
 
   function closePreview() {
-    if (previewResource) URL.revokeObjectURL(previewResource.url)
+    if (previewResource) URL.revokeObjectURL(previewResource.blobUrl)
     setPreviewResource(null)
   }
 
   async function downloadResource(r: Resource) {
     try {
-      const res = await apiClient.get(`/program-resources/${r.id}/download`, { responseType: 'blob' })
-      const blob: Blob = res.data
-      const mime = (res.headers['content-type'] as string) || blob.type || ''
-      if (mime.includes('json') || mime.includes('text')) {
-        const text = await blob.text()
-        try {
-          const json = JSON.parse(text) as Record<string, unknown>
-          const url = (json.url ?? json.link ?? json.downloadUrl ?? json.download_url) as string | undefined
-          if (url) { window.open(url, '_blank'); return }
-        } catch { /* not json */ }
-      }
-      const objectUrl = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = objectUrl; a.download = r.title || 'download'
-      document.body.appendChild(a); a.click(); document.body.removeChild(a)
-      URL.revokeObjectURL(objectUrl)
+      const { url } = await getPresignedUrl(r.id)
+      window.open(url, '_blank')
     } catch (e) { alert('Download failed: ' + getApiError(e)) }
   }
 
@@ -769,11 +758,7 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
             </div>
             <div className="flex items-center gap-2 flex-shrink-0 ml-4">
               <button
-                onClick={() => {
-                  const a = document.createElement('a')
-                  a.href = previewResource.url; a.download = previewResource.title
-                  document.body.appendChild(a); a.click(); document.body.removeChild(a)
-                }}
+                onClick={() => window.open(previewResource.s3Url, '_blank')}
                 className="flex items-center gap-1.5 h-8 px-3 rounded-[6px] border border-[#e5e7eb] text-[12px] font-medium text-[#374151] font-body hover:bg-[#f3f4f6] transition-colors">
                 <Download01Icon size={13} color="#374151" strokeWidth={1.5} />
                 Download
@@ -786,9 +771,9 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
           </div>
           <div className="flex-1 overflow-auto bg-[#1a1a1a] flex items-center justify-center">
             {previewResource.mime.includes('pdf') ? (
-              <iframe src={previewResource.url} className="w-full h-full border-0" title={previewResource.title} />
+              <iframe src={previewResource.blobUrl} className="w-full h-full border-0" title={previewResource.title} />
             ) : previewResource.mime.startsWith('image/') ? (
-              <img src={previewResource.url} alt={previewResource.title} className="max-w-full max-h-full object-contain p-8" />
+              <img src={previewResource.blobUrl} alt={previewResource.title} className="max-w-full max-h-full object-contain p-8" />
             ) : (
               <div className="text-center text-white px-6">
                 <File01Icon size={40} color="#6b7280" strokeWidth={1} className="mx-auto mb-3" />
