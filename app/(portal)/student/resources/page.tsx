@@ -13,6 +13,8 @@ import {
   Loading01Icon,
   ArrowDown01Icon,
   CheckmarkCircle01Icon,
+  EyeIcon,
+  Cancel01Icon,
 } from 'hugeicons-react'
 import EmptyState from '@/components/shared/EmptyState'
 import { cn } from '@/lib/utils'
@@ -113,6 +115,8 @@ function groupByWeek(resources: Resource[]): Record<number, { title: string; ite
 // ── Resource row ──────────────────────────────────────────────────────────────
 function ResourceRow({ resource }: { resource: Resource }) {
   const [downloading, setDownloading] = useState(false)
+  const [previewing, setPreviewing]   = useState(false)
+  const [preview, setPreview]         = useState<{ url: string; mime: string } | null>(null)
 
   const FileIcon = FILE_ICONS[resource.fileType] ?? File01Icon
   const colours  = FILE_COLOURS[resource.fileType] ?? { bg: '#F7F8FA', text: '#6b7280' }
@@ -120,87 +124,153 @@ function ResourceRow({ resource }: { resource: Resource }) {
     ? new Date(resource.uploadedAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })
     : ''
 
+  async function fetchBlob(): Promise<{ blob: Blob; mime: string } | { redirectUrl: string } | null> {
+    const res = await apiClient.get(`/program-resources/${resource.id}/download`, { responseType: 'blob' })
+    const blob: Blob = res.data
+    const mime: string = (res.headers['content-type'] as string) ?? ''
+    if (mime.includes('json') || mime.includes('text')) {
+      const text = await blob.text()
+      try {
+        const json = JSON.parse(text) as Record<string, unknown>
+        const url = (json.url ?? json.link ?? json.downloadUrl ?? json.download_url) as string | undefined
+        if (url) return { redirectUrl: url }
+      } catch { /* not JSON */ }
+    }
+    return { blob, mime }
+  }
+
   async function handleDownload() {
     if (downloading) return
     setDownloading(true)
     try {
-      const res = await apiClient.get(`/program-resources/${resource.id}/download`, {
-        responseType: 'blob',
-      })
-      const blob: Blob = res.data
-      const contentType: string = res.headers['content-type'] ?? ''
-
-      // If the endpoint returns JSON containing a URL, open that URL
-      if (contentType.includes('json') || contentType.includes('text')) {
-        const text = await blob.text()
-        try {
-          const json = JSON.parse(text) as Record<string, unknown>
-          const url =
-            (json.url ?? json.link ?? json.downloadUrl ?? json.download_url) as string | undefined
-          if (url) { window.open(url, '_blank'); return }
-        } catch { /* not JSON — fall through to blob download */ }
-      }
-
-      // Treat as a file blob — trigger browser download
-      const objectUrl = URL.createObjectURL(blob)
+      const result = await fetchBlob()
+      if (!result) return
+      if ('redirectUrl' in result) { window.open(result.redirectUrl, '_blank'); return }
+      const objectUrl = URL.createObjectURL(result.blob)
       const a = document.createElement('a')
-      a.href = objectUrl
-      a.download = resource.title || 'download'
+      a.href = objectUrl; a.download = resource.title || 'download'
       document.body.appendChild(a); a.click(); document.body.removeChild(a)
       URL.revokeObjectURL(objectUrl)
     } catch (err) {
-      // Fallback: if the endpoint errors, try the stored link directly
       const fallback = resource.downloadUrl
-      if (fallback && fallback !== '#') {
-        window.open(fallback, '_blank')
-      } else {
-        const msg = getApiError(err)
-        alert(`Download failed: ${msg}`)
-      }
-    } finally {
-      setDownloading(false)
-    }
+      if (fallback && fallback !== '#') { window.open(fallback, '_blank') }
+      else { alert(`Download failed: ${getApiError(err)}`) }
+    } finally { setDownloading(false) }
+  }
+
+  async function handlePreview() {
+    if (previewing) return
+    setPreviewing(true)
+    try {
+      const result = await fetchBlob()
+      if (!result) return
+      if ('redirectUrl' in result) { window.open(result.redirectUrl, '_blank'); return }
+      const objectUrl = URL.createObjectURL(result.blob)
+      setPreview({ url: objectUrl, mime: result.mime })
+    } catch (err) { alert(`Preview failed: ${getApiError(err)}`) }
+    finally { setPreviewing(false) }
+  }
+
+  function closePreview() {
+    if (preview) URL.revokeObjectURL(preview.url)
+    setPreview(null)
   }
 
   return (
-    <div className="flex items-center gap-4 py-3.5 px-5 hover:bg-[#f9fafb] transition-colors rounded-[8px] group">
-      <div
-        className="w-9 h-9 rounded-[8px] flex items-center justify-center flex-shrink-0"
-        style={{ background: colours.bg }}
-      >
-        <FileIcon size={16} color={colours.text} strokeWidth={1.5} />
-      </div>
-
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <p className="text-[13px] font-medium text-[#111827] font-body leading-snug truncate">
-            {resource.title}
-          </p>
-          {isNew(resource.uploadedAt) && (
-            <span className="text-[9px] font-semibold uppercase tracking-wide bg-[#fef2f2] text-[#d51520] px-1.5 py-0.5 rounded-[4px] flex-shrink-0 font-display">
-              New
-            </span>
-          )}
+    <>
+      <div className="flex items-center gap-4 py-3.5 px-5 hover:bg-[#f9fafb] transition-colors rounded-[8px] group">
+        <div
+          className="w-9 h-9 rounded-[8px] flex items-center justify-center flex-shrink-0"
+          style={{ background: colours.bg }}
+        >
+          <FileIcon size={16} color={colours.text} strokeWidth={1.5} />
         </div>
-        <p className="text-[11px] text-[#4b5563] font-body mt-0.5">
-          {resource.fileType.toUpperCase()}
-          {uploadedDate ? ` · Uploaded ${uploadedDate}` : ''}
-        </p>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="text-[13px] font-medium text-[#111827] font-body leading-snug truncate">
+              {resource.title}
+            </p>
+            {isNew(resource.uploadedAt) && (
+              <span className="text-[9px] font-semibold uppercase tracking-wide bg-[#fef2f2] text-[#d51520] px-1.5 py-0.5 rounded-[4px] flex-shrink-0 font-display">
+                New
+              </span>
+            )}
+          </div>
+          <p className="text-[11px] text-[#4b5563] font-body mt-0.5">
+            {resource.fileType.toUpperCase()}
+            {uploadedDate ? ` · Uploaded ${uploadedDate}` : ''}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+          <button
+            onClick={handlePreview}
+            disabled={previewing}
+            className="flex items-center gap-1.5 text-[12px] font-medium font-display text-[#374151] border border-[#e5e7eb] px-3 py-1.5 rounded-[6px] hover:bg-[#f3f4f6] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label={`Preview ${resource.title}`}
+          >
+            {previewing
+              ? <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />
+              : <EyeIcon size={13} color="#374151" strokeWidth={1.5} />}
+            {previewing ? 'Loading…' : 'Preview'}
+          </button>
+          <button
+            onClick={handleDownload}
+            disabled={downloading}
+            className="flex items-center gap-1.5 text-[12px] font-medium font-display text-[#374151] border border-[#e5e7eb] px-3 py-1.5 rounded-[6px] hover:bg-[#f3f4f6] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label={`Download ${resource.title}`}
+          >
+            {downloading
+              ? <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />
+              : <Download01Icon size={13} color="#374151" strokeWidth={1.5} />}
+            {downloading ? 'Downloading…' : 'Download'}
+          </button>
+        </div>
       </div>
 
-      <button
-        onClick={handleDownload}
-        disabled={downloading}
-        className="flex items-center gap-1.5 text-[12px] font-medium font-display text-[#374151] border border-[#e5e7eb] px-3 py-1.5 rounded-[6px] hover:bg-[#f3f4f6] transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-        aria-label={`Download ${resource.title}`}
-      >
-        {downloading
-          ? <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />
-          : <Download01Icon size={13} color="#374151" strokeWidth={1.5} />
-        }
-        {downloading ? 'Downloading…' : 'Download'}
-      </button>
-    </div>
+      {/* Preview modal — full screen overlay */}
+      {preview && (
+        <div className="fixed inset-0 z-50 flex flex-col">
+          <div className="flex items-center justify-between px-5 py-3 bg-white border-b border-[#e5e7eb] shadow-sm flex-shrink-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <FileIcon size={15} color={colours.text} strokeWidth={1.5} className="flex-shrink-0" />
+              <p className="text-[14px] font-semibold text-[#111827] font-display truncate">{resource.title}</p>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+              <button
+                onClick={() => {
+                  const a = document.createElement('a')
+                  a.href = preview.url; a.download = resource.title
+                  document.body.appendChild(a); a.click(); document.body.removeChild(a)
+                }}
+                className="flex items-center gap-1.5 h-8 px-3 rounded-[6px] border border-[#e5e7eb] text-[12px] font-medium text-[#374151] font-body hover:bg-[#f3f4f6] transition-colors"
+              >
+                <Download01Icon size={13} color="#374151" strokeWidth={1.5} />
+                Download
+              </button>
+              <button onClick={closePreview}
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f3f4f6] transition-colors">
+                <Cancel01Icon size={16} color="#374151" strokeWidth={1.5} />
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-auto bg-[#1a1a1a] flex items-center justify-center">
+            {preview.mime.includes('pdf') ? (
+              <iframe src={preview.url} className="w-full h-full border-0" title={resource.title} />
+            ) : preview.mime.startsWith('image/') ? (
+              <img src={preview.url} alt={resource.title} className="max-w-full max-h-full object-contain p-8" />
+            ) : (
+              <div className="text-center text-white px-6">
+                <File01Icon size={40} color="#6b7280" strokeWidth={1} className="mx-auto mb-3" />
+                <p className="text-[15px] font-semibold font-display mb-1">Preview not available</p>
+                <p className="text-[13px] text-[#9ca3af] font-body">This file type cannot be previewed. Use the Download button above to open it.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 

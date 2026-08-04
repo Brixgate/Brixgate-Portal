@@ -8,6 +8,7 @@ import {
   ArrowLeft01Icon, File01Icon, BookOpen01Icon, VideoReplayIcon,
   Upload01Icon, Link01Icon, PencilEdit01Icon, Invoice01Icon,
   Payment01Icon, CheckmarkCircle01Icon, Building04Icon,
+  EyeIcon, Download01Icon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 
@@ -315,6 +316,59 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
   const [deletingResourceId, setDeletingResourceId] = useState<number | null>(null)
   const [confirmLesson, setConfirmLesson]     = useState<Lesson | null>(null)
   const [confirmResource, setConfirmResource] = useState<Resource | null>(null)
+  // Resource preview
+  const [previewResource, setPreviewResource] = useState<{ id: number; title: string; url: string; mime: string } | null>(null)
+  const [previewingId, setPreviewingId]       = useState<number | null>(null)
+
+  async function openPreview(r: Resource) {
+    if (previewingId === r.id) return
+    setPreviewingId(r.id)
+    try {
+      const res = await apiClient.get(`/program-resources/${r.id}/download`, { responseType: 'blob' })
+      const blob: Blob = res.data
+      const mime = (res.headers['content-type'] as string) || blob.type || ''
+      if (mime.includes('json') || mime.includes('text')) {
+        const text = await blob.text()
+        try {
+          const json = JSON.parse(text) as Record<string, unknown>
+          const url = (json.url ?? json.link ?? json.downloadUrl ?? json.download_url) as string | undefined
+          if (url) { window.open(url, '_blank'); return }
+        } catch { /* not json */ }
+      }
+      const objectUrl = URL.createObjectURL(blob)
+      setPreviewResource({ id: r.id, title: r.title, url: objectUrl, mime })
+    } catch (e) {
+      alert('Preview failed: ' + getApiError(e))
+    } finally {
+      setPreviewingId(null)
+    }
+  }
+
+  function closePreview() {
+    if (previewResource) URL.revokeObjectURL(previewResource.url)
+    setPreviewResource(null)
+  }
+
+  async function downloadResource(r: Resource) {
+    try {
+      const res = await apiClient.get(`/program-resources/${r.id}/download`, { responseType: 'blob' })
+      const blob: Blob = res.data
+      const mime = (res.headers['content-type'] as string) || blob.type || ''
+      if (mime.includes('json') || mime.includes('text')) {
+        const text = await blob.text()
+        try {
+          const json = JSON.parse(text) as Record<string, unknown>
+          const url = (json.url ?? json.link ?? json.downloadUrl ?? json.download_url) as string | undefined
+          if (url) { window.open(url, '_blank'); return }
+        } catch { /* not json */ }
+      }
+      const objectUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = objectUrl; a.download = r.title || 'download'
+      document.body.appendChild(a); a.click(); document.body.removeChild(a)
+      URL.revokeObjectURL(objectUrl)
+    } catch (e) { alert('Download failed: ' + getApiError(e)) }
+  }
 
   const base = `/admin/programs/${programId}/modules/${mod?.id}`
 
@@ -528,13 +582,23 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
                 <File01Icon size={14} color="#4b5563" strokeWidth={1.5} className="flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-medium text-[#111827] font-body truncate">{r.title}</p>
-                  <p className="text-[12px] text-[#4b5563] font-body truncate">{r.link}</p>
+                  <p className="text-[12px] text-[#4b5563] font-body truncate">{r.type}</p>
                 </div>
                 <ResourceTypeIcon type={r.type} />
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={() => openPreview(r)} disabled={previewingId === r.id}
+                    className="w-6 h-6 flex items-center justify-center rounded-[4px] hover:bg-[#ecfdf3] transition-colors" title="Preview">
+                    {previewingId === r.id
+                      ? <Loading01Icon size={11} className="animate-spin text-[#059669]" strokeWidth={2} />
+                      : <EyeIcon size={11} color="#059669" strokeWidth={1.5} />}
+                  </button>
+                  <button onClick={() => downloadResource(r)}
+                    className="w-6 h-6 flex items-center justify-center rounded-[4px] hover:bg-[#eff6ff] transition-colors" title="Download">
+                    <Download01Icon size={11} color="#1d4ed8" strokeWidth={1.5} />
+                  </button>
                   <button onClick={() => openEditResource(r)}
-                    className="w-6 h-6 flex items-center justify-center rounded-[4px] hover:bg-[#eff6ff] transition-colors" title="Edit resource">
-                    <Add01Icon size={11} color="#1d4ed8" strokeWidth={2} />
+                    className="w-6 h-6 flex items-center justify-center rounded-[4px] hover:bg-[#f3f4f6] transition-colors" title="Edit resource">
+                    <PencilEdit01Icon size={11} color="#4b5563" strokeWidth={1.5} />
                   </button>
                   <button onClick={() => setConfirmResource(r)} disabled={deletingResourceId === r.id}
                     className="w-6 h-6 flex items-center justify-center rounded-[4px] hover:bg-[#fef2f2] transition-colors" title="Delete resource">
@@ -693,6 +757,47 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
       {confirmResource && (
         <ConfirmModal itemName={confirmResource.title} onConfirm={doDeleteResource}
           onCancel={() => setConfirmResource(null)} deleting={deletingResourceId !== null} />
+      )}
+
+      {/* Resource preview modal */}
+      {previewResource && (
+        <div className="fixed inset-0 z-50 flex flex-col">
+          <div className="flex items-center justify-between px-5 py-3 bg-white border-b border-[#e5e7eb] shadow-sm flex-shrink-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <File01Icon size={15} color="#4b5563" strokeWidth={1.5} className="flex-shrink-0" />
+              <p className="text-[14px] font-semibold text-[#111827] font-display truncate">{previewResource.title}</p>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+              <button
+                onClick={() => {
+                  const a = document.createElement('a')
+                  a.href = previewResource.url; a.download = previewResource.title
+                  document.body.appendChild(a); a.click(); document.body.removeChild(a)
+                }}
+                className="flex items-center gap-1.5 h-8 px-3 rounded-[6px] border border-[#e5e7eb] text-[12px] font-medium text-[#374151] font-body hover:bg-[#f3f4f6] transition-colors">
+                <Download01Icon size={13} color="#374151" strokeWidth={1.5} />
+                Download
+              </button>
+              <button onClick={closePreview}
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f3f4f6] transition-colors">
+                <Cancel01Icon size={16} color="#374151" strokeWidth={1.5} />
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-auto bg-[#1a1a1a] flex items-center justify-center">
+            {previewResource.mime.includes('pdf') ? (
+              <iframe src={previewResource.url} className="w-full h-full border-0" title={previewResource.title} />
+            ) : previewResource.mime.startsWith('image/') ? (
+              <img src={previewResource.url} alt={previewResource.title} className="max-w-full max-h-full object-contain p-8" />
+            ) : (
+              <div className="text-center text-white px-6">
+                <File01Icon size={40} color="#6b7280" strokeWidth={1} className="mx-auto mb-3" />
+                <p className="text-[15px] font-semibold font-display mb-1">Preview not available</p>
+                <p className="text-[13px] text-[#9ca3af] font-body">This file type cannot be previewed in the browser. Use the Download button above to open it.</p>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   )
