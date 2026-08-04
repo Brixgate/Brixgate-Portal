@@ -224,10 +224,10 @@ function FileDropZone({
 
 // ── Module list item ──────────────────────────────────────────────────────────
 function ModuleItem({
-  mod, programId, isSelected, onSelect, onRefresh,
+  mod, programId, isSelected, onSelect, onRefresh, onEdit,
 }: {
   mod: Module; programId: string; isSelected: boolean
-  onSelect: (m: Module) => void; onRefresh: () => void
+  onSelect: (m: Module) => void; onRefresh: () => void; onEdit: (m: Module) => void
 }) {
   const [expanded, setExpanded]       = useState(false)
   const [deleting, setDeleting]       = useState(false)
@@ -256,8 +256,12 @@ function ModuleItem({
           <span className="text-[11px] text-[#4b5563] font-body flex-shrink-0">
             {mod.lessons.length}L · {mod.resources.length}R
           </span>
+          <button onClick={e => { e.stopPropagation(); onEdit(mod) }}
+            className="w-6 h-6 flex items-center justify-center rounded-[4px] hover:bg-[#f3f4f6] transition-colors flex-shrink-0 ml-1">
+            <PencilEdit01Icon size={12} color="#4b5563" strokeWidth={1.5} />
+          </button>
           <button onClick={e => { e.stopPropagation(); setConfirmOpen(true) }} disabled={deleting}
-            className="w-6 h-6 flex items-center justify-center rounded-[4px] hover:bg-[#fef2f2] transition-colors flex-shrink-0 ml-1">
+            className="w-6 h-6 flex items-center justify-center rounded-[4px] hover:bg-[#fef2f2] transition-colors flex-shrink-0">
             {deleting
               ? <Loading01Icon size={11} className="animate-spin text-[#d51520]" strokeWidth={2} />
               : <Delete01Icon size={12} color="#4b5563" strokeWidth={1.5} />}
@@ -2032,9 +2036,11 @@ export default function ProgramDetailPage() {
   const [loading, setLoading]       = useState(true)
   const [activeTab, setActiveTab]   = useState<PageTab>('General')
   const [showAddMod, setShowAddMod] = useState(false)
+  const [editMod, setEditMod]       = useState<Module | null>(null)
   const [modForm, setModForm]       = useState({ title: '', description: '', status: 'DRAFT' })
   const [modSaving, setModSaving]   = useState(false)
   const [modError, setModError]     = useState('')
+  const descEditorRef               = useRef<HTMLDivElement>(null)
 
   const fetchModules = useCallback(async () => {
     try {
@@ -2064,18 +2070,56 @@ export default function ProgramDetailPage() {
 
   useEffect(() => { fetchModules() }, [programId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  function openAddMod() {
+    setModForm({ title: '', description: '', status: 'DRAFT' })
+    setModError('')
+    setShowAddMod(true)
+    setTimeout(() => { if (descEditorRef.current) descEditorRef.current.innerHTML = '' }, 0)
+  }
+
+  function openEditMod(m: Module) {
+    setModForm({ title: m.title, description: m.description || '', status: m.status || 'DRAFT' })
+    setModError('')
+    setEditMod(m)
+    setTimeout(() => { if (descEditorRef.current) descEditorRef.current.innerHTML = m.description || '' }, 0)
+  }
+
+  function closeModModal() {
+    setShowAddMod(false)
+    setEditMod(null)
+    setModForm({ title: '', description: '', status: 'DRAFT' })
+    setModError('')
+  }
+
   async function addModule(e: React.FormEvent) {
     e.preventDefault(); setModError('')
     if (!modForm.title.trim()) { setModError('Title required.'); return }
+    const desc = descEditorRef.current?.innerHTML.trim() || ''
     setModSaving(true)
     try {
       await apiClient.post(`/admin/programs/${programId}/modules`, {
         title:       modForm.title.trim(),
-        description: modForm.description.trim() || undefined,
+        description: desc || undefined,
         status:      modForm.status,
       })
-      setShowAddMod(false)
-      setModForm({ title: '', description: '', status: 'DRAFT' })
+      closeModModal()
+      fetchModules()
+    } catch (err) { setModError(getApiError(err)) } finally { setModSaving(false) }
+  }
+
+  async function updateModule(e: React.FormEvent) {
+    e.preventDefault(); setModError('')
+    if (!editMod) return
+    if (!modForm.title.trim()) { setModError('Title required.'); return }
+    const desc = descEditorRef.current?.innerHTML.trim() || ''
+    setModSaving(true)
+    try {
+      await apiClient.patch(`/admin/programs/${programId}/modules/${editMod.id}`, {
+        title:       modForm.title.trim(),
+        description: desc || undefined,
+        status:      modForm.status,
+      })
+      closeModModal()
       fetchModules()
     } catch (err) { setModError(getApiError(err)) } finally { setModSaving(false) }
   }
@@ -2101,7 +2145,7 @@ export default function ProgramDetailPage() {
           </p>
         </div>
         {activeTab === 'General Curriculum' && (
-          <button onClick={() => setShowAddMod(true)}
+          <button onClick={openAddMod}
             className="flex items-center gap-2 h-9 px-4 bg-[#d51520] text-white rounded-[8px] text-[12px] font-semibold font-display hover:bg-[#b81119] transition-colors">
             <Add01Icon size={14} strokeWidth={2} /> Add Module
           </button>
@@ -2169,7 +2213,7 @@ export default function ProgramDetailPage() {
               modules.map(m => (
                 <ModuleItem key={m.id} mod={m} programId={programId}
                   isSelected={selected?.id === m.id}
-                  onSelect={setSelected} onRefresh={fetchModules} />
+                  onSelect={setSelected} onRefresh={fetchModules} onEdit={openEditMod} />
               ))
             )}
           </div>
@@ -2181,47 +2225,93 @@ export default function ProgramDetailPage() {
         </div>
       )}
 
-      {/* Add module modal */}
-      {showAddMod && (
-        <Modal title="Add Module" onClose={() => setShowAddMod(false)}>
-          <form onSubmit={addModule} className="flex flex-col gap-4">
-            <Field label="Module Title">
-              <input value={modForm.title}
-                onChange={e => setModForm(p => ({ ...p, title: e.target.value }))}
-                placeholder="Week 1: Introduction to AI"
-                className={inputCls} />
-            </Field>
-            <Field label="Description">
-              <textarea value={modForm.description}
-                onChange={e => setModForm(p => ({ ...p, description: e.target.value }))}
-                rows={3} placeholder="What students will learn…"
-                className={textareaCls} />
-            </Field>
-            <Field label="Status">
-              <select value={modForm.status}
-                onChange={e => setModForm(p => ({ ...p, status: e.target.value }))}
-                className={selectCls}>
-                {MODULE_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </Field>
-            {modError && (
-              <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body">
-                <AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} /> {modError}
-              </p>
-            )}
-            <div className="flex gap-2 pt-1">
-              <button type="button" onClick={() => setShowAddMod(false)}
-                className="flex-1 h-10 rounded-[8px] border border-[#e5e7eb] text-[13px] font-body hover:bg-[#f9fafb]">
-                Cancel
-              </button>
-              <button type="submit" disabled={modSaving}
-                className="flex-1 h-10 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-60 flex items-center justify-center gap-2">
-                {modSaving && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
-                Add Module
+      {/* Add / Edit module modal */}
+      {(showAddMod || editMod) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={closeModModal}>
+          <div className="bg-white rounded-[14px] shadow-xl w-full max-w-[640px] overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-[#f3f4f6]">
+              <h2 className="text-[15px] font-bold text-[#111827] font-display">
+                {editMod ? 'Edit Module' : 'Add Module'}
+              </h2>
+              <button onClick={closeModModal} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f3f4f6]">
+                <Cancel01Icon size={15} color="#4b5563" strokeWidth={1.5} />
               </button>
             </div>
-          </form>
-        </Modal>
+            <div className="px-6 py-5 max-h-[80vh] overflow-y-auto">
+              <form onSubmit={editMod ? updateModule : addModule} className="flex flex-col gap-5">
+                <Field label="Module Title">
+                  <input value={modForm.title}
+                    onChange={e => setModForm(p => ({ ...p, title: e.target.value }))}
+                    placeholder="Week 1: Introduction to AI"
+                    className={inputCls} />
+                </Field>
+                <Field label="Description">
+                  <div className="border border-[#e5e7eb] rounded-[6px] overflow-hidden focus-within:ring-2 focus-within:ring-[#d51520]/20 focus-within:border-[#d51520]">
+                    {/* Rich text toolbar */}
+                    <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-[#f3f4f6] bg-[#f9fafb]">
+                      <button type="button"
+                        onMouseDown={e => { e.preventDefault(); document.execCommand('bold') }}
+                        className="w-7 h-7 rounded-[4px] hover:bg-[#e5e7eb] flex items-center justify-center text-[13px] font-bold text-[#374151] transition-colors"
+                        title="Bold">
+                        B
+                      </button>
+                      <button type="button"
+                        onMouseDown={e => { e.preventDefault(); document.execCommand('italic') }}
+                        className="w-7 h-7 rounded-[4px] hover:bg-[#e5e7eb] flex items-center justify-center text-[13px] italic text-[#374151] transition-colors"
+                        title="Italic">
+                        I
+                      </button>
+                      <div className="w-px h-4 bg-[#e5e7eb] mx-1" />
+                      <button type="button"
+                        onMouseDown={e => { e.preventDefault(); document.execCommand('insertUnorderedList') }}
+                        className="w-7 h-7 rounded-[4px] hover:bg-[#e5e7eb] flex items-center justify-center text-[13px] text-[#374151] transition-colors"
+                        title="Bullet list">
+                        ≡
+                      </button>
+                      <button type="button"
+                        onMouseDown={e => { e.preventDefault(); document.execCommand('insertOrderedList') }}
+                        className="w-7 h-7 rounded-[4px] hover:bg-[#e5e7eb] flex items-center justify-center text-[12px] text-[#374151] transition-colors"
+                        title="Numbered list">
+                        1.
+                      </button>
+                    </div>
+                    {/* Editable area */}
+                    <div
+                      ref={descEditorRef}
+                      contentEditable
+                      suppressContentEditableWarning
+                      className="min-h-[140px] p-3 text-[13px] text-[#374151] font-body outline-none leading-relaxed [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:mt-0.5 empty:before:content-[attr(data-placeholder)] empty:before:text-[#9ca3af]"
+                      data-placeholder="What students will learn in this module…"
+                    />
+                  </div>
+                </Field>
+                <Field label="Status">
+                  <select value={modForm.status}
+                    onChange={e => setModForm(p => ({ ...p, status: e.target.value }))}
+                    className={selectCls}>
+                    {MODULE_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </Field>
+                {modError && (
+                  <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body">
+                    <AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} /> {modError}
+                  </p>
+                )}
+                <div className="flex gap-2 pt-1">
+                  <button type="button" onClick={closeModModal}
+                    className="flex-1 h-10 rounded-[8px] border border-[#e5e7eb] text-[13px] font-body hover:bg-[#f9fafb]">
+                    Cancel
+                  </button>
+                  <button type="submit" disabled={modSaving}
+                    className="flex-1 h-10 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-60 flex items-center justify-center gap-2">
+                    {modSaving && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
+                    {editMod ? 'Save Changes' : 'Add Module'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
