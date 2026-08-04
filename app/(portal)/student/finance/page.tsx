@@ -491,9 +491,17 @@ function PaymentStatusPill({ payment, onUpdated }: { payment: StudentPayment; on
       const res   = await apiClient.get(`/payments/requery/${ref}`)
       const body  = res.data as Record<string, unknown>
       const inner = (body?.data ?? body) as Record<string, unknown>
-      const newStatus = ((inner?.payment_status ?? inner?.paymentStatus ?? inner?.status ?? status) as string).toUpperCase()
-      onUpdated({ ...payment, payment_status: newStatus, paymentStatus: newStatus })
-      setToast({ msg: `Status updated to ${newStatus}`, ok: true })
+      const nested = (inner?.payment ?? inner?.transaction ?? {}) as Record<string, unknown>
+      const newStatus = (
+        (inner?.payment_status ?? inner?.paymentStatus ?? inner?.status ??
+         nested?.payment_status ?? nested?.paymentStatus ?? nested?.status ?? status) as string
+      ).toUpperCase()
+      const changed = newStatus !== status
+      onUpdated({ ...payment, payment_status: newStatus, paymentStatus: newStatus, status: newStatus })
+      setToast({
+        msg: changed ? `Payment is now ${newStatus}` : 'Payment is still pending — try again shortly',
+        ok: changed,
+      })
     } catch (err) {
       setToast({ msg: getApiError(err), ok: false })
     } finally { setLoading(false) }
