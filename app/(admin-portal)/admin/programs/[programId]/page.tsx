@@ -978,13 +978,15 @@ function PaymentOptionsModal({ planId, breakdown, planTitle, onClose }: {
   const [error,    setError]    = useState('')
 
   // Form state
-  const [mode,            setMode]            = useState<'FULL' | 'FIXED_INSTALLMENT' | 'FLEXIBLE_PART_PAYMENT'>('FULL')
-  const [calcType,        setCalcType]        = useState<'EQUAL' | 'CUSTOM'>('EQUAL')
-  const [numInstallments, setNumInstallments] = useState('3')
-  const [graceDays,       setGraceDays]       = useState('5')
+  const [mode,             setMode]             = useState<'FULL' | 'FIXED_INSTALLMENT' | 'FLEXIBLE_PART_PAYMENT'>('FULL')
+  const [calcType,         setCalcType]         = useState<'EQUAL' | 'CUSTOM'>('EQUAL')
+  const [numInstallments,  setNumInstallments]  = useState('3')
+  const [paymentInterval,  setPaymentInterval]  = useState<'MONTHLY' | 'WEEKLY'>('MONTHLY')
+  const [graceDays,        setGraceDays]        = useState('5')
   const [suspendOnOverdue, setSuspendOnOverdue] = useState(true)
-  const [customInsts,     setCustomInsts]     = useState<InstallmentDef[]>([
-    { amount_type: 'PERCENTAGE', amount_value: '', due_offset_days: '0' }
+  const [customInsts,      setCustomInsts]      = useState<InstallmentDef[]>([
+    { amount_type: 'FIXED_AMOUNT', amount_value: '', due_offset_days: '0' },
+    { amount_type: 'FIXED_AMOUNT', amount_value: '', due_offset_days: '' },
   ])
 
   const bdId = breakdown.id ?? breakdown.breakdownId ?? breakdown.breakdown_id
@@ -1026,20 +1028,25 @@ function PaymentOptionsModal({ planId, breakdown, planTitle, onClose }: {
     setSaving(true); setError('')
     try {
       const payload: Record<string, unknown> = {
-        title: planTitle,
-        payment_mode: mode,
-        grace_period_days: Number(graceDays) || 5,
+        title:                    planTitle,
+        payment_mode:             mode,
+        status:                   'ACTIVE',
+        grace_period_days:        Number(graceDays) || 5,
         suspend_access_on_overdue: suspendOnOverdue,
       }
       if (mode !== 'FULL') {
-        payload.installment_calculation_type = calcType
-        payload.number_of_installments = Number(numInstallments) || 3
+        payload.payment_interval              = paymentInterval
+        payload.installment_calculation_type  = calcType
         if (calcType === 'CUSTOM') {
-          payload.installment_schedule = customInsts.map(r => ({
-            amount_type: r.amount_type,
-            amount_value: parseFloat(r.amount_value) || 0,
-            due_offset_days: Number(r.due_offset_days) || 0,
+          payload.number_of_installments = customInsts.length
+          payload.installments = customInsts.map((r, i) => ({
+            installment_number: i + 1,
+            amount_type:        r.amount_type,
+            amount_value:       parseFloat(r.amount_value) || 0,
+            due_offset_days:    Number(r.due_offset_days) || 0,
           }))
+        } else {
+          payload.number_of_installments = Number(numInstallments) || 3
         }
       }
       await apiClient.post(`/admin/pricing-plans/${planId}/breakdowns/${bdId}/payment-options`, payload)
@@ -1180,6 +1187,21 @@ function PaymentOptionsModal({ planId, breakdown, planTitle, onClose }: {
 
                 {mode !== 'FULL' && (
                   <>
+                    {/* Payment interval */}
+                    <div>
+                      <p className="text-[11px] font-medium text-[#374151] font-body mb-1.5">Payment Interval</p>
+                      <div className="flex gap-2">
+                        {(['MONTHLY', 'WEEKLY'] as const).map(iv => (
+                          <button key={iv} onClick={() => setPaymentInterval(iv)}
+                            className={`flex-1 h-9 rounded-[8px] text-[12px] font-semibold font-display border transition-colors ${
+                              paymentInterval === iv ? 'bg-[#fef2f2] border-[#fecdca] text-[#d51520]' : 'bg-white border-[#e5e7eb] text-[#374151] hover:bg-[#f9fafb]'
+                            }`}>
+                            {iv === 'MONTHLY' ? 'Monthly' : 'Weekly'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
                     {/* Calculation type */}
                     <div>
                       <p className="text-[11px] font-medium text-[#374151] font-body mb-1.5">Installment Calculation</p>
@@ -1205,21 +1227,33 @@ function PaymentOptionsModal({ planId, breakdown, planTitle, onClose }: {
 
                     {calcType === 'CUSTOM' && (
                       <div>
-                        <p className="text-[11px] font-medium text-[#374151] font-body mb-2">Installment Schedule</p>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-[11px] font-medium text-[#374151] font-body">Installment Schedule</p>
+                          <p className="text-[10px] text-[#9ca3af] font-body">{customInsts.length} installment{customInsts.length !== 1 ? 's' : ''}</p>
+                        </div>
+                        {/* Column headers */}
+                        <div className="flex items-center gap-2 mb-1 px-0.5">
+                          <span className="w-5 flex-shrink-0" />
+                          <span className="text-[10px] text-[#9ca3af] font-body" style={{ width: '80px', flexShrink: 0 }}>Type</span>
+                          <span className="text-[10px] text-[#9ca3af] font-body flex-1">Amount</span>
+                          <span className="text-[10px] text-[#9ca3af] font-body flex-1">Due (days after enrol)</span>
+                          <span className="w-4 flex-shrink-0" />
+                        </div>
                         <div className="flex flex-col gap-2">
                           {customInsts.map((row, i) => (
                             <div key={i} className="flex items-center gap-2">
-                              <span className="text-[11px] text-[#9ca3af] font-body w-5 flex-shrink-0">{i + 1}.</span>
+                              <span className="text-[11px] text-[#9ca3af] font-body w-5 flex-shrink-0 text-center">{i + 1}.</span>
                               <select value={row.amount_type} onChange={e => updateCustomRow(i, 'amount_type', e.target.value)}
-                                className="h-8 px-2 border border-[#e5e7eb] rounded-[6px] text-[11px] font-body text-[#374151] focus:outline-none focus:border-[#d51520]">
-                                <option value="PERCENTAGE">%</option>
+                                className="h-8 px-2 border border-[#e5e7eb] rounded-[6px] text-[11px] font-body text-[#374151] focus:outline-none focus:border-[#d51520]"
+                                style={{ width: '80px', flexShrink: 0 }}>
                                 <option value="FIXED_AMOUNT">₦ Fixed</option>
+                                <option value="PERCENTAGE">%</option>
                               </select>
                               <input type="number" min="0" value={row.amount_value} onChange={e => updateCustomRow(i, 'amount_value', e.target.value)}
                                 placeholder={row.amount_type === 'PERCENTAGE' ? '30' : '50000'}
                                 className="flex-1 h-8 px-2 border border-[#e5e7eb] rounded-[6px] text-[12px] font-body text-[#111827] focus:outline-none focus:border-[#d51520]" />
                               <input type="number" min="0" value={row.due_offset_days} onChange={e => updateCustomRow(i, 'due_offset_days', e.target.value)}
-                                placeholder="days after enrol"
+                                placeholder="e.g. 0 or 30"
                                 className="flex-1 h-8 px-2 border border-[#e5e7eb] rounded-[6px] text-[12px] font-body text-[#111827] focus:outline-none focus:border-[#d51520]" />
                               {customInsts.length > 1 && (
                                 <button onClick={() => removeCustomRow(i)} className="flex-shrink-0">
@@ -1230,7 +1264,7 @@ function PaymentOptionsModal({ planId, breakdown, planTitle, onClose }: {
                           ))}
                           <button onClick={addCustomRow}
                             className="flex items-center gap-1 text-[11px] font-semibold text-[#d51520] font-display hover:opacity-80 mt-0.5">
-                            <Add01Icon size={12} strokeWidth={2} /> Add row
+                            <Add01Icon size={12} strokeWidth={2} /> Add installment
                           </button>
                         </div>
                       </div>
