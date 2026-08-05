@@ -1706,12 +1706,44 @@ interface ApiCohort {
   total_students?: number; enrolled_count?: number; enrolledCount?: number
   learning_format?: string; learningFormat?: string
   frequency?: string
+  description?: string
+  duration?: string
+  admission_period?: string
+  total_instructors?: number
 }
 interface ApiCohortCreate {
   program_id: string; title: string
   start_date: string; end_date: string
   status: string; max_students: string
   learning_format: string; frequency: string
+  description: string
+  admission_start: string; admission_end: string
+}
+
+function calcDuration(start: string, end: string): string {
+  if (!start || !end) return ''
+  const ms = new Date(end).getTime() - new Date(start).getTime()
+  if (ms <= 0) return ''
+  const days = Math.round(ms / (1000 * 60 * 60 * 24))
+  const weeks = Math.floor(days / 7)
+  const rem   = days % 7
+  if (weeks === 0) return `${days} Day${days !== 1 ? 's' : ''}`
+  if (rem === 0)   return `${weeks} Week${weeks !== 1 ? 's' : ''}`
+  return `${weeks} Week${weeks !== 1 ? 's' : ''} ${rem} Day${rem !== 1 ? 's' : ''}`
+}
+
+function formatAdmissionPeriod(start: string, end: string): string {
+  if (!start || !end) return ''
+  const fmt = (d: string) => new Date(d).toLocaleDateString('en-NG', { day: '2-digit', month: 'short', year: 'numeric' })
+  return `${fmt(start)} - ${fmt(end)}`
+}
+
+function parseAdmissionPeriod(str?: string): { start: string; end: string } {
+  if (!str) return { start: '', end: '' }
+  const parts = str.split(' - ')
+  if (parts.length !== 2) return { start: '', end: '' }
+  const toISO = (s: string) => { const d = new Date(s); return isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0] }
+  return { start: toISO(parts[0]), end: toISO(parts[1]) }
 }
 
 const COHORT_STATUS_STYLE: Record<string, string> = {
@@ -1732,7 +1764,7 @@ function CohortsTab({ programId }: { programId: string }) {
   const [showCreate, setShowCreate]   = useState(false)
   const [editCohort, setEditCohort]   = useState<ApiCohort | null>(null)
   const [deleteCohort, setDeleteCohort] = useState<ApiCohort | null>(null)
-  const [form, setForm]               = useState<ApiCohortCreate>({ program_id: programId, title: '', start_date: '', end_date: '', status: 'UPCOMING', max_students: '30', learning_format: '', frequency: '' })
+  const [form, setForm]               = useState<ApiCohortCreate>({ program_id: programId, title: '', start_date: '', end_date: '', status: 'UPCOMING', max_students: '30', learning_format: '', frequency: '', description: '', admission_start: '', admission_end: '' })
   const [saving, setSaving]           = useState(false)
   const [deleting, setDeleting]       = useState(false)
   const [formError, setFormError]     = useState('')
@@ -1771,19 +1803,24 @@ function CohortsTab({ programId }: { programId: string }) {
     if (!form.start_date || !form.end_date) { setFormError('Start and end dates required.'); return }
     setSaving(true)
     try {
+      const dur = calcDuration(form.start_date, form.end_date)
+      const adm = formatAdmissionPeriod(form.admission_start, form.admission_end)
       await apiClient.post(`/admin/programs/${programId}/cohorts`, {
-        title:           form.title.trim(),
-        startDate:       form.start_date,  start_date:   form.start_date,
-        endDate:         form.end_date,    end_date:     form.end_date,
-        status:          form.status,
-        maxStudents:     parseInt(form.max_students) || 30,
-        max_students:    parseInt(form.max_students) || 30,
-        learningFormat:  form.learning_format || undefined,
-        learning_format: form.learning_format || undefined,
-        frequency:       form.frequency       || undefined,
+        title:            form.title.trim(),
+        startDate:        form.start_date,  start_date:   form.start_date,
+        endDate:          form.end_date,    end_date:     form.end_date,
+        status:           form.status,
+        maxStudents:      parseInt(form.max_students) || 30,
+        max_students:     parseInt(form.max_students) || 30,
+        learningFormat:   form.learning_format || undefined,
+        learning_format:  form.learning_format || undefined,
+        frequency:        form.frequency       || undefined,
+        description:      form.description.trim() || undefined,
+        duration:         dur || undefined,
+        admission_period: adm || undefined,
       })
       setShowCreate(false)
-      setForm({ program_id: programId, title: '', start_date: '', end_date: '', status: 'UPCOMING', max_students: '30', learning_format: '', frequency: '' })
+      setForm({ program_id: programId, title: '', start_date: '', end_date: '', status: 'UPCOMING', max_students: '30', learning_format: '', frequency: '', description: '', admission_start: '', admission_end: '' })
       load()
     } catch (err) { setFormError(getApiError(err)) } finally { setSaving(false) }
   }
@@ -1806,16 +1843,21 @@ function CohortsTab({ programId }: { programId: string }) {
       if (confirmOpenCohort) {
         await apiClient.patch(`/admin/cohorts/${confirmOpenCohort.id}`, { status: 'CLOSED', startDate: confirmOpenCohort.start_date ?? confirmOpenCohort.startDate, endDate: confirmOpenCohort.end_date ?? confirmOpenCohort.endDate })
       }
+      const dur = calcDuration(form.start_date, form.end_date)
+      const adm = formatAdmissionPeriod(form.admission_start, form.admission_end)
       await apiClient.patch(`/admin/cohorts/${editCohort.id}`, {
-        title:           form.title.trim(),
-        startDate:       form.start_date,  start_date:   form.start_date,
-        endDate:         form.end_date,    end_date:     form.end_date,
-        status:          form.status,
-        maxStudents:     parseInt(form.max_students) || 30,
-        max_students:    parseInt(form.max_students) || 30,
-        learningFormat:  form.learning_format || undefined,
-        learning_format: form.learning_format || undefined,
-        frequency:       form.frequency       || undefined,
+        title:            form.title.trim(),
+        startDate:        form.start_date,  start_date:   form.start_date,
+        endDate:          form.end_date,    end_date:     form.end_date,
+        status:           form.status,
+        maxStudents:      parseInt(form.max_students) || 30,
+        max_students:     parseInt(form.max_students) || 30,
+        learningFormat:   form.learning_format || undefined,
+        learning_format:  form.learning_format || undefined,
+        frequency:        form.frequency       || undefined,
+        description:      form.description.trim() || undefined,
+        duration:         dur || undefined,
+        admission_period: adm || undefined,
       })
       setEditCohort(null)
       setConfirmOpenCohort(null)
@@ -1834,6 +1876,7 @@ function CohortsTab({ programId }: { programId: string }) {
   }
 
   function openEdit(c: ApiCohort) {
+    const adm = parseAdmissionPeriod(c.admission_period)
     setForm({
       program_id:      programId,
       title:           c.title,
@@ -1843,6 +1886,9 @@ function CohortsTab({ programId }: { programId: string }) {
       max_students:    String(c.max_students ?? c.maxStudents ?? 30),
       learning_format: c.learning_format ?? c.learningFormat ?? '',
       frequency:       c.frequency       ?? '',
+      description:     c.description     ?? '',
+      admission_start: adm.start,
+      admission_end:   adm.end,
     })
     setFormError('')
     setEditCohort(c)
@@ -1850,7 +1896,7 @@ function CohortsTab({ programId }: { programId: string }) {
 
   const cohortFormModal = (isEdit: boolean) => (
     <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/40 px-4" onClick={() => { setConfirmOpenCohort(null); if (isEdit) { setEditCohort(null) } else { setShowCreate(false) } }}>
-      <div className="bg-white rounded-[14px] shadow-xl w-full max-w-[480px] overflow-hidden" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-[14px] shadow-xl w-full max-w-[540px] overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-[#f3f4f6]">
           <h2 className="text-[15px] font-bold text-[#111827] font-display">{isEdit ? 'Edit Cohort' : 'New Cohort'}</h2>
           <button type="button" onClick={() => { setConfirmOpenCohort(null); if (isEdit) { setEditCohort(null) } else { setShowCreate(false) } }} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f3f4f6]">
@@ -1883,21 +1929,47 @@ function CohortsTab({ programId }: { programId: string }) {
             </div>
           </div>
         ) : (
-        <form onSubmit={isEdit ? saveCohortEdit : createCohort} className="px-6 py-5 flex flex-col gap-4">
+        <form onSubmit={isEdit ? saveCohortEdit : createCohort} className="px-6 py-5 max-h-[80vh] overflow-y-auto flex flex-col gap-4">
           <div>
             <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Cohort Title</label>
             <input value={form.title} onChange={e => setF('title', e.target.value)}
               placeholder="AI Prompt Engineering — Cohort 3" className={clsInput} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Start Date</label>
+          <div>
+            <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Description <span className="text-[#9ca3af] font-normal">(optional)</span></label>
+            <textarea value={form.description} onChange={e => setF('description', e.target.value)}
+              rows={2} placeholder="Brief overview of what this cohort covers…"
+              className={`${clsInput} h-auto resize-none py-2.5`} />
+          </div>
+          <div>
+            <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Cohort Dates</label>
+            <div className="grid grid-cols-2 gap-3">
               <input type="date" value={form.start_date} onChange={e => setF('start_date', e.target.value)} className={clsInput} />
+              <input type="date" value={form.end_date}   onChange={e => setF('end_date',   e.target.value)} className={clsInput} />
             </div>
-            <div>
-              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">End Date</label>
-              <input type="date" value={form.end_date} onChange={e => setF('end_date', e.target.value)} className={clsInput} />
+            {calcDuration(form.start_date, form.end_date) && (
+              <p className="mt-1.5 text-[11px] text-[#4b5563] font-body">
+                Duration: <span className="font-semibold text-[#111827]">{calcDuration(form.start_date, form.end_date)}</span>
+              </p>
+            )}
+          </div>
+          <div>
+            <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Admission Period <span className="text-[#9ca3af] font-normal">(optional)</span></label>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-[11px] text-[#9ca3af] font-body mb-1">From</p>
+                <input type="date" value={form.admission_start} onChange={e => setF('admission_start', e.target.value)} className={clsInput} />
+              </div>
+              <div>
+                <p className="text-[11px] text-[#9ca3af] font-body mb-1">To</p>
+                <input type="date" value={form.admission_end} onChange={e => setF('admission_end', e.target.value)} className={clsInput} />
+              </div>
             </div>
+            {formatAdmissionPeriod(form.admission_start, form.admission_end) && (
+              <p className="mt-1.5 text-[11px] text-[#4b5563] font-body">
+                Preview: <span className="font-semibold text-[#111827]">{formatAdmissionPeriod(form.admission_start, form.admission_end)}</span>
+              </p>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -1956,7 +2028,7 @@ function CohortsTab({ programId }: { programId: string }) {
         <p className="text-[13px] text-[#4b5563] font-body">
           {loading ? 'Loading…' : `${cohorts.length} cohort${cohorts.length !== 1 ? 's' : ''}`}
         </p>
-        <button onClick={() => { setForm({ program_id: programId, title: '', start_date: '', end_date: '', status: 'UPCOMING', max_students: '30', learning_format: '', frequency: '' }); setFormError(''); setShowCreate(true) }}
+        <button onClick={() => { setForm({ program_id: programId, title: '', start_date: '', end_date: '', status: 'UPCOMING', max_students: '30', learning_format: '', frequency: '', description: '', admission_start: '', admission_end: '' }); setFormError(''); setShowCreate(true) }}
           className="flex items-center gap-1.5 h-9 px-4 bg-[#d51520] text-white rounded-[8px] text-[12px] font-semibold font-display hover:bg-[#b81119] transition-colors">
           <Add01Icon size={13} strokeWidth={2} /> New Cohort
         </button>
