@@ -1703,7 +1703,7 @@ interface ApiCohort {
   start_date?: string; startDate?: string
   end_date?: string;   endDate?: string
   max_students?: number; maxStudents?: number
-  enrolled_count?: number; enrolledCount?: number
+  total_students?: number; enrolled_count?: number; enrolledCount?: number
   learning_format?: string; learningFormat?: string
   frequency?: string
 }
@@ -1747,7 +1747,19 @@ function CohortsTab({ programId }: { programId: string }) {
     try {
       const res  = await apiClient.get(`/admin/programs/${programId}/cohorts?size=50`)
       const data = unwrap<{ cohorts?: ApiCohort[] }>(res.data)
-      setCohorts(Array.isArray(data?.cohorts) ? data.cohorts : [])
+      const list: ApiCohort[] = Array.isArray(data?.cohorts) ? data.cohorts : []
+      // Enrich each cohort with total_students from the detail endpoint in parallel
+      const enriched = await Promise.allSettled(
+        list.map(c => apiClient.get(`/admin/cohorts/${c.id}`))
+      )
+      const merged = list.map((c, i) => {
+        const result = enriched[i]
+        if (result.status !== 'fulfilled') return c
+        const detail = unwrap<{ cohort?: ApiCohort }>(result.value.data)
+        const cohort = (detail?.cohort ?? detail) as ApiCohort
+        return { ...c, total_students: cohort?.total_students ?? c.total_students }
+      })
+      setCohorts(merged)
     } catch { setCohorts([]) } finally { setLoading(false) }
   }, [programId])
 
@@ -1991,7 +2003,7 @@ function CohortsTab({ programId }: { programId: string }) {
                   <td className="px-4 py-3.5 text-[13px] text-[#4b5563] font-body">{formatDate(c.start_date)}</td>
                   <td className="px-4 py-3.5 text-[13px] text-[#4b5563] font-body">{formatDate(c.end_date)}</td>
                   <td className="px-4 py-3.5 text-[13px] font-medium text-[#111827] font-body">
-                    {c.enrolled_count ?? 0} / {c.max_students ?? '—'}
+                    {c.total_students ?? c.enrolled_count ?? 0} / {c.max_students ?? '—'}
                   </td>
                   {/* Inline actions */}
                   <td className="px-4 py-3.5" onClick={e => e.stopPropagation()}>
