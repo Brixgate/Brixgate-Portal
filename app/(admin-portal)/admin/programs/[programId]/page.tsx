@@ -1768,7 +1768,6 @@ function CohortsTab({ programId }: { programId: string }) {
   const [saving, setSaving]           = useState(false)
   const [deleting, setDeleting]       = useState(false)
   const [formError, setFormError]     = useState('')
-  const [confirmOpenCohort, setConfirmOpenCohort] = useState<ApiCohort | null>(null)
 
   const clsInput = 'w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 bg-white'
 
@@ -1828,11 +1827,6 @@ function CohortsTab({ programId }: { programId: string }) {
   async function saveCohortEdit(e: React.FormEvent) {
     e.preventDefault(); setFormError('')
     if (!editCohort) return
-    // If opening a cohort that isn't already open, check for a conflict
-    if (form.status === 'OPEN' && (editCohort.status ?? 'UPCOMING') !== 'OPEN') {
-      const alreadyOpen = cohorts.find(c => c.id !== editCohort.id && c.status === 'OPEN')
-      if (alreadyOpen) { setConfirmOpenCohort(alreadyOpen); return }
-    }
     await doSaveCohortEdit()
   }
 
@@ -1840,9 +1834,6 @@ function CohortsTab({ programId }: { programId: string }) {
     if (!editCohort) return
     setSaving(true)
     try {
-      if (confirmOpenCohort) {
-        await apiClient.patch(`/admin/cohorts/${confirmOpenCohort.id}`, { status: 'CLOSED', startDate: confirmOpenCohort.start_date ?? confirmOpenCohort.startDate, endDate: confirmOpenCohort.end_date ?? confirmOpenCohort.endDate })
-      }
       const dur = calcDuration(form.start_date, form.end_date)
       const adm = formatAdmissionPeriod(form.admission_start, form.admission_end)
       await apiClient.patch(`/admin/cohorts/${editCohort.id}`, {
@@ -1860,7 +1851,6 @@ function CohortsTab({ programId }: { programId: string }) {
         admission_period: adm || undefined,
       })
       setEditCohort(null)
-      setConfirmOpenCohort(null)
       load()
     } catch (err) { setFormError(getApiError(err)) } finally { setSaving(false) }
   }
@@ -1895,40 +1885,15 @@ function CohortsTab({ programId }: { programId: string }) {
   }
 
   const cohortFormModal = (isEdit: boolean) => (
-    <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/40 px-4" onClick={() => { setConfirmOpenCohort(null); if (isEdit) { setEditCohort(null) } else { setShowCreate(false) } }}>
+    <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/40 px-4" onClick={() => { if (isEdit) { setEditCohort(null) } else { setShowCreate(false) } }}>
       <div className="bg-white rounded-[14px] shadow-xl w-full max-w-[540px] overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-[#f3f4f6]">
           <h2 className="text-[15px] font-bold text-[#111827] font-display">{isEdit ? 'Edit Cohort' : 'New Cohort'}</h2>
-          <button type="button" onClick={() => { setConfirmOpenCohort(null); if (isEdit) { setEditCohort(null) } else { setShowCreate(false) } }} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f3f4f6]">
+          <button type="button" onClick={() => { if (isEdit) { setEditCohort(null) } else { setShowCreate(false) } }} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f3f4f6]">
             <Cancel01Icon size={15} color="#4b5563" strokeWidth={1.5} />
           </button>
         </div>
 
-        {/* One-open-at-a-time confirmation */}
-        {isEdit && confirmOpenCohort ? (
-          <div className="px-6 py-6 flex flex-col gap-5">
-            <div className="rounded-[10px] bg-[#fffbeb] border border-[#fde68a] p-4">
-              <p className="text-[13px] font-semibold text-[#92400e] font-display mb-1">Only one cohort can be open at a time</p>
-              <p className="text-[13px] text-[#78350f] font-body leading-relaxed">
-                <span className="font-semibold">{confirmOpenCohort.title}</span> is currently open. Opening this cohort will automatically close it.
-              </p>
-            </div>
-            {formError && (
-              <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body">
-                <AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} /> {formError}
-              </p>
-            )}
-            <div className="flex gap-2">
-              <button type="button" onClick={() => setConfirmOpenCohort(null)}
-                className="flex-1 h-10 rounded-[8px] border border-[#e5e7eb] text-[13px] font-body hover:bg-[#f9fafb]">Go Back</button>
-              <button type="button" onClick={doSaveCohortEdit} disabled={saving}
-                className="flex-1 h-10 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-60 flex items-center justify-center gap-2">
-                {saving && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
-                Confirm &amp; Open
-              </button>
-            </div>
-          </div>
-        ) : (
         <form onSubmit={isEdit ? saveCohortEdit : createCohort} className="px-6 py-5 max-h-[80vh] overflow-y-auto flex flex-col gap-4">
           <div>
             <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Cohort Title</label>
@@ -2008,7 +1973,7 @@ function CohortsTab({ programId }: { programId: string }) {
             </p>
           )}
           <div className="flex gap-2 pt-1">
-            <button type="button" onClick={() => { setConfirmOpenCohort(null); if (isEdit) { setEditCohort(null) } else { setShowCreate(false) } }}
+            <button type="button" onClick={() => { if (isEdit) { setEditCohort(null) } else { setShowCreate(false) } }}
               className="flex-1 h-10 rounded-[8px] border border-[#e5e7eb] text-[13px] font-body hover:bg-[#f9fafb]">Cancel</button>
             <button type="submit" disabled={saving}
               className="flex-1 h-10 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-60 flex items-center justify-center gap-2">
@@ -2017,7 +1982,6 @@ function CohortsTab({ programId }: { programId: string }) {
             </button>
           </div>
         </form>
-        )}
       </div>
     </div>
   )
