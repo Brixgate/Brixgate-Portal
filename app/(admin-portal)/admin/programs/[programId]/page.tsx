@@ -952,14 +952,23 @@ function PricingPlanModal({
 }
 
 // ── Payment options ────────────────────────────────────────────────────────────
+interface PaymentOptionInstallment {
+  installment_number?: number; installmentNumber?: number
+  amount_type?: string; amountType?: string
+  amount_value?: number; amountValue?: number
+  due_offset_days?: number; dueOffsetDays?: number
+}
 interface PaymentOption {
   id: number
+  title?: string
   payment_mode?: string; paymentMode?: string
+  payment_interval?: string; paymentInterval?: string
   installment_calculation_type?: string; installmentCalculationType?: string
   number_of_installments?: number; numberOfInstallments?: number
   grace_period_days?: number; gracePeriodDays?: number
   suspend_access_on_overdue?: boolean; suspendAccessOnOverdue?: boolean
   status?: string; is_active?: boolean; isActive?: boolean
+  installments?: PaymentOptionInstallment[]
 }
 
 interface InstallmentDef { amount_type: 'FIXED_AMOUNT' | 'PERCENTAGE'; amount_value: string; due_offset_days: string }
@@ -970,12 +979,13 @@ function PaymentOptionsModal({ planId, breakdown, planTitle, onClose }: {
   planTitle: string
   onClose: () => void
 }) {
-  const [options,  setOptions]  = useState<PaymentOption[]>([])
-  const [loading,  setLoading]  = useState(true)
-  const [creating, setCreating] = useState(false)
-  const [saving,   setSaving]   = useState(false)
-  const [toggling, setToggling] = useState<number | null>(null)
-  const [error,    setError]    = useState('')
+  const [options,     setOptions]     = useState<PaymentOption[]>([])
+  const [loading,     setLoading]     = useState(true)
+  const [creating,    setCreating]    = useState(false)
+  const [saving,      setSaving]      = useState(false)
+  const [toggling,    setToggling]    = useState<number | null>(null)
+  const [error,       setError]       = useState('')
+  const [expandedOpt, setExpandedOpt] = useState<number | null>(null)
 
   // Form state
   const [mode,             setMode]             = useState<'FULL' | 'FIXED_INSTALLMENT' | 'FLEXIBLE_PART_PAYMENT'>('FULL')
@@ -1114,46 +1124,147 @@ function PaymentOptionsModal({ planId, breakdown, planTitle, onClose }: {
             ) : (
               <div className="flex flex-col gap-2 mb-4">
                 {options.map(opt => {
-                  const isActive = opt.is_active ?? opt.isActive ?? opt.status === 'ACTIVE'
-                  const modeLabel = MODE_LABELS[opt.payment_mode ?? opt.paymentMode ?? ''] ?? (opt.payment_mode ?? opt.paymentMode ?? '—')
-                  const instCount = opt.number_of_installments ?? opt.numberOfInstallments
-                  const grace     = opt.grace_period_days ?? opt.gracePeriodDays
+                  const isActive   = opt.is_active ?? opt.isActive ?? opt.status === 'ACTIVE'
+                  const modeLabel  = MODE_LABELS[opt.payment_mode ?? opt.paymentMode ?? ''] ?? (opt.payment_mode ?? opt.paymentMode ?? '—')
+                  const instCount  = opt.number_of_installments ?? opt.numberOfInstallments
+                  const grace      = opt.grace_period_days ?? opt.gracePeriodDays
+                  const interval   = opt.payment_interval ?? opt.paymentInterval
+                  const calcType   = opt.installment_calculation_type ?? opt.installmentCalculationType
+                  const insts      = opt.installments ?? []
+                  const isExpanded = expandedOpt === opt.id
                   return (
-                    <div key={opt.id} className="flex items-center justify-between gap-3 p-4 rounded-[8px] border border-[#eaecf0] bg-[#fafafa]">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="text-[13px] font-semibold text-[#111827] font-display">{modeLabel}</p>
-                          {instCount && (
-                            <span className="text-[10px] font-semibold bg-[#eff6ff] text-[#1d4ed8] px-2 py-0.5 rounded-full font-display">
-                              {instCount} instalments
-                            </span>
-                          )}
-                          {grace && (
-                            <span className="text-[10px] text-[#6b7280] font-body">{grace}d grace</span>
+                    <div key={opt.id} className="rounded-[8px] border border-[#eaecf0] overflow-hidden">
+                      {/* Header row */}
+                      <div
+                        className="flex items-center justify-between gap-3 p-4 bg-[#fafafa] cursor-pointer hover:bg-[#f3f4f6] transition-colors"
+                        onClick={() => setExpandedOpt(isExpanded ? null : opt.id)}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-[13px] font-semibold text-[#111827] font-display">{modeLabel}</p>
+                            {instCount && (
+                              <span className="text-[10px] font-semibold bg-[#eff6ff] text-[#1d4ed8] px-2 py-0.5 rounded-full font-display">
+                                {instCount} instalments
+                              </span>
+                            )}
+                            {interval && (
+                              <span className="text-[10px] font-semibold bg-[#f0fdf4] text-[#15803d] px-2 py-0.5 rounded-full font-display">
+                                {interval}
+                              </span>
+                            )}
+                            {grace != null && (
+                              <span className="text-[10px] text-[#6b7280] font-body">{grace}d grace</span>
+                            )}
+                          </div>
+                          {(opt.suspend_access_on_overdue ?? opt.suspendAccessOnOverdue) && (
+                            <p className="text-[11px] text-amber-600 font-body mt-0.5">Suspends access on overdue</p>
                           )}
                         </div>
-                        {(opt.suspend_access_on_overdue ?? opt.suspendAccessOnOverdue) && (
-                          <p className="text-[11px] text-amber-600 font-body mt-0.5">Suspends access on overdue</p>
-                        )}
+                        <div className="flex items-center gap-2 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                          <button
+                            onClick={() => handleToggle(opt)}
+                            disabled={toggling === opt.id}
+                            className={`relative w-10 h-5 rounded-full transition-colors duration-200 flex-shrink-0 ${isActive ? 'bg-[#d51520]' : 'bg-[#d1d5db]'} disabled:opacity-60`}
+                            title={isActive ? 'Disable' : 'Enable'}
+                          >
+                            {toggling === opt.id
+                              ? <Loading01Icon size={12} className="absolute inset-0 m-auto animate-spin" color="white" strokeWidth={2} />
+                              : <span className={`absolute top-0.5 left-0 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${isActive ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+                            }
+                          </button>
+                          <button onClick={() => handleDelete(opt.id)}
+                            className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#fef2f2] transition-colors">
+                            <Delete01Icon size={13} color="#d51520" strokeWidth={1.5} />
+                          </button>
+                          <ArrowDown01Icon size={14} color="#9ca3af" strokeWidth={2}
+                            className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        {/* Active toggle */}
-                        <button
-                          onClick={() => handleToggle(opt)}
-                          disabled={toggling === opt.id}
-                          className={`relative w-10 h-5 rounded-full transition-colors duration-200 flex-shrink-0 ${isActive ? 'bg-[#d51520]' : 'bg-[#d1d5db]'} disabled:opacity-60`}
-                          title={isActive ? 'Disable' : 'Enable'}
-                        >
-                          {toggling === opt.id
-                            ? <Loading01Icon size={12} className="absolute inset-0 m-auto animate-spin" color="white" strokeWidth={2} />
-                            : <span className={`absolute top-0.5 left-0 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${isActive ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
-                          }
-                        </button>
-                        <button onClick={() => handleDelete(opt.id)}
-                          className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#fef2f2] transition-colors">
-                          <Delete01Icon size={13} color="#d51520" strokeWidth={1.5} />
-                        </button>
-                      </div>
+
+                      {/* Expanded detail panel */}
+                      {isExpanded && (
+                        <div className="px-4 py-4 bg-white border-t border-[#f3f4f6] flex flex-col gap-3">
+                          {/* Key-value summary */}
+                          <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-display mb-0.5">Payment Mode</p>
+                              <p className="text-[12px] font-medium text-[#111827] font-body">{modeLabel}</p>
+                            </div>
+                            {interval && (
+                              <div>
+                                <p className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-display mb-0.5">Payment Interval</p>
+                                <p className="text-[12px] font-medium text-[#111827] font-body">{interval}</p>
+                              </div>
+                            )}
+                            {calcType && (
+                              <div>
+                                <p className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-display mb-0.5">Calculation Type</p>
+                                <p className="text-[12px] font-medium text-[#111827] font-body">{calcType === 'CUSTOM' ? 'Custom amounts' : 'Equal splits'}</p>
+                              </div>
+                            )}
+                            {instCount && (
+                              <div>
+                                <p className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-display mb-0.5">No. of Instalments</p>
+                                <p className="text-[12px] font-medium text-[#111827] font-body">{instCount}</p>
+                              </div>
+                            )}
+                            {grace != null && (
+                              <div>
+                                <p className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-display mb-0.5">Grace Period</p>
+                                <p className="text-[12px] font-medium text-[#111827] font-body">{grace} day{grace !== 1 ? 's' : ''}</p>
+                              </div>
+                            )}
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-display mb-0.5">Suspend on Overdue</p>
+                              <p className="text-[12px] font-medium text-[#111827] font-body">
+                                {(opt.suspend_access_on_overdue ?? opt.suspendAccessOnOverdue) ? 'Yes' : 'No'}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-display mb-0.5">Status</p>
+                              <p className={`text-[12px] font-semibold font-body ${isActive ? 'text-[#15803d]' : 'text-[#6b7280]'}`}>
+                                {isActive ? 'Active' : 'Inactive'}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Instalment schedule table */}
+                          {insts.length > 0 && (
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-display mb-2">Instalment Schedule</p>
+                              <div className="rounded-[6px] border border-[#f3f4f6] overflow-hidden">
+                                <table className="w-full">
+                                  <thead>
+                                    <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
+                                      {['#', 'Type', 'Amount', 'Due (days after enrol)'].map(h => (
+                                        <th key={h} className="text-left px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-[#6b7280] font-display">{h}</th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {insts.map((inst, i) => {
+                                      const num   = inst.installment_number ?? inst.installmentNumber ?? (i + 1)
+                                      const type  = inst.amount_type ?? inst.amountType ?? '—'
+                                      const val   = inst.amount_value ?? inst.amountValue
+                                      const due   = inst.due_offset_days ?? inst.dueOffsetDays
+                                      return (
+                                        <tr key={i} className="border-b border-[#f3f4f6] last:border-0">
+                                          <td className="px-3 py-2 text-[12px] text-[#374151] font-body">{num}</td>
+                                          <td className="px-3 py-2 text-[12px] text-[#374151] font-body">{type === 'FIXED_AMOUNT' ? '₦ Fixed' : '%'}</td>
+                                          <td className="px-3 py-2 text-[12px] font-semibold text-[#111827] font-body">
+                                            {val != null ? (type === 'FIXED_AMOUNT' ? `₦${Number(val).toLocaleString('en-NG')}` : `${val}%`) : '—'}
+                                          </td>
+                                          <td className="px-3 py-2 text-[12px] text-[#374151] font-body">{due != null ? `Day ${due}` : '—'}</td>
+                                        </tr>
+                                      )
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )
                 })}
