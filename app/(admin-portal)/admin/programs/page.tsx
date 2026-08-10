@@ -303,24 +303,38 @@ function CreateProgramModal({ onClose, onCreated }: { onClose: () => void; onCre
         programId: newProgramId, title: plan.title.trim(),
         planType: plan.planType, status: 'ACTIVE', billingCycle: 'ONEOFF',
       })
+      // Plan was created — extract ID from whatever shape the API returns
       const planRaw   = planRes.data as Record<string, unknown>
       const planInner = (planRaw?.data ?? planRaw) as Record<string, unknown>
-      const planId    = planInner?.id as number
-      if (!planId) throw new Error('Plan created but ID not returned')
+      const planId = (
+        planInner?.id ??
+        (planInner?.pricingPlan as Record<string, unknown>)?.id ??
+        (planInner?.pricing_plan as Record<string, unknown>)?.id ??
+        (planInner?.plan as Record<string, unknown>)?.id ??
+        planRaw?.id
+      ) as number | undefined
 
-      const currencies = [
-        { code: 'NGN', base: plan.ngn_base, final: plan.ngn_final },
-        { code: 'USD', base: plan.usd_base, final: plan.usd_final },
-        { code: 'GBP', base: plan.gbp_base, final: plan.gbp_final },
-      ].filter(c => c.base || c.final)
+      // Best-effort: attach currency breakdowns if we got an ID back.
+      // Use allSettled so a breakdown failure never blocks onCreated().
+      if (planId) {
+        const currencies = [
+          { code: 'NGN', base: plan.ngn_base, final: plan.ngn_final },
+          { code: 'USD', base: plan.usd_base, final: plan.usd_final },
+          { code: 'GBP', base: plan.gbp_base, final: plan.gbp_final },
+        ].filter(c => c.base || c.final)
 
-      await Promise.all(currencies.map(c =>
-        apiClient.post(`/admin/pricing-plans/${planId}/breakdowns`, {
-          currency:   c.code,
-          basePrice:  c.base  ? parseFloat(c.base)  : undefined,
-          finalPrice: c.final ? parseFloat(c.final) : undefined,
-        })
-      ))
+        if (currencies.length > 0) {
+          await Promise.allSettled(currencies.map(c =>
+            apiClient.post(`/admin/pricing-plans/${planId}/breakdowns`, {
+              currency:   c.code,
+              basePrice:  c.base  ? parseFloat(c.base)  : undefined,
+              finalPrice: c.final ? parseFloat(c.final) : undefined,
+            })
+          ))
+        }
+      }
+
+      // Always close on success — the plan exists regardless of breakdown result
       onCreated()
     } catch (err) { setPlanError(getApiError(err)) } finally { setPlanSaving(false) }
   }
