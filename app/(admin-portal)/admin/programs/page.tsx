@@ -262,7 +262,7 @@ function CreateProgramModal({ onClose, onCreated }: { onClose: () => void; onCre
   const [newProgramId, setNewProgramId] = useState<number | null>(null)
   const [programTitle, setProgramTitle] = useState('')
 
-  const [form, setForm]     = useState({ title: '', type: 'BOOTCAMP', level: 'BEGINNER', status: 'DRAFT', description: '', main_price: '' })
+  const [form, setForm]     = useState({ title: '', type: 'BOOTCAMP', level: 'BEGINNER', status: 'DRAFT', description: '', main_price: '', final_price: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState('')
 
@@ -276,13 +276,15 @@ function CreateProgramModal({ onClose, onCreated }: { onClose: () => void; onCre
   async function handleStep1(e: React.FormEvent) {
     e.preventDefault(); setError('')
     if (!form.title.trim()) { setError('Title is required.'); return }
-    if (!form.main_price || isNaN(parseFloat(form.main_price))) { setError('Main price is required.'); return }
+    if (!form.main_price || isNaN(parseFloat(form.main_price))) { setError('Original price is required.'); return }
+    if (!form.final_price || isNaN(parseFloat(form.final_price))) { setError('Final price is required.'); return }
     setSaving(true)
     try {
       const res   = await apiClient.post('/admin/programs', {
         title: form.title.trim(), type: form.type, level: form.level,
         status: form.status, description: form.description.trim() || undefined,
         main_price: parseFloat(form.main_price),
+        final_price: parseFloat(form.final_price),
       })
       const raw   = res.data as Record<string, unknown>
       const inner = (raw?.data ?? raw) as Record<string, unknown>
@@ -350,16 +352,25 @@ function CreateProgramModal({ onClose, onCreated }: { onClose: () => void; onCre
               <input value={form.title} onChange={e => set('title', e.target.value)}
                 placeholder="AI in Software Engineering" className={CLS_IN} />
             </div>
-            <div>
-              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Main Price</label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] font-medium text-[#4b5563] font-body pointer-events-none">₦</span>
-                <input
-                  type="number" min="0" step="any"
-                  value={form.main_price} onChange={e => set('main_price', e.target.value)}
-                  placeholder="0.00"
-                  className={`${CLS_IN} pl-7`}
-                />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Original Price</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] font-medium text-[#4b5563] font-body pointer-events-none">₦</span>
+                  <input type="number" min="0" step="any"
+                    value={form.main_price} onChange={e => set('main_price', e.target.value)}
+                    placeholder="150000" className={`${CLS_IN} pl-7`} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Final Price</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] font-medium text-[#4b5563] font-body pointer-events-none">₦</span>
+                  <input type="number" min="0" step="any"
+                    value={form.final_price} onChange={e => set('final_price', e.target.value)}
+                    placeholder="120000" className={`${CLS_IN} pl-7`} />
+                </div>
+                <p className="text-[11px] text-[#9ca3af] mt-1 font-body">What students actually pay</p>
               </div>
             </div>
             <div>
