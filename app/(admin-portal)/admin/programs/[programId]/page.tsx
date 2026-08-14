@@ -510,7 +510,7 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
         await Promise.allSettled(
           Array.from(selectedCohortIds).map(cohortId =>
             apiClient.post(`/admin/cohorts/${cohortId}/resources`, {
-              programResourceId: resourceId,
+              program_resource_id: resourceId,
               status: 'ACTIVE',
             })
           )
@@ -798,7 +798,7 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
 
             {/* Cohort assignment — only for new resources */}
             {!editResource && (
-              <Field label="Assign to Cohorts (optional)">
+              <Field label={`Assign to Cohorts${selectedCohortIds.size > 0 ? ` (${selectedCohortIds.size} selected)` : ' (optional)'}`}>
                 {loadingCohorts ? (
                   <p className="text-[12px] text-[#9ca3af] font-body">Loading cohorts…</p>
                 ) : cohortFetchError ? (
@@ -806,28 +806,48 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
                 ) : cohortOptions.length === 0 ? (
                   <p className="text-[12px] text-[#9ca3af] font-body">No cohorts found. Create a cohort under the Cohorts tab first.</p>
                 ) : (
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {cohortOptions.map(c => {
-                      const active = selectedCohortIds.has(c.id)
-                      return (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onClick={() => setSelectedCohortIds(prev => {
-                            const next = new Set(prev)
-                            if (active) { next.delete(c.id) } else { next.add(c.id) }
-                            return next
-                          })}
-                          className={`px-3 h-8 rounded-full text-[12px] font-medium font-body border transition-colors ${
-                            active
-                              ? 'bg-[#d51520] text-white border-[#d51520]'
-                              : 'bg-white text-[#475467] border-[#e5e7eb] hover:bg-[#f9fafb]'
-                          }`}
-                        >
-                          {c.title}
-                        </button>
-                      )
-                    })}
+                  <div className="border border-[#e5e7eb] rounded-[8px] overflow-hidden">
+                    {/* Select / deselect all */}
+                    <div className="flex items-center justify-between px-3 py-2 bg-[#f9fafb] border-b border-[#e5e7eb]">
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af] font-display">
+                        {cohortOptions.length} cohort{cohortOptions.length !== 1 ? 's' : ''}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCohortIds(
+                          selectedCohortIds.size === cohortOptions.length
+                            ? new Set()
+                            : new Set(cohortOptions.map(c => c.id))
+                        )}
+                        className="text-[11px] text-[#d51520] font-medium font-body hover:underline"
+                      >
+                        {selectedCohortIds.size === cohortOptions.length ? 'Deselect all' : 'Select all'}
+                      </button>
+                    </div>
+                    {/* Scrollable list */}
+                    <div className="max-h-[180px] overflow-y-auto divide-y divide-[#f3f4f6]">
+                      {cohortOptions.map(c => {
+                        const checked = selectedCohortIds.has(c.id)
+                        return (
+                          <label
+                            key={c.id}
+                            className="flex items-center gap-3 px-3 py-2.5 hover:bg-[#f9fafb] cursor-pointer transition-colors"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => setSelectedCohortIds(prev => {
+                                const next = new Set(prev)
+                                if (checked) { next.delete(c.id) } else { next.add(c.id) }
+                                return next
+                              })}
+                              className="w-4 h-4 rounded border-[#d0d5dd] accent-[#d51520] cursor-pointer flex-shrink-0"
+                            />
+                            <span className="text-[13px] text-[#374151] font-body leading-snug">{c.title}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
                   </div>
                 )}
               </Field>
