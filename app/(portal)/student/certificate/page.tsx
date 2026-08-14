@@ -194,14 +194,19 @@ function CertificateDesign({ row, fullName }: { row: CertRow; fullName: string }
         boxSizing: 'border-box',
       }}
     >
-      {/* Watermark — actual Brixgate logo icon, large + faded */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/images/logo2.png" alt="" aria-hidden="true" style={{
+      {/* Watermark — BRIXGATE text, large + faded */}
+      <div aria-hidden="true" style={{
         position: 'absolute', top: '50%', left: '50%',
         transform: 'translate(-50%,-50%)',
-        width: '52%', height: 'auto',
-        opacity: 0.06, pointerEvents: 'none', userSelect: 'none',
-      }} />
+        fontSize: 'clamp(64px,14vw,128px)',
+        fontWeight: 900,
+        letterSpacing: '0.06em',
+        color: 'rgba(255,255,255,0.055)',
+        pointerEvents: 'none',
+        userSelect: 'none',
+        whiteSpace: 'nowrap',
+        fontFamily: "DM Sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      }}>BRIXGATE</div>
 
       {/* Corner brackets */}
       {[
@@ -287,7 +292,7 @@ function generatePrintHtml(row: CertRow, fullName: string, baseUrl: string): str
 html,body{background:#0A0E1A!important;min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
 @media print{@page{margin:0;size:A4 landscape}html,body{width:100%;height:100%;background:#0A0E1A!important}}
 .cert{width:900px;height:600px;background:#0A0E1A!important;border:1.5px solid rgba(209,81,80,.4);border-radius:16px;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:36px 56px 28px;overflow:hidden}
-.wm{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:52%;height:auto;opacity:.06;pointer-events:none}
+.wm{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:128px;font-weight:900;letter-spacing:.06em;color:rgba(255,255,255,.055);pointer-events:none;user-select:none;white-space:nowrap;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
 .c{position:absolute;width:22px;height:22px}.tl{top:14px;left:14px;border-top:2px solid #D15150;border-left:2px solid #D15150;border-radius:4px 0 0 0}.tr{top:14px;right:14px;border-top:2px solid #D15150;border-right:2px solid #D15150;border-radius:0 4px 0 0}.bl{bottom:14px;left:14px;border-bottom:2px solid #D15150;border-left:2px solid #D15150;border-radius:0 0 0 4px}.br{bottom:14px;right:14px;border-bottom:2px solid #D15150;border-right:2px solid #D15150;border-radius:0 0 4px 0}
 .logo{display:flex;align-items:center;gap:8px;margin-bottom:14px}.limg{width:28px;height:28px;border-radius:50%;display:block}.ltxt{color:white;font-size:18px;font-weight:600}
 .lbl{font-size:10px;letter-spacing:.2em;color:rgba(255,255,255,.65);text-transform:uppercase;font-weight:600;margin-bottom:8px}
@@ -307,7 +312,7 @@ html,body{background:#0A0E1A!important;min-height:100vh;display:flex;align-items
 </head>
 <body>
 <div class="cert">
-<img src="${logoUrl}" class="wm" alt="">
+<div class="wm" aria-hidden="true">BRIXGATE</div>
 <div class="c tl"></div><div class="c tr"></div><div class="c bl"></div><div class="c br"></div>
 <div class="logo"><img src="${logoUrl}" class="limg" alt="Brixgate"><span class="ltxt">Brixgate</span></div>
 <p class="lbl">Brixer Certificate</p>
