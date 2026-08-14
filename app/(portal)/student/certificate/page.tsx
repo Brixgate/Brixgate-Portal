@@ -1,7 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
-import { useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import TopNav from '@/components/layout/TopNav'
 import {
   Award01Icon,
@@ -58,7 +57,7 @@ interface CertRow {
   pdfUrl: string | null
   issuedAt: string | null
   certificateNumber: string | null
-  signatories: string[]
+  instructorName: string   // fetched from cohort members after initial load
 }
 
 function normaliseProgramToCertRow(
@@ -73,7 +72,7 @@ function normaliseProgramToCertRow(
   const cohortLabel = cohortName.replace(`${title} — `, '').replace(`${title} - `, '') || cohortName
   const cohortId    = enrollment?.cohort_id ?? cohort?.id ?? raw.cohort_id ?? 0
 
-  const cert       = byProgram.get(raw.id) ?? byCohort.get(cohortId) ?? null
+  const cert        = byProgram.get(raw.id) ?? byCohort.get(cohortId) ?? null
   const rawIssuedAt = cert?.issued_at ?? cert?.issuedAt ?? null
 
   return {
@@ -92,39 +91,95 @@ function normaliseProgramToCertRow(
       ? new Date(rawIssuedAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })
       : null,
     certificateNumber: cert?.certificate_number ?? cert?.certificateNumber ?? null,
-    signatories:       cert?.metadata?.signatories ?? [],
+    instructorName: '',
   }
 }
 
+// ── Fetch the instructor for a given cohort ───────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function extractName(u: any): string {
+  if (!u) return ''
+  return (
+    u.name ??
+    `${u.first_name ?? u.firstName ?? ''} ${u.last_name ?? u.lastName ?? ''}`.trim()
+  ) || u.email || ''
+}
+
+async function fetchCohortInstructor(cohortId: number): Promise<string> {
+  const endpoints = [
+    `/cohorts/${cohortId}/instructors`,
+    `/cohorts/${cohortId}/users?role=INSTRUCTOR`,
+    `/cohorts/${cohortId}/members?role=INSTRUCTOR`,
+    `/cohorts/${cohortId}`,
+  ]
+  for (const ep of endpoints) {
+    try {
+      const res  = await apiClient.get(ep)
+      const data = unwrap<unknown>(res.data)
+      if (!data) continue
+
+      // endpoint returned a list of instructors / users
+      const candidates: unknown[] = (() => {
+        if (Array.isArray(data)) return data
+        const d = data as Record<string, unknown>
+        if (Array.isArray(d.instructors)) return d.instructors
+        if (Array.isArray(d.users))       return d.users
+        if (Array.isArray(d.members))     return d.members
+        return []
+      })()
+
+      if (candidates.length > 0) {
+        // pick the first user whose role is INSTRUCTOR (or just the first if no role filter)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const match = candidates.find((u: any) =>
+          !u?.role || String(u.role).toUpperCase() === 'INSTRUCTOR'
+        ) ?? candidates[0]
+        const name = extractName(match)
+        if (name) return name
+      }
+
+      // endpoint returned cohort details — check for nested instructors
+      const cohort = data as Record<string, unknown>
+      const nested: unknown = cohort.instructors ?? cohort.instructor ?? cohort.tutor
+      if (nested) {
+        if (Array.isArray(nested) && nested.length > 0) {
+          const name = extractName(nested[0])
+          if (name) return name
+        } else if (typeof nested === 'object' && nested !== null) {
+          const name = extractName(nested)
+          if (name) return name
+        }
+      }
+    } catch { /* try next endpoint */ }
+  }
+  return ''
+}
+
 // ── Certificate card design (matches the screenshot) ─────────────────────────
-function CertificateDesign({
-  row, fullName, size = 'modal',
-}: { row: CertRow; fullName: string; size?: 'modal' | 'print' }) {
-  const { title, cohortLabel, issuedAt, certificateNumber, signatories } = row
-  const tutorName  = signatories[0] ?? 'Lead Instructor'
-  const expertName = signatories[1] ?? 'Expert Practitioner'
-  const pubLink    = certificateNumber
+function CertificateDesign({ row, fullName }: { row: CertRow; fullName: string }) {
+  const { title, cohortLabel, issuedAt, certificateNumber, instructorName } = row
+  const expertName = instructorName || 'Expert Practitioner'
+
+  const pubLink = certificateNumber
     ? `https://brixgate.com/verify/${certificateNumber}`
     : 'https://brixgate.com'
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&color=ffffff&bgcolor=0A0E1A&data=${encodeURIComponent(pubLink)}`
-
-  const scale = size === 'modal' ? 1 : 1
 
   return (
     <div
       id="brixgate-certificate"
       style={{
-        width:  size === 'modal' ? '100%' : '900px',
+        width: '100%',
         aspectRatio: '3/2',
         background: '#0A0E1A',
         border: '1.5px solid rgba(209,81,80,0.4)',
-        borderRadius: `${16 * scale}px`,
+        borderRadius: 16,
         position: 'relative',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'flex-start',
-        padding: `${36 * scale}px ${56 * scale}px ${28 * scale}px`,
+        padding: 'clamp(20px, 4%, 36px) clamp(24px, 6%, 56px) clamp(16px, 3%, 28px)',
         overflow: 'hidden',
         fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
         boxSizing: 'border-box',
@@ -134,7 +189,7 @@ function CertificateDesign({
       <span style={{
         position: 'absolute', top: '50%', left: '50%',
         transform: 'translate(-50%,-50%)',
-        fontSize: 'clamp(60px, 12vw, 120px)', fontWeight: 900,
+        fontSize: 'clamp(50px, 10vw, 110px)', fontWeight: 900,
         color: 'rgba(255,255,255,0.03)', letterSpacing: '0.18em',
         whiteSpace: 'nowrap', pointerEvents: 'none', userSelect: 'none',
       }}>BRIXGATE</span>
@@ -150,88 +205,57 @@ function CertificateDesign({
       ))}
 
       {/* Logo */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-        <div style={{
-          width: 28, height: 28, borderRadius: '50%', background: '#D15150',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 'clamp(8px,1.5%,14px)' }}>
+        <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#D15150', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <span style={{ color: 'white', fontSize: 13, fontWeight: 900 }}>B</span>
         </div>
         <span style={{ color: 'white', fontSize: 18, fontWeight: 600 }}>Brixgate</span>
       </div>
 
       {/* "BRIXER CERTIFICATE" */}
-      <p style={{
-        fontSize: 10, letterSpacing: '0.2em', color: 'rgba(255,255,255,0.65)',
-        textTransform: 'uppercase', fontWeight: 600, marginBottom: 8,
-      }}>Brixer Certificate</p>
-      <div style={{ width: 40, height: 2, background: '#D15150', marginBottom: 16 }} />
-
-      {/* Body text */}
-      <p style={{ fontStyle: 'italic', color: 'rgba(255,255,255,0.5)', fontSize: 13, marginBottom: 6 }}>
-        This certifies that
+      <p style={{ fontSize: 10, letterSpacing: '0.2em', color: 'rgba(255,255,255,0.65)', textTransform: 'uppercase', fontWeight: 600, marginBottom: 8 }}>
+        Brixer Certificate
       </p>
-      <p style={{
-        fontSize: 'clamp(28px, 5.5vw, 52px)', fontWeight: 800, color: 'white',
-        lineHeight: 1.05, marginBottom: 8, textAlign: 'center',
-      }}>
+      <div style={{ width: 40, height: 2, background: '#D15150', marginBottom: 'clamp(10px,1.5%,16px)' }} />
+
+      {/* Body */}
+      <p style={{ fontStyle: 'italic', color: 'rgba(255,255,255,0.5)', fontSize: 'clamp(11px,1.3vw,13px)', marginBottom: 5 }}>This certifies that</p>
+      <p style={{ fontSize: 'clamp(24px,5vw,50px)', fontWeight: 800, color: 'white', lineHeight: 1.05, marginBottom: 7, textAlign: 'center' }}>
         {fullName || 'Student Name'}
       </p>
-      <p style={{ fontStyle: 'italic', color: 'rgba(255,255,255,0.5)', fontSize: 13, marginBottom: 6 }}>
-        has successfully completed the
-      </p>
-      <p style={{
-        fontSize: 'clamp(16px, 2.5vw, 22px)', fontWeight: 700, color: '#D15150',
-        marginBottom: 4, textAlign: 'center',
-      }}>
-        {title}
-      </p>
+      <p style={{ fontStyle: 'italic', color: 'rgba(255,255,255,0.5)', fontSize: 'clamp(11px,1.3vw,13px)', marginBottom: 5 }}>has successfully completed the</p>
+      <p style={{ fontSize: 'clamp(14px,2.2vw,22px)', fontWeight: 700, color: '#D15150', marginBottom: 3, textAlign: 'center' }}>{title}</p>
       {cohortLabel && (
-        <p style={{
-          fontSize: 10, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.4)',
-          textTransform: 'uppercase', marginBottom: 4,
-        }}>
-          {cohortLabel}
-        </p>
+        <p style={{ fontSize: 10, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>{cohortLabel}</p>
       )}
 
       {/* Divider */}
-      <div style={{ width: '100%', height: 1, background: 'rgba(255,255,255,0.1)', margin: '14px 0' }} />
+      <div style={{ width: '100%', height: 1, background: 'rgba(255,255,255,0.1)', margin: 'clamp(10px,1.5%,14px) 0' }} />
 
-      {/* Footer row */}
-      <div style={{ width: '100%', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-        {/* Left sig */}
-        <div style={{ textAlign: 'center', flex: 1 }}>
-          <div style={{ width: 110, height: 1, background: 'rgba(255,255,255,0.3)', margin: '0 auto 7px' }} />
-          <p style={{ fontSize: 12, fontWeight: 700, color: 'white' }}>{tutorName}</p>
-          <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>{tutorName} · Brixgate</p>
-        </div>
-
+      {/* Footer — QR left, single signature right */}
+      <div style={{ width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
         {/* QR + cert number */}
-        <div style={{ textAlign: 'center', flex: 1 }}>
+        <div style={{ textAlign: 'center' }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={qrUrl} width={80} height={80} alt="QR code"
-            style={{ background: 'white', padding: 5, borderRadius: 4, display: 'block', margin: '0 auto' }} />
+          <img src={qrUrl} width={72} height={72} alt="QR code"
+            style={{ background: 'white', padding: 4, borderRadius: 4, display: 'block' }} />
           {certificateNumber && (
-            <p style={{ fontSize: 9, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.4)', marginTop: 5, textTransform: 'uppercase' }}>
+            <p style={{ fontSize: 8, letterSpacing: '0.08em', color: 'rgba(255,255,255,0.35)', marginTop: 4, textTransform: 'uppercase' }}>
               {certificateNumber}
             </p>
           )}
         </div>
 
-        {/* Right sig */}
-        <div style={{ textAlign: 'center', flex: 1 }}>
-          <div style={{ width: 110, height: 1, background: 'rgba(255,255,255,0.3)', margin: '0 auto 7px' }} />
-          <p style={{ fontSize: 12, fontWeight: 700, color: 'white' }}>{expertName}</p>
-          <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>{expertName} · Brixgate</p>
+        {/* Single signature — Expert Practitioner (instructor) */}
+        <div style={{ textAlign: 'center', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ width: 140, height: 1, background: 'rgba(255,255,255,0.3)', marginBottom: 7 }} />
+          <p style={{ fontSize: 13, fontWeight: 700, color: 'white' }}>{expertName}</p>
+          <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>Expert Practitioner · Brixgate</p>
         </div>
       </div>
 
       {/* Bottom date */}
-      <p style={{
-        fontSize: 9, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.3)',
-        textTransform: 'uppercase', marginTop: 12,
-      }}>
+      <p style={{ fontSize: 9, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', marginTop: 10 }}>
         {issuedAt ?? '—'} · BRIXGATE.COM
       </p>
     </div>
@@ -240,9 +264,8 @@ function CertificateDesign({
 
 // ── Generate standalone HTML for print/PDF ────────────────────────────────────
 function generatePrintHtml(row: CertRow, fullName: string): string {
-  const { title, cohortLabel, issuedAt, certificateNumber, signatories } = row
-  const tutorName  = signatories[0] ?? 'Lead Instructor'
-  const expertName = signatories[1] ?? 'Expert Practitioner'
+  const { title, cohortLabel, issuedAt, certificateNumber, instructorName } = row
+  const expertName = instructorName || 'Expert Practitioner'
   const pubLink    = certificateNumber ? `https://brixgate.com/verify/${certificateNumber}` : 'https://brixgate.com'
   const qrUrl      = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&color=ffffff&bgcolor=0A0E1A&data=${encodeURIComponent(pubLink)}`
 
@@ -257,22 +280,22 @@ function generatePrintHtml(row: CertRow, fullName: string): string {
 body{background:#0A0E1A;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
 @media print{@page{margin:0;size:A4 landscape}html,body{width:100%;height:100%}}
 .cert{width:900px;height:600px;background:#0A0E1A;border:1.5px solid rgba(209,81,80,.4);border-radius:16px;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:36px 56px 28px;overflow:hidden}
-.wm{position:absolute;font-size:120px;font-weight:900;color:rgba(255,255,255,.03);top:50%;left:50%;transform:translate(-50%,-50%);letter-spacing:.18em;white-space:nowrap;pointer-events:none;user-select:none}
+.wm{position:absolute;font-size:110px;font-weight:900;color:rgba(255,255,255,.03);top:50%;left:50%;transform:translate(-50%,-50%);letter-spacing:.18em;white-space:nowrap;pointer-events:none;user-select:none}
 .c{position:absolute;width:22px;height:22px}.tl{top:14px;left:14px;border-top:2px solid #D15150;border-left:2px solid #D15150;border-radius:4px 0 0 0}.tr{top:14px;right:14px;border-top:2px solid #D15150;border-right:2px solid #D15150;border-radius:0 4px 0 0}.bl{bottom:14px;left:14px;border-bottom:2px solid #D15150;border-left:2px solid #D15150;border-radius:0 0 0 4px}.br{bottom:14px;right:14px;border-bottom:2px solid #D15150;border-right:2px solid #D15150;border-radius:0 0 4px 0}
-.logo{display:flex;align-items:center;gap:8px;margin-bottom:14px}
-.licon{width:28px;height:28px;border-radius:50%;background:#D15150;display:flex;align-items:center;justify-content:center}
-.ltxt{color:white;font-size:18px;font-weight:600}
+.logo{display:flex;align-items:center;gap:8px;margin-bottom:14px}.licon{width:28px;height:28px;border-radius:50%;background:#D15150;display:flex;align-items:center;justify-content:center}.ltxt{color:white;font-size:18px;font-weight:600}
 .lbl{font-size:10px;letter-spacing:.2em;color:rgba(255,255,255,.65);text-transform:uppercase;font-weight:600;margin-bottom:8px}
 .div{width:40px;height:2px;background:#D15150;margin-bottom:16px}
 .it{font-style:italic;color:rgba(255,255,255,.5);font-size:13px;margin-bottom:6px}
-.name{font-size:52px;font-weight:800;color:white;line-height:1.05;margin-bottom:8px;text-align:center}
+.name{font-size:50px;font-weight:800;color:white;line-height:1.05;margin-bottom:8px;text-align:center}
 .prog{font-size:22px;font-weight:700;color:#D15150;margin-bottom:4px;text-align:center}
-.trk{font-size:10px;letter-spacing:.1em;color:rgba(255,255,255,.4);text-transform:uppercase;margin-bottom:4px}
+.trk{font-size:10px;letter-spacing:.1em;color:rgba(255,255,255,.4);text-transform:uppercase}
 .line{width:100%;height:1px;background:rgba(255,255,255,.1);margin:14px 0}
-.ft{width:100%;display:flex;align-items:flex-start;justify-content:space-between}
-.sig{text-align:center;flex:1}.sline{width:110px;height:1px;background:rgba(255,255,255,.3);margin:0 auto 7px}.sname{font-size:12px;font-weight:700;color:white}.srole{font-size:10px;color:rgba(255,255,255,.4);margin-top:2px}
-.qw{text-align:center;flex:1}.cnum{font-size:9px;letter-spacing:.1em;color:rgba(255,255,255,.4);margin-top:5px;text-transform:uppercase}
-.dtf{font-size:9px;letter-spacing:.12em;color:rgba(255,255,255,.3);text-transform:uppercase;margin-top:12px}
+.ft{width:100%;display:flex;align-items:flex-end;justify-content:space-between;gap:16px}
+.qw{text-align:center}.cnum{font-size:8px;letter-spacing:.08em;color:rgba(255,255,255,.35);margin-top:4px;text-transform:uppercase}
+.sig{text-align:center;flex:1;display:flex;flex-direction:column;align-items:center}
+.sline{width:140px;height:1px;background:rgba(255,255,255,.3);margin-bottom:7px}
+.sname{font-size:13px;font-weight:700;color:white}.srole{font-size:10px;color:rgba(255,255,255,.4);margin-top:2px}
+.dtf{font-size:9px;letter-spacing:.12em;color:rgba(255,255,255,.3);text-transform:uppercase;margin-top:10px}
 </style>
 </head>
 <body>
@@ -289,9 +312,15 @@ body{background:#0A0E1A;display:flex;align-items:center;justify-content:center;m
 ${cohortLabel ? `<p class="trk">${cohortLabel}</p>` : ''}
 <div class="line"></div>
 <div class="ft">
-<div class="sig"><div class="sline"></div><p class="sname">${tutorName}</p><p class="srole">${tutorName} · Brixgate</p></div>
-<div class="qw"><img src="${qrUrl}" width="80" height="80" style="background:white;padding:5px;border-radius:4px;display:block;margin:0 auto" alt="QR"><p class="cnum">${certificateNumber ?? ''}</p></div>
-<div class="sig"><div class="sline"></div><p class="sname">${expertName}</p><p class="srole">${expertName} · Brixgate</p></div>
+  <div class="qw">
+    <img src="${qrUrl}" width="72" height="72" style="background:white;padding:4px;border-radius:4px;display:block" alt="QR">
+    <p class="cnum">${certificateNumber ?? ''}</p>
+  </div>
+  <div class="sig">
+    <div class="sline"></div>
+    <p class="sname">${expertName}</p>
+    <p class="srole">Expert Practitioner · Brixgate</p>
+  </div>
 </div>
 <p class="dtf">${issuedAt ?? ''} · BRIXGATE.COM</p>
 </div>
@@ -328,8 +357,7 @@ function CertificateModal({ row, fullName, onClose }: {
   function handleLinkedIn() {
     const certDate  = issuedAt ?? new Date().toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })
     const shareText = `🎓 Excited to share that I've completed ${title} at Brixgate${cohortLabel ? ` (${cohortLabel})` : ''}!\n\nCertificate awarded on ${certDate}${certificateNumber ? ` — Cert No: ${certificateNumber}` : ''}.\n\nVerify: ${pubLink}\n\n#Brixgate #AITraining #Certificate`
-    const url = `https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(shareText)}`
-    window.open(url, '_blank')
+    window.open(`https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(shareText)}`, '_blank')
   }
 
   async function handleNativeShare() {
@@ -337,44 +365,30 @@ function CertificateModal({ row, fullName, onClose }: {
     const shareText = `🎓 I'm proud to have completed ${title} at Brixgate${cohortLabel ? ` (${cohortLabel})` : ''}!\n\nCertificate awarded to ${fullName} on ${certDate}${certificateNumber ? `\n\nCertificate No: ${certificateNumber}` : ''}.\n\nVerify: ${pubLink}\n\n#Brixgate #AITraining #Certificate`
     if (typeof navigator !== 'undefined' && navigator.share) {
       try { await navigator.share({ title: `${fullName} — Brixgate Certificate`, text: shareText, url: pubLink }) }
-      catch { /* cancelled */ }
-    } else {
-      await handleCopyLink()
-    }
+      catch { /* user cancelled */ }
+    } else { await handleCopyLink() }
   }
 
   return (
     <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-start overflow-y-auto py-10 px-4"
-        onClick={onClose}
-      >
-        <div
-          className="w-full max-w-[820px] flex flex-col gap-4"
-          onClick={e => e.stopPropagation()}
-        >
+      <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-start overflow-y-auto py-10 px-4" onClick={onClose}>
+        <div className="w-full max-w-[820px] flex flex-col gap-4" onClick={e => e.stopPropagation()}>
           {/* Certificate card */}
-          <div className="w-full">
-            <CertificateDesign row={row} fullName={fullName} size="modal" />
-          </div>
+          <CertificateDesign row={row} fullName={fullName} />
 
           {/* Action bar */}
           <div className="bg-white rounded-[12px] p-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2 flex-wrap">
-              {/* Copy link */}
               <button onClick={handleCopyLink}
                 className="flex items-center gap-2 h-9 px-4 rounded-[8px] border border-[#e5e7eb] text-[13px] font-medium text-[#374151] font-display hover:bg-[#f9fafb] transition-colors">
                 <Copy01Icon size={14} color="#374151" strokeWidth={1.5} />
                 Copy link
               </button>
-              {/* LinkedIn */}
               <button onClick={handleLinkedIn}
                 className="flex items-center gap-2 h-9 px-4 rounded-[8px] bg-[#0A66C2] text-[13px] font-medium text-white font-display hover:bg-[#084fa1] transition-colors">
-                <span style={{ fontWeight: 900, fontSize: 12, fontStyle: 'italic', lineHeight: 1, background: 'rgba(255,255,255,0.15)', borderRadius: 3, padding: '1px 4px' }}>in</span>
+                <span style={{ fontWeight: 900, fontSize: 11, fontStyle: 'italic', background: 'rgba(255,255,255,0.18)', borderRadius: 3, padding: '1px 4px', lineHeight: 1 }}>in</span>
                 Post to LinkedIn
               </button>
-              {/* Share */}
               <button onClick={handleNativeShare}
                 className="flex items-center gap-2 h-9 px-4 rounded-[8px] border border-[#e5e7eb] text-[13px] font-medium text-[#374151] font-display hover:bg-[#f9fafb] transition-colors">
                 <Share01Icon size={14} color="#374151" strokeWidth={1.5} />
@@ -387,8 +401,7 @@ function CertificateModal({ row, fullName, onClose }: {
                 <Download01Icon size={14} color="white" strokeWidth={1.5} />
                 Download PDF
               </button>
-              <button onClick={onClose}
-                className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-[#f3f4f6] transition-colors">
+              <button onClick={onClose} className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-[#f3f4f6] transition-colors">
                 <Cancel01Icon size={16} color="#374151" strokeWidth={1.5} />
               </button>
             </div>
@@ -419,8 +432,8 @@ function StatusBadge({ issued }: { issued: boolean }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function CertificatePage() {
   const { user } = useAuth()
-  const [rows, setRows]             = useState<CertRow[]>([])
-  const [loading, setLoading]       = useState(true)
+  const [rows, setRows]               = useState<CertRow[]>([])
+  const [loading, setLoading]         = useState(true)
   const [selectedRow, setSelectedRow] = useState<CertRow | null>(null)
   const { toasts, toast, removeToast } = useToast()
 
@@ -461,7 +474,23 @@ export default function CertificatePage() {
         if (cohId)  byCohort.set(cohId,  c)
       }
 
-      setRows(programs.map(p => normaliseProgramToCertRow(p, byProgram, byCohort)))
+      const baseRows = programs.map(p => normaliseProgramToCertRow(p, byProgram, byCohort))
+
+      // Fetch instructor for each unique cohort (best-effort, parallel)
+      const seen = new Set<number>()
+      const uniqueCohortIds = baseRows.map(r => r.cohortId).filter(id => { if (!id || seen.has(id)) return false; seen.add(id); return true })
+      const instructorResults = await Promise.allSettled(
+        uniqueCohortIds.map(id => fetchCohortInstructor(id))
+      )
+      const instructorMap = new Map<number, string>()
+      uniqueCohortIds.forEach((id, i) => {
+        const result = instructorResults[i]
+        if (result.status === 'fulfilled' && result.value) {
+          instructorMap.set(id, result.value)
+        }
+      })
+
+      setRows(baseRows.map(r => ({ ...r, instructorName: instructorMap.get(r.cohortId) ?? '' })))
     } catch {
       // show empty state — student may not be enrolled yet
     } finally {
@@ -514,9 +543,7 @@ export default function CertificatePage() {
               <thead>
                 <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
                   {['Programme', 'Cohort', 'Status', 'Date Issued', 'Certificate No.', 'Actions'].map(h => (
-                    <th key={h} className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display whitespace-nowrap">
-                      {h}
-                    </th>
+                    <th key={h} className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -546,9 +573,7 @@ export default function CertificatePage() {
                             onClick={() => { if (issued) setSelectedRow(row) }}
                             disabled={!issued}
                             className={`flex items-center gap-1.5 h-8 px-3 rounded-[6px] text-[12px] font-medium font-display border transition-colors ${
-                              issued
-                                ? 'border-[#e5e7eb] text-[#374151] hover:bg-[#f9fafb]'
-                                : 'border-[#f3f4f6] text-[#d1d5db] cursor-not-allowed'
+                              issued ? 'border-[#e5e7eb] text-[#374151] hover:bg-[#f9fafb]' : 'border-[#f3f4f6] text-[#d1d5db] cursor-not-allowed'
                             }`}
                           >
                             <EyeIcon size={13} strokeWidth={1.5} />
@@ -558,9 +583,7 @@ export default function CertificatePage() {
                             onClick={e => handleDownloadRow(row, e)}
                             disabled={!issued}
                             className={`flex items-center gap-1.5 h-8 px-3 rounded-[6px] text-[12px] font-medium font-display transition-colors ${
-                              issued
-                                ? 'bg-[#d51520] text-white hover:bg-[#b81119]'
-                                : 'bg-[#f3f4f6] text-[#d1d5db] cursor-not-allowed'
+                              issued ? 'bg-[#d51520] text-white hover:bg-[#b81119]' : 'bg-[#f3f4f6] text-[#d1d5db] cursor-not-allowed'
                             }`}
                           >
                             <Download01Icon size={13} strokeWidth={1.5} />

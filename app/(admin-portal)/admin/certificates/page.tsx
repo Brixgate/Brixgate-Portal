@@ -26,9 +26,13 @@ interface IssuedCert {
   issued_at?: string; issuedAt?: string
   created_at?: string; createdAt?: string
   certificate_number?: string; certificateNumber?: string
+  // flat cohort fields some API shapes return
+  cohort_title?: string; cohortTitle?: string
+  cohort_name?: string;  cohortName?: string
   user?: { id?: number; name?: string; first_name?: string; firstName?: string; last_name?: string; lastName?: string; email?: string }
   program?: { id?: number; title?: string }
-  cohort?: { id?: number; title?: string }
+  cohort?: { id?: number; title?: string; name?: string }
+  certificate?: { cohort?: { id?: number; title?: string; name?: string } }
   certificate_type?: { id?: number; name?: string; title?: string }
 }
 
@@ -374,7 +378,7 @@ function IssuedCertsTab() {
                   <td className="px-4 py-3.5"><p className="text-[12px] text-[#4b5563] font-body">{c.user?.email ?? '—'}</p></td>
                   <td className="px-4 py-3.5"><p className="text-[13px] text-[#374151] font-body">{c.certificate_type?.name ?? c.certificate_type?.title ?? '—'}</p></td>
                   <td className="px-4 py-3.5"><p className="text-[13px] text-[#374151] font-body">{c.program?.title ?? '—'}</p></td>
-                  <td className="px-4 py-3.5"><p className="text-[12px] text-[#4b5563] font-body">{c.cohort?.title ?? '—'}</p></td>
+                  <td className="px-4 py-3.5"><p className="text-[12px] text-[#4b5563] font-body">{c.cohort?.title ?? c.cohort?.name ?? c.certificate?.cohort?.title ?? c.certificate?.cohort?.name ?? c.cohort_title ?? c.cohortTitle ?? c.cohort_name ?? c.cohortName ?? '—'}</p></td>
                   <td className="px-4 py-3.5">
                     {c.status && <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold font-display ${STATUS_STYLE[c.status] ?? 'bg-[#f3f4f6] text-[#374151]'}`}>{c.status}</span>}
                   </td>
