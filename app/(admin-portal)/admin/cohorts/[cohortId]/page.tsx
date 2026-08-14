@@ -1080,7 +1080,8 @@ function CertificatesTab({ cohortId, programId }: { cohortId: string; programId:
           template_url: resolvedTemplateUrl,
           ...(programId ? { program_id: programId } : {}), status: 'ACTIVE',
         })
-        const created = createRes.data?.data ?? createRes.data
+        const outer  = createRes.data?.data ?? createRes.data
+        const created = outer?.certificate ?? outer
         defId = created?.id
         if (created) setCertDefs(prev => [...prev, created as AdminCertificateDef])
       }
