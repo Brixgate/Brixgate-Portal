@@ -314,6 +314,10 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
   const [resourceForm, setResourceForm]       = useState({ title: '', type: 'PDF', link: '' })
   const [resourceMode, setResourceMode]       = useState<'url' | 'upload'>('url')
   const [uploadFile, setUploadFile]           = useState<File | null>(null)
+  // Cohort assignment state (for new resource modal only)
+  const [cohortOptions, setCohortOptions]         = useState<{ id: number; title: string }[]>([])
+  const [loadingCohorts, setLoadingCohorts]       = useState(false)
+  const [selectedCohortIds, setSelectedCohortIds] = useState<Set<number>>(new Set())
   // Shared state
   const [saving, setSaving]                   = useState(false)
   const [error, setError]                     = useState('')
@@ -411,6 +415,19 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
     setEditLesson(l); setError('')
   }
 
+  // Fetch cohorts for this programme whenever the add-resource modal opens
+  useEffect(() => {
+    if (!showAddResource) return
+    setLoadingCohorts(true)
+    apiClient.get(`/admin/programs/${programId}/cohorts?size=50`)
+      .then(res => {
+        const data = unwrap<{ cohorts?: { id: number; title: string }[] }>(res.data)
+        setCohortOptions(Array.isArray(data?.cohorts) ? data.cohorts : [])
+      })
+      .catch(() => setCohortOptions([]))
+      .finally(() => setLoadingCohorts(false))
+  }, [showAddResource, programId])
+
   // ── Resource handlers ──────────────────────────────────────────────────────
   const MAX_FILE_BYTES = 20 * 1024 * 1024 // 20 MB
 
@@ -420,13 +437,14 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
 
     setSaving(true)
     try {
+      let resourceId: number | undefined
+
       if (resourceMode === 'upload') {
         if (!uploadFile) { setError('Please select a file to upload.'); return }
         if (uploadFile.size > MAX_FILE_BYTES) {
           setError('File exceeds the 20 MB limit. Please choose a smaller file.')
           return
         }
-        // Backend stores file on AWS via /program-resources; download served via /program-resources/{id}/download
         const formData = new FormData()
         formData.append('file', uploadFile)
         formData.append('program_id', programId)
@@ -434,17 +452,35 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
         formData.append('title', resourceForm.title.trim())
         formData.append('type', resourceForm.type)
         formData.append('status', 'PUBLISHED')
-        await apiClient.post('/program-resources', formData)
+        const res = await apiClient.post('/program-resources', formData)
+        const raw = (res.data?.data ?? res.data) as Record<string, unknown>
+        resourceId = raw?.id as number | undefined
       } else {
         const link = resourceForm.link.trim()
         if (!link) { setError('URL is required.'); return }
-        await apiClient.post(`${base}/resources`, {
+        const res = await apiClient.post(`${base}/resources`, {
           title: resourceForm.title.trim(), type: resourceForm.type, link, status: 'PUBLISHED',
         })
+        const raw = (res.data?.data ?? res.data) as Record<string, unknown>
+        resourceId = raw?.id as number | undefined
       }
+
+      // Assign to each selected cohort — best-effort, never blocks success
+      if (resourceId && selectedCohortIds.size > 0) {
+        await Promise.allSettled(
+          Array.from(selectedCohortIds).map(cohortId =>
+            apiClient.post(`/admin/cohorts/${cohortId}/resources`, {
+              programResourceId: resourceId,
+              status: 'ACTIVE',
+            })
+          )
+        )
+      }
+
       setShowAddResource(false)
       setResourceForm({ title: '', type: 'PDF', link: '' })
       setUploadFile(null); setResourceMode('url')
+      setSelectedCohortIds(new Set())
       onRefresh()
     } catch (err) { setError(getApiError(err)) } finally { setSaving(false) }
   }
@@ -477,6 +513,7 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
   function closeResourceModal() {
     setShowAddResource(false); setEditResource(null)
     setUploadFile(null); setResourceMode('url')
+    setSelectedCohortIds(new Set())
   }
 
   // ── Empty state ────────────────────────────────────────────────────────────
@@ -716,6 +753,41 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
                   uploading={saving}
                   uploadedFileName={uploadFile?.name ?? null}
                 />
+              </Field>
+            )}
+
+            {/* Cohort assignment — only for new resources */}
+            {!editResource && (
+              <Field label="Assign to Cohorts (optional)">
+                {loadingCohorts ? (
+                  <p className="text-[12px] text-[#9ca3af] font-body">Loading cohorts…</p>
+                ) : cohortOptions.length === 0 ? (
+                  <p className="text-[12px] text-[#9ca3af] font-body">No cohorts found for this programme.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {cohortOptions.map(c => {
+                      const active = selectedCohortIds.has(c.id)
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => setSelectedCohortIds(prev => {
+                            const next = new Set(prev)
+                            active ? next.delete(c.id) : next.add(c.id)
+                            return next
+                          })}
+                          className={`px-3 h-8 rounded-full text-[12px] font-medium font-body border transition-colors ${
+                            active
+                              ? 'bg-[#d51520] text-white border-[#d51520]'
+                              : 'bg-white text-[#475467] border-[#e5e7eb] hover:bg-[#f9fafb]'
+                          }`}
+                        >
+                          {c.title}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
               </Field>
             )}
 
