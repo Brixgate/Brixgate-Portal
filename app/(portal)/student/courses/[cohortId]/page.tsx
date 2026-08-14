@@ -552,7 +552,10 @@ function ReviewPanel({ form }: { form: ReviewForm }) {
           {form.title ?? 'Review'}
         </h2>
         {form.description && (
-          <p className="text-[13px] text-[#4b5563] font-body leading-relaxed">{form.description}</p>
+          <div
+            className="text-[13px] text-[#4b5563] font-body leading-relaxed rich-content"
+            dangerouslySetInnerHTML={{ __html: form.description }}
+          />
         )}
       </div>
 
@@ -745,9 +748,10 @@ function DetailPanel({ item, resources }: { item: SelectedItem | null; resources
 
         {/* Description */}
         {(mod.description ?? mod.module_description) ? (
-          <p className="text-[15px] text-[#475467] font-body leading-[1.7] mb-6">
-            {mod.description ?? mod.module_description}
-          </p>
+          <div
+            className="text-[15px] text-[#475467] font-body leading-[1.7] mb-6 rich-content"
+            dangerouslySetInnerHTML={{ __html: mod.description ?? mod.module_description ?? '' }}
+          />
         ) : (
           <p className="text-[14px] text-[#4b5563] font-body leading-[1.6] mb-6 italic">
             No description provided for this module.

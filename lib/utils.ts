@@ -107,6 +107,24 @@ export function getTodayFormatted(): string {
   }).format(new Date())
 }
 
+// ── HTML utilities ────────────────────────────────────────────────────────────
+
+/**
+ * Strip HTML tags and return plain text.
+ * Converts <br> and </div> / </p> to spaces so words don't run together.
+ * Used wherever rich-text content must display as a single plain-text line.
+ */
+export function stripHtml(html: string): string {
+  if (!html) return ''
+  return html
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<\/div>/gi, ' ')
+    .replace(/<\/p>/gi, ' ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
 // ── String utilities ──────────────────────────────────────────────────────────
 
 /** "Adebayo Okafor" → "AO" */

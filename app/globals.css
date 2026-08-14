@@ -164,3 +164,9 @@ select {
   background-size: 14px 14px;
   cursor: pointer;
 }
+
+/* ── Rich-text content rendered from admin HTML editor ─────────────────────── */
+.rich-content div { display: block; }
+.rich-content div:empty,
+.rich-content br   { display: block; height: 0.5em; content: ''; }
+.rich-content div + div { margin-top: 0; }

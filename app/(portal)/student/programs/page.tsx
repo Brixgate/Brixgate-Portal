@@ -13,6 +13,7 @@ import {
 } from 'hugeicons-react'
 import EmptyState from '@/components/shared/EmptyState'
 import { apiClient, unwrap } from '@/lib/api-client'
+import { stripHtml } from '@/lib/utils'
 import TeamFeature from '@/components/teams/TeamFeature'
 import axios from 'axios'
 
@@ -349,7 +350,7 @@ export default function ProgramsPage() {
                     {/* Subtitle / description */}
                     {p.subtitle && (
                       <p className="text-[12px] text-[#4b5563] font-body leading-[1.5] mb-2 line-clamp-2">
-                        {p.subtitle}
+                        {stripHtml(p.subtitle)}
                       </p>
                     )}
 
