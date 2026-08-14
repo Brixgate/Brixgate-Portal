@@ -1088,7 +1088,7 @@ function CertificatesTab({ cohortId, programId }: { cohortId: string; programId:
       if (!defId) throw new Error('Could not get certificate definition')
       const targetIds = Array.from(selectedStudents)
       await apiClient.post('/admin/user-certificates/issue', {
-        certificateId: defId, cohortId: Number(cohortId), userIds: targetIds,
+        certificate_id: defId, cohort_id: Number(cohortId), user_ids: targetIds,
       })
       setIssuedUserIds(prev => { const s = new Set(prev); targetIds.forEach(id => s.add(id)); return s })
       setSelectedStudents(new Set())
