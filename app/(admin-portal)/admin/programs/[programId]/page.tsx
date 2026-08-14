@@ -815,7 +815,7 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
                           type="button"
                           onClick={() => setSelectedCohortIds(prev => {
                             const next = new Set(prev)
-                            active ? next.delete(c.id) : next.add(c.id)
+                            if (active) { next.delete(c.id) } else { next.add(c.id) }
                             return next
                           })}
                           className={`px-3 h-8 rounded-full text-[12px] font-medium font-body border transition-colors ${
