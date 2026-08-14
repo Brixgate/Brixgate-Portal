@@ -57,7 +57,8 @@ interface CertRow {
   pdfUrl: string | null
   issuedAt: string | null
   certificateNumber: string | null
-  instructorName: string   // fetched from cohort members after initial load
+  instructorName: string          // fetched from cohort members after initial load
+  instructorSignatureUrl: string  // signature image URL from instructor profile
 }
 
 function normaliseProgramToCertRow(
@@ -92,10 +93,13 @@ function normaliseProgramToCertRow(
       : null,
     certificateNumber: cert?.certificate_number ?? cert?.certificateNumber ?? null,
     instructorName: '',
+    instructorSignatureUrl: '',
   }
 }
 
 // ── Fetch the instructor for a given cohort ───────────────────────────────────
+interface InstructorData { name: string; signatureUrl: string }
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function extractName(u: any): string {
   if (!u) return ''
@@ -105,7 +109,13 @@ function extractName(u: any): string {
   ) || u.email || ''
 }
 
-async function fetchCohortInstructor(cohortId: number): Promise<string> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function extractSignatureUrl(u: any): string {
+  if (!u) return ''
+  return u.signature_url ?? u.signatureUrl ?? u.signature ?? ''
+}
+
+async function fetchCohortInstructor(cohortId: number): Promise<InstructorData> {
   const endpoints = [
     `/cohorts/${cohortId}/instructors`,
     `/cohorts/${cohortId}/users?role=INSTRUCTOR`,
@@ -129,13 +139,12 @@ async function fetchCohortInstructor(cohortId: number): Promise<string> {
       })()
 
       if (candidates.length > 0) {
-        // pick the first user whose role is INSTRUCTOR (or just the first if no role filter)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const match = candidates.find((u: any) =>
           !u?.role || String(u.role).toUpperCase() === 'INSTRUCTOR'
         ) ?? candidates[0]
         const name = extractName(match)
-        if (name) return name
+        if (name) return { name, signatureUrl: extractSignatureUrl(match) }
       }
 
       // endpoint returned cohort details — check for nested instructors
@@ -144,20 +153,20 @@ async function fetchCohortInstructor(cohortId: number): Promise<string> {
       if (nested) {
         if (Array.isArray(nested) && nested.length > 0) {
           const name = extractName(nested[0])
-          if (name) return name
+          if (name) return { name, signatureUrl: extractSignatureUrl(nested[0]) }
         } else if (typeof nested === 'object' && nested !== null) {
           const name = extractName(nested)
-          if (name) return name
+          if (name) return { name, signatureUrl: extractSignatureUrl(nested) }
         }
       }
     } catch { /* try next endpoint */ }
   }
-  return ''
+  return { name: '', signatureUrl: '' }
 }
 
 // ── Certificate card design (matches the screenshot) ─────────────────────────
 function CertificateDesign({ row, fullName }: { row: CertRow; fullName: string }) {
-  const { title, cohortLabel, issuedAt, certificateNumber, instructorName } = row
+  const { title, cohortLabel, issuedAt, certificateNumber, instructorName, instructorSignatureUrl } = row
   const expertName = instructorName || 'Expert Practitioner'
 
   const pubLink = certificateNumber
@@ -231,26 +240,23 @@ function CertificateDesign({ row, fullName }: { row: CertRow; fullName: string }
       {/* Divider */}
       <div style={{ width: '100%', height: 1, background: 'rgba(255,255,255,0.1)', margin: 'clamp(10px,1.5%,14px) 0' }} />
 
-      {/* Footer — QR left, single signature right */}
-      <div style={{ width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
-        {/* QR + cert number */}
-        <div style={{ textAlign: 'center' }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={qrUrl} width={72} height={72} alt="QR code"
-            style={{ background: 'white', padding: 4, borderRadius: 4, display: 'block' }} />
-          {certificateNumber && (
-            <p style={{ fontSize: 8, letterSpacing: '0.08em', color: 'rgba(255,255,255,0.35)', marginTop: 4, textTransform: 'uppercase' }}>
-              {certificateNumber}
-            </p>
-          )}
-        </div>
-
-        {/* Single signature — Expert Practitioner (instructor) */}
-        <div style={{ textAlign: 'center', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div style={{ width: 140, height: 1, background: 'rgba(255,255,255,0.3)', marginBottom: 7 }} />
-          <p style={{ fontSize: 13, fontWeight: 700, color: 'white' }}>{expertName}</p>
-          <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>Expert Practitioner · Brixgate</p>
-        </div>
+      {/* Footer — centered column: signature → line → name → role → QR → cert no */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0, width: '100%' }}>
+        {instructorSignatureUrl && (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img src={instructorSignatureUrl} alt="Signature" style={{ height: 44, maxWidth: 160, objectFit: 'contain', marginBottom: 4 }} />
+        )}
+        <div style={{ width: 140, height: 1, background: 'rgba(255,255,255,0.3)', marginBottom: 6 }} />
+        <p style={{ fontSize: 13, fontWeight: 700, color: 'white' }}>{expertName}</p>
+        <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginTop: 2, marginBottom: 10 }}>Expert Practitioner · Brixgate</p>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={qrUrl} width={64} height={64} alt="QR code"
+          style={{ background: 'white', padding: 3, borderRadius: 4, display: 'block' }} />
+        {certificateNumber && (
+          <p style={{ fontSize: 8, letterSpacing: '0.08em', color: 'rgba(255,255,255,0.35)', marginTop: 5, textTransform: 'uppercase' }}>
+            {certificateNumber}
+          </p>
+        )}
       </div>
 
       {/* Bottom date */}
@@ -263,7 +269,7 @@ function CertificateDesign({ row, fullName }: { row: CertRow; fullName: string }
 
 // ── Generate standalone HTML for print/PDF ────────────────────────────────────
 function generatePrintHtml(row: CertRow, fullName: string, baseUrl: string): string {
-  const { title, cohortLabel, issuedAt, certificateNumber, instructorName } = row
+  const { title, cohortLabel, issuedAt, certificateNumber, instructorName, instructorSignatureUrl } = row
   const expertName = instructorName || 'Expert Practitioner'
   const pubLink    = certificateNumber ? `https://brixgate.com/verify/${certificateNumber}` : 'https://brixgate.com'
   const qrUrl      = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&color=ffffff&bgcolor=0A0E1A&data=${encodeURIComponent(pubLink)}`
@@ -291,11 +297,11 @@ html,body{background:#0A0E1A!important;min-height:100vh;display:flex;align-items
 .prog{font-size:22px;font-weight:700;color:#D15150;margin-bottom:4px;text-align:center}
 .trk{font-size:10px;letter-spacing:.1em;color:rgba(255,255,255,.4);text-transform:uppercase}
 .line{width:100%;height:1px;background:rgba(255,255,255,.1);margin:14px 0}
-.ft{width:100%;display:flex;align-items:flex-end;justify-content:space-between;gap:16px}
-.qw{text-align:center}.cnum{font-size:8px;letter-spacing:.08em;color:rgba(255,255,255,.35);margin-top:4px;text-transform:uppercase}
-.sig{text-align:center;flex:1;display:flex;flex-direction:column;align-items:center}
-.sline{width:140px;height:1px;background:rgba(255,255,255,.3);margin-bottom:7px}
-.sname{font-size:13px;font-weight:700;color:white}.srole{font-size:10px;color:rgba(255,255,255,.4);margin-top:2px}
+.ft{display:flex;flex-direction:column;align-items:center;gap:0;width:100%}
+.sigimg{height:44px;max-width:160px;object-fit:contain;margin-bottom:4px}
+.sline{width:140px;height:1px;background:rgba(255,255,255,.3);margin-bottom:6px}
+.sname{font-size:13px;font-weight:700;color:white}.srole{font-size:10px;color:rgba(255,255,255,.4);margin-top:2px;margin-bottom:10px}
+.qw{text-align:center}.cnum{font-size:8px;letter-spacing:.08em;color:rgba(255,255,255,.35);margin-top:5px;text-transform:uppercase}
 .dtf{font-size:9px;letter-spacing:.12em;color:rgba(255,255,255,.3);text-transform:uppercase;margin-top:10px}
 </style>
 </head>
@@ -313,14 +319,13 @@ html,body{background:#0A0E1A!important;min-height:100vh;display:flex;align-items
 ${cohortLabel ? `<p class="trk">${cohortLabel}</p>` : ''}
 <div class="line"></div>
 <div class="ft">
+  ${instructorSignatureUrl ? `<img src="${instructorSignatureUrl}" class="sigimg" alt="Signature">` : ''}
+  <div class="sline"></div>
+  <p class="sname">${expertName}</p>
+  <p class="srole">Expert Practitioner · Brixgate</p>
   <div class="qw">
-    <img src="${qrUrl}" width="72" height="72" style="background:white;padding:4px;border-radius:4px;display:block" alt="QR">
+    <img src="${qrUrl}" width="64" height="64" style="background:white;padding:3px;border-radius:4px;display:block" alt="QR">
     <p class="cnum">${certificateNumber ?? ''}</p>
-  </div>
-  <div class="sig">
-    <div class="sline"></div>
-    <p class="sname">${expertName}</p>
-    <p class="srole">Expert Practitioner · Brixgate</p>
   </div>
 </div>
 <p class="dtf">${issuedAt ?? ''} · BRIXGATE.COM</p>
@@ -483,7 +488,7 @@ export default function CertificatePage() {
       const instructorResults = await Promise.allSettled(
         uniqueCohortIds.map(id => fetchCohortInstructor(id))
       )
-      const instructorMap = new Map<number, string>()
+      const instructorMap = new Map<number, InstructorData>()
       uniqueCohortIds.forEach((id, i) => {
         const result = instructorResults[i]
         if (result.status === 'fulfilled' && result.value) {
@@ -491,7 +496,11 @@ export default function CertificatePage() {
         }
       })
 
-      setRows(baseRows.map(r => ({ ...r, instructorName: instructorMap.get(r.cohortId) ?? '' })))
+      setRows(baseRows.map(r => ({
+        ...r,
+        instructorName:         instructorMap.get(r.cohortId)?.name         ?? '',
+        instructorSignatureUrl: instructorMap.get(r.cohortId)?.signatureUrl ?? '',
+      })))
     } catch {
       // show empty state — student may not be enrolled yet
     } finally {
