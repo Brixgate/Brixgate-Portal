@@ -36,16 +36,24 @@ interface ApiProgram {
 
 interface ApiCertification {
   id: number
-  program_id?: number
+  // top-level fields (some endpoints flatten these)
+  program_id?: number;  programId?: number
+  cohort_id?: number;   cohortId?: number
   program_title?: string
-  issued_at?: string
-  certificate_url?: string
-  pdf_url?: string
-  certificate_number?: string
-  certificateNumber?: string
-  cohort_title?: string
-  cohortTitle?: string
+  issued_at?: string;   issuedAt?: string
+  certificate_url?: string; certificateUrl?: string
+  pdf_url?: string;     pdfUrl?: string
+  certificate_number?: string; certificateNumber?: string
+  cohort_title?: string; cohortTitle?: string
   metadata?: { signatories?: string[] }
+  // nested certificate definition (user-certificate response shape)
+  certificate?: {
+    id?: number
+    program_id?: number; programId?: number
+    cohort_id?: number;  cohortId?: number
+    title?: string
+    template_url?: string
+  }
 }
 
 // ── Normalised ────────────────────────────────────────────────────────────────
@@ -63,27 +71,36 @@ interface CertRow {
   signatories: string[]
 }
 
-function normaliseProgramToCertRow(raw: ApiProgram, certMap: Map<number, ApiCertification>): CertRow {
+function normaliseProgramToCertRow(
+  raw: ApiProgram,
+  byProgram: Map<number, ApiCertification>,
+  byCohort:  Map<number, ApiCertification>,
+): CertRow {
   const enrollment = raw.enrollment
-  const cohort = enrollment?.cohort ?? raw.cohort ?? null
-  const title = raw.title ?? 'Untitled Programme'
+  const cohort     = enrollment?.cohort ?? raw.cohort ?? null
+  const title      = raw.title ?? 'Untitled Programme'
   const cohortName = cohort?.name ?? ''
   const cohortLabel = cohortName.replace(`${title} — `, '').replace(`${title} - `, '') || cohortName
-  const cert = certMap.get(raw.id)
+  const cohortId   = enrollment?.cohort_id ?? cohort?.id ?? raw.cohort_id ?? 0
+
+  // look up by program_id first, then by cohort_id as fallback
+  const cert = byProgram.get(raw.id) ?? byCohort.get(cohortId) ?? null
+
+  const rawIssuedAt = cert?.issued_at ?? cert?.issuedAt ?? null
 
   return {
     key: String(raw.id),
     programId: raw.id,
     title,
     cohortLabel,
-    progress: enrollment?.progress ?? raw.progress ?? 0,
-    cohortId: enrollment?.cohort_id ?? cohort?.id ?? raw.cohort_id ?? 0,
+    progress:  enrollment?.progress ?? raw.progress ?? 0,
+    cohortId,
     endDate: cohort?.end_date
       ? new Date(cohort.end_date).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })
       : '—',
-    certificateUrl:    cert?.certificate_url ?? cert?.pdf_url ?? null,
-    issuedAt:          cert?.issued_at
-      ? new Date(cert.issued_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })
+    certificateUrl:    cert?.certificate_url ?? cert?.certificateUrl ?? cert?.pdf_url ?? cert?.pdfUrl ?? null,
+    issuedAt:          rawIssuedAt
+      ? new Date(rawIssuedAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })
       : null,
     certificateNumber: cert?.certificate_number ?? cert?.certificateNumber ?? null,
     signatories:       cert?.metadata?.signatories ?? [],
@@ -349,29 +366,48 @@ export default function CertificatePage() {
   useEffect(() => {
     async function load() {
       try {
-        // Fetch programs and certifications in parallel
         const [programsRes, certsRes] = await Promise.all([
           apiClient.get('/users/me/programs'),
-          apiClient.get('/users/me/certifications').catch(() => ({ data: [] })),
+          apiClient.get('/users/me/certifications').catch(() => ({ data: null })),
         ])
 
-        const programs = (unwrap<ApiProgram[]>(programsRes.data) ?? [])
-        const certs    = (unwrap<ApiCertification[]>(certsRes.data) ?? [])
+        // Programs: unwrap handles { data: [...] } or bare array
+        const programsRaw = unwrap<unknown>(programsRes.data)
+        const programs: ApiProgram[] = Array.isArray(programsRaw)
+          ? programsRaw
+          : Array.isArray((programsRaw as Record<string, unknown>)?.programs)
+            ? (programsRaw as Record<string, unknown>).programs as ApiProgram[]
+            : []
 
-        // Build a map of program_id → certification
-        const certMap = new Map<number, ApiCertification>()
+        // Certifications: API may return array, or { certifications:[...] },
+        // or { certificates:[...] }, or { user_certificates:[...] }
+        const certsRaw = unwrap<unknown>(certsRes.data)
+        const certs: ApiCertification[] = (() => {
+          if (!certsRaw) return []
+          if (Array.isArray(certsRaw)) return certsRaw as ApiCertification[]
+          const r = certsRaw as Record<string, unknown>
+          if (Array.isArray(r.certifications))     return r.certifications     as ApiCertification[]
+          if (Array.isArray(r.certificates))       return r.certificates       as ApiCertification[]
+          if (Array.isArray(r.user_certificates))  return r.user_certificates  as ApiCertification[]
+          return []
+        })()
+
+        // Build two lookup maps: by program_id and by cohort_id.
+        // User-certificate responses may nest ids inside a `certificate` object.
+        const byProgram = new Map<number, ApiCertification>()
+        const byCohort  = new Map<number, ApiCertification>()
+
         for (const c of certs) {
-          if (c.program_id) certMap.set(c.program_id, c)
+          const def    = c.certificate ?? c                      // unwrap nested shape
+          const progId = def.program_id ?? def.programId ?? c.program_id ?? c.programId
+          const cohId  = def.cohort_id  ?? def.cohortId  ?? c.cohort_id  ?? c.cohortId
+          if (progId) byProgram.set(progId, c)
+          if (cohId)  byCohort.set(cohId,  c)
         }
 
-        const certRows = (Array.isArray(programs) ? programs : []).map((p) =>
-          normaliseProgramToCertRow(p, certMap)
-        )
-        setRows(certRows)
+        setRows(programs.map(p => normaliseProgramToCertRow(p, byProgram, byCohort)))
       } catch {
-        // Any failure (401, network, missing endpoint) — just show empty state.
-        // "No certificates yet" is always more helpful than "something went wrong"
-        // when the user simply hasn't enrolled or isn't authenticated yet.
+        // show empty state rather than an error — student may just not be enrolled yet
       } finally {
         setLoading(false)
       }
