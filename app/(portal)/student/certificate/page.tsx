@@ -166,8 +166,7 @@ async function fetchCohortInstructor(cohortId: number): Promise<InstructorData> 
 
 // ── Certificate card design (matches the screenshot) ─────────────────────────
 function CertificateDesign({ row, fullName }: { row: CertRow; fullName: string }) {
-  const { title, cohortLabel, issuedAt, certificateNumber, instructorName, instructorSignatureUrl } = row
-  const expertName = instructorName || 'Expert Practitioner'
+  const { title, cohortLabel, issuedAt, certificateNumber } = row
 
   const pubLink = certificateNumber
     ? `https://brixgate.com/verify/${certificateNumber}`
@@ -242,18 +241,8 @@ function CertificateDesign({ row, fullName }: { row: CertRow; fullName: string }
         <p style={{ fontSize: 10, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>{cohortLabel}</p>
       )}
 
-      {/* Divider */}
-      <div style={{ width: '100%', height: 1, background: 'rgba(255,255,255,0.1)', margin: 'clamp(10px,1.5%,14px) 0' }} />
-
-      {/* Footer — centered column: signature → line → name → role → QR → cert no */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0, width: '100%' }}>
-        {instructorSignatureUrl && (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img src={instructorSignatureUrl} alt="Signature" style={{ height: 44, maxWidth: 160, objectFit: 'contain', marginBottom: 4 }} />
-        )}
-        <div style={{ width: 140, height: 1, background: 'rgba(255,255,255,0.3)', marginBottom: 6 }} />
-        <p style={{ fontSize: 13, fontWeight: 700, color: 'white' }}>{expertName}</p>
-        <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginTop: 2, marginBottom: 10 }}>Expert Practitioner · Brixgate</p>
+      {/* Footer — QR + cert number, centered */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 'clamp(14px,2%,20px)' }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={qrUrl} width={64} height={64} alt="QR code"
           style={{ background: 'white', padding: 3, borderRadius: 4, display: 'block' }} />
@@ -274,9 +263,8 @@ function CertificateDesign({ row, fullName }: { row: CertRow; fullName: string }
 
 // ── Generate standalone HTML for print/PDF ────────────────────────────────────
 function generatePrintHtml(row: CertRow, fullName: string, baseUrl: string): string {
-  const { title, cohortLabel, issuedAt, certificateNumber, instructorName, instructorSignatureUrl } = row
-  const expertName = instructorName || 'Expert Practitioner'
-  const pubLink    = certificateNumber ? `https://brixgate.com/verify/${certificateNumber}` : 'https://brixgate.com'
+  const { title, cohortLabel, issuedAt, certificateNumber } = row
+  const pubLink = certificateNumber ? `https://brixgate.com/verify/${certificateNumber}` : 'https://brixgate.com'
   const qrUrl      = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&color=ffffff&bgcolor=0A0E1A&data=${encodeURIComponent(pubLink)}`
   const logoUrl    = `${baseUrl}/images/logo2.png`
 
@@ -301,11 +289,7 @@ html,body{background:#0A0E1A!important;min-height:100vh;display:flex;align-items
 .name{font-size:50px;font-weight:800;color:white;line-height:1.05;margin-bottom:8px;text-align:center}
 .prog{font-size:22px;font-weight:700;color:#D15150;margin-bottom:4px;text-align:center}
 .trk{font-size:10px;letter-spacing:.1em;color:rgba(255,255,255,.4);text-transform:uppercase}
-.line{width:100%;height:1px;background:rgba(255,255,255,.1);margin:14px 0}
-.ft{display:flex;flex-direction:column;align-items:center;gap:0;width:100%}
-.sigimg{height:44px;max-width:160px;object-fit:contain;margin-bottom:4px}
-.sline{width:140px;height:1px;background:rgba(255,255,255,.3);margin-bottom:6px}
-.sname{font-size:13px;font-weight:700;color:white}.srole{font-size:10px;color:rgba(255,255,255,.4);margin-top:2px;margin-bottom:10px}
+.ft{display:flex;flex-direction:column;align-items:center;margin-top:20px}
 .qw{text-align:center}.cnum{font-size:8px;letter-spacing:.08em;color:rgba(255,255,255,.35);margin-top:5px;text-transform:uppercase}
 .dtf{font-size:9px;letter-spacing:.12em;color:rgba(255,255,255,.3);text-transform:uppercase;margin-top:10px}
 </style>
@@ -322,12 +306,7 @@ html,body{background:#0A0E1A!important;min-height:100vh;display:flex;align-items
 <p class="it">has successfully completed the</p>
 <p class="prog">${title}</p>
 ${cohortLabel ? `<p class="trk">${cohortLabel}</p>` : ''}
-<div class="line"></div>
 <div class="ft">
-  ${instructorSignatureUrl ? `<img src="${instructorSignatureUrl}" class="sigimg" alt="Signature">` : ''}
-  <div class="sline"></div>
-  <p class="sname">${expertName}</p>
-  <p class="srole">Expert Practitioner · Brixgate</p>
   <div class="qw">
     <img src="${qrUrl}" width="64" height="64" style="background:white;padding:3px;border-radius:4px;display:block" alt="QR">
     <p class="cnum">${certificateNumber ?? ''}</p>
