@@ -454,7 +454,12 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
         formData.append('status', 'PUBLISHED')
         const res = await apiClient.post('/program-resources', formData)
         const raw = (res.data?.data ?? res.data) as Record<string, unknown>
-        resourceId = raw?.id as number | undefined
+        resourceId = (
+          raw?.id ??
+          (raw?.programResource as Record<string, unknown>)?.id ??
+          (raw?.program_resource as Record<string, unknown>)?.id ??
+          (raw?.resource as Record<string, unknown>)?.id
+        ) as number | undefined
       } else {
         const link = resourceForm.link.trim()
         if (!link) { setError('URL is required.'); return }
@@ -462,7 +467,12 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
           title: resourceForm.title.trim(), type: resourceForm.type, link, status: 'PUBLISHED',
         })
         const raw = (res.data?.data ?? res.data) as Record<string, unknown>
-        resourceId = raw?.id as number | undefined
+        resourceId = (
+          raw?.id ??
+          (raw?.programResource as Record<string, unknown>)?.id ??
+          (raw?.program_resource as Record<string, unknown>)?.id ??
+          (raw?.resource as Record<string, unknown>)?.id
+        ) as number | undefined
       }
 
       // Assign to each selected cohort — best-effort, never blocks success
