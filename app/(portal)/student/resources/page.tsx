@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import TopNav from '@/components/layout/TopNav'
 import type { Resource, ResourceFileType } from '@/lib/types'
 import {
@@ -15,6 +15,7 @@ import {
   CheckmarkCircle01Icon,
   EyeIcon,
   Cancel01Icon,
+  Search01Icon,
 } from 'hugeicons-react'
 import EmptyState from '@/components/shared/EmptyState'
 import { cn } from '@/lib/utils'
@@ -23,11 +24,11 @@ import { useToast, ToastContainer } from '@/components/shared/Toast'
 
 // ── Filter chips ──────────────────────────────────────────────────────────────
 const FILTER_CHIPS: { label: string; apiType: string | null }[] = [
-  { label: 'All',    apiType: null           },
-  { label: 'PDF',    apiType: 'PDF'          },
-  { label: 'Slides', apiType: 'PRESENTATION' },
-  { label: 'Video',  apiType: 'VIDEO'        },
-  { label: 'Doc',    apiType: 'ARTICLE'      },
+  { label: 'All',         apiType: null           },
+  { label: 'PDF',         apiType: 'PDF'          },
+  { label: 'Slides',      apiType: 'PRESENTATION' },
+  { label: 'Video',       apiType: 'VIDEO'        },
+  { label: 'Doc',         apiType: 'ARTICLE'      },
 ]
 
 const FILE_ICONS: Record<string, React.ElementType> = {
@@ -51,20 +52,21 @@ interface ApiResource {
   link?: string
   status?: string
   createdAt?: string
+  created_at?: string
   programModuleId?: number
+  program_module_id?: number
 }
 interface ApiResourcesResponse {
   resources: ApiResource[]
 }
 
-// ── Cohort option (built from /users/me/programs) ─────────────────────────────
+// ── Cohort option ─────────────────────────────────────────────────────────────
 interface CohortOption {
   cohortId: number
-  label: string        // e.g. "AI in Software Engineering"
-  cohortLabel: string  // e.g. "Cohort 3"
+  label: string
+  cohortLabel: string
 }
 
-// ── Defensive field readers ───────────────────────────────────────────────────
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function readCohortId(c: any): number    { return c?.cohortId    ?? c?.cohort_id    ?? 0  }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -72,7 +74,6 @@ function readCohortTitle(c: any): string { return c?.cohortTitle ?? c?.cohort_ti
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function readMyCohorts(p: any): any[]    { return p?.myCohorts   ?? p?.my_cohorts   ?? [] }
 
-// ── Normalise API resource → internal Resource shape ─────────────────────────
 function inferFileType(type: string): ResourceFileType {
   const t = type.toUpperCase()
   if (t === 'PDF')                       return 'pdf'
@@ -90,9 +91,9 @@ function normaliseResource(raw: ApiResource): Resource {
     fileName:    raw.title ?? 'file',
     fileType:    inferFileType(raw.type ?? ''),
     fileSize:    '',
-    weekNumber:  raw.programModuleId ?? 0,
+    weekNumber:  raw.programModuleId ?? raw.program_module_id ?? 0,
     weekTitle:   '',
-    uploadedAt:  raw.createdAt ?? '',
+    uploadedAt:  raw.createdAt ?? raw.created_at ?? '',
     uploadedBy:  '',
     downloadUrl: raw.link ?? '#',
   }
@@ -107,7 +108,7 @@ function groupByWeek(resources: Resource[]): Record<number, { title: string; ite
   const out: Record<number, { title: string; items: Resource[] }> = {}
   for (const r of resources) {
     const week = r.weekNumber ?? 0
-    if (!out[week]) out[week] = { title: r.weekTitle ?? `Week ${week}`, items: [] }
+    if (!out[week]) out[week] = { title: r.weekTitle ?? (week > 0 ? `Module ${week}` : 'General'), items: [] }
     out[week].items.push(r)
   }
   return out
@@ -132,10 +133,7 @@ function ResourceRow({ resource }: { resource: Resource }) {
     const inner = (body?.data ?? body) as Record<string, unknown>
     const url = (inner?.url ?? inner?.link ?? body?.url) as string | undefined
     if (!url) throw new Error('No download URL in response')
-    return {
-      url,
-      contentType: ((inner?.content_type ?? inner?.contentType ?? '') as string),
-    }
+    return { url, contentType: ((inner?.content_type ?? inner?.contentType ?? '') as string) }
   }
 
   async function handleDownload() {
@@ -153,69 +151,42 @@ function ResourceRow({ resource }: { resource: Resource }) {
     setPreviewing(true)
     try {
       const { url, contentType } = await getPresignedUrl()
-      // Use the pre-signed URL directly — <iframe src> and <img src> are simple
-      // resource loads, not CORS fetch requests, so S3 bucket policy won't block them.
       setPreview({ s3Url: url, contentType })
     } catch (err) { toast.error(`Preview failed: ${getApiError(err)}`) }
     finally { setPreviewing(false) }
   }
 
-  function closePreview() { setPreview(null) }
-
   return (
     <>
       <div className="flex items-center gap-4 py-3.5 px-5 hover:bg-[#f9fafb] transition-colors rounded-[8px] group">
-        <div
-          className="w-9 h-9 rounded-[8px] flex items-center justify-center flex-shrink-0"
-          style={{ background: colours.bg }}
-        >
+        <div className="w-9 h-9 rounded-[8px] flex items-center justify-center flex-shrink-0" style={{ background: colours.bg }}>
           <FileIcon size={16} color={colours.text} strokeWidth={1.5} />
         </div>
-
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <p className="text-[13px] font-medium text-[#111827] font-body leading-snug truncate">
-              {resource.title}
-            </p>
+            <p className="text-[13px] font-medium text-[#111827] font-body leading-snug truncate">{resource.title}</p>
             {isNew(resource.uploadedAt) && (
-              <span className="text-[9px] font-semibold uppercase tracking-wide bg-[#fef2f2] text-[#d51520] px-1.5 py-0.5 rounded-[4px] flex-shrink-0 font-display">
-                New
-              </span>
+              <span className="text-[9px] font-semibold uppercase tracking-wide bg-[#fef2f2] text-[#d51520] px-1.5 py-0.5 rounded-[4px] flex-shrink-0 font-display">New</span>
             )}
           </div>
           <p className="text-[11px] text-[#4b5563] font-body mt-0.5">
-            {resource.fileType.toUpperCase()}
-            {uploadedDate ? ` · Uploaded ${uploadedDate}` : ''}
+            {resource.fileType.toUpperCase()}{uploadedDate ? ` · Uploaded ${uploadedDate}` : ''}
           </p>
         </div>
-
         <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-          <button
-            onClick={handlePreview}
-            disabled={previewing}
-            className="flex items-center gap-1.5 text-[12px] font-medium font-display text-[#374151] border border-[#e5e7eb] px-3 py-1.5 rounded-[6px] hover:bg-[#f3f4f6] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            aria-label={`Preview ${resource.title}`}
-          >
-            {previewing
-              ? <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />
-              : <EyeIcon size={13} color="#374151" strokeWidth={1.5} />}
+          <button onClick={handlePreview} disabled={previewing}
+            className="flex items-center gap-1.5 text-[12px] font-medium font-display text-[#374151] border border-[#e5e7eb] px-3 py-1.5 rounded-[6px] hover:bg-[#f3f4f6] transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            {previewing ? <Loading01Icon size={13} className="animate-spin" strokeWidth={2} /> : <EyeIcon size={13} color="#374151" strokeWidth={1.5} />}
             {previewing ? 'Loading…' : 'Preview'}
           </button>
-          <button
-            onClick={handleDownload}
-            disabled={downloading}
-            className="flex items-center gap-1.5 text-[12px] font-medium font-display text-[#374151] border border-[#e5e7eb] px-3 py-1.5 rounded-[6px] hover:bg-[#f3f4f6] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            aria-label={`Download ${resource.title}`}
-          >
-            {downloading
-              ? <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />
-              : <Download01Icon size={13} color="#374151" strokeWidth={1.5} />}
+          <button onClick={handleDownload} disabled={downloading}
+            className="flex items-center gap-1.5 text-[12px] font-medium font-display text-[#374151] border border-[#e5e7eb] px-3 py-1.5 rounded-[6px] hover:bg-[#f3f4f6] transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            {downloading ? <Loading01Icon size={13} className="animate-spin" strokeWidth={2} /> : <Download01Icon size={13} color="#374151" strokeWidth={1.5} />}
             {downloading ? 'Downloading…' : 'Download'}
           </button>
         </div>
       </div>
 
-      {/* Preview modal — full screen overlay */}
       {preview && (
         <div className="fixed inset-0 z-50 flex flex-col">
           <div className="flex items-center justify-between px-5 py-3 bg-white border-b border-[#e5e7eb] shadow-sm flex-shrink-0">
@@ -224,14 +195,11 @@ function ResourceRow({ resource }: { resource: Resource }) {
               <p className="text-[14px] font-semibold text-[#111827] font-display truncate">{resource.title}</p>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0 ml-4">
-              <button
-                onClick={() => window.open(preview.s3Url, '_blank')}
-                className="flex items-center gap-1.5 h-8 px-3 rounded-[6px] border border-[#e5e7eb] text-[12px] font-medium text-[#374151] font-body hover:bg-[#f3f4f6] transition-colors"
-              >
-                <Download01Icon size={13} color="#374151" strokeWidth={1.5} />
-                Download
+              <button onClick={() => window.open(preview.s3Url, '_blank')}
+                className="flex items-center gap-1.5 h-8 px-3 rounded-[6px] border border-[#e5e7eb] text-[12px] font-medium text-[#374151] font-body hover:bg-[#f3f4f6] transition-colors">
+                <Download01Icon size={13} color="#374151" strokeWidth={1.5} /> Download
               </button>
-              <button onClick={closePreview}
+              <button onClick={() => setPreview(null)}
                 className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f3f4f6] transition-colors">
                 <Cancel01Icon size={16} color="#374151" strokeWidth={1.5} />
               </button>
@@ -239,96 +207,56 @@ function ResourceRow({ resource }: { resource: Resource }) {
           </div>
           <div className="flex-1 overflow-auto bg-[#1a1a1a] flex items-center justify-center">
             {preview.contentType.includes('pdf') || resource.title.toLowerCase().endsWith('.pdf') ? (
-              <iframe
-                src={`https://docs.google.com/viewer?url=${encodeURIComponent(preview.s3Url)}&embedded=true`}
-                className="w-full h-full border-0"
-                title={resource.title}
-              />
+              <iframe src={`https://docs.google.com/viewer?url=${encodeURIComponent(preview.s3Url)}&embedded=true`}
+                className="w-full h-full border-0" title={resource.title} />
             ) : preview.contentType.startsWith('image/') ? (
               <img src={preview.s3Url} alt={resource.title} className="max-w-full max-h-full object-contain p-8" />
             ) : (
               <div className="text-center text-white px-6">
                 <File01Icon size={40} color="#6b7280" strokeWidth={1} className="mx-auto mb-3" />
                 <p className="text-[15px] font-semibold font-display mb-1">Preview not available</p>
-                <p className="text-[13px] text-[#9ca3af] font-body">This file type cannot be previewed. Use the Download button above to open it.</p>
+                <p className="text-[13px] text-[#9ca3af] font-body">Use the Download button above to open this file.</p>
               </div>
             )}
           </div>
         </div>
       )}
-
       <ToastContainer toasts={toasts} onRemove={removeToast} />
     </>
   )
 }
 
-// ── Cohort switcher dropdown ──────────────────────────────────────────────────
-function CohortSwitcher({
-  cohorts,
-  selected,
-  onChange,
-}: {
+// ── Cohort pill (inline selector when enrolled in multiple) ───────────────────
+function CohortPill({ cohorts, selected, onChange }: {
   cohorts: CohortOption[]
   selected: CohortOption
   onChange: (c: CohortOption) => void
 }) {
   const [open, setOpen] = useState(false)
-
-  if (cohorts.length <= 1) return null   // only show if enrolled in 2+ cohorts
+  if (cohorts.length <= 1) return null
 
   return (
     <div className="relative">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 h-[38px] pl-3.5 pr-3 bg-white border border-[#e5e7eb] rounded-[8px] hover:bg-[#f9fafb] transition-colors"
-      >
-        <div className="text-left">
-          <p className="text-[12px] font-semibold text-[#111827] font-display leading-none">
-            {selected.label}
-          </p>
-          {selected.cohortLabel && (
-            <p className="text-[10px] text-[#4b5563] font-body mt-0.5 leading-none">
-              {selected.cohortLabel}
-            </p>
-          )}
-        </div>
-        <ArrowDown01Icon
-          size={13}
-          color="#4b5563"
-          strokeWidth={1.5}
-          className={`flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
-        />
+      <button onClick={() => setOpen(v => !v)}
+        className="flex items-center gap-2 h-9 pl-3.5 pr-2.5 bg-white border border-[#e5e7eb] rounded-[8px] hover:bg-[#f9fafb] transition-colors">
+        <span className="text-[13px] font-semibold text-[#111827] font-display">{selected.label}</span>
+        {selected.cohortLabel && <span className="text-[11px] text-[#6b7280] font-body">· {selected.cohortLabel}</span>}
+        <ArrowDown01Icon size={13} color="#4b5563" strokeWidth={1.5} className={`flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
-
       {open && (
         <>
-          {/* Backdrop */}
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          {/* Menu */}
-          <div className="absolute right-0 top-[calc(100%+6px)] z-50 bg-white rounded-[10px] shadow-[0px_8px_24px_rgba(16,24,40,0.12)] border border-[#f3f4f6] min-w-[240px] py-1.5 overflow-hidden">
-            {cohorts.map((c) => {
-              const isSelected = c.cohortId === selected.cohortId
+          <div className="absolute left-0 top-[calc(100%+6px)] z-50 bg-white rounded-[10px] shadow-[0px_8px_24px_rgba(16,24,40,0.12)] border border-[#f3f4f6] min-w-[240px] py-1.5 overflow-hidden">
+            {cohorts.map(c => {
+              const active = c.cohortId === selected.cohortId
               return (
-                <button
-                  key={c.cohortId}
-                  onClick={() => { onChange(c); setOpen(false) }}
-                  className={`w-full text-left flex items-center justify-between gap-3 px-4 py-2.5 transition-colors ${
-                    isSelected ? 'bg-[#fef2f2]' : 'hover:bg-[#f9fafb]'
-                  }`}
-                >
+                <button key={c.cohortId} onClick={() => { onChange(c); setOpen(false) }}
+                  className={`w-full text-left flex items-center justify-between gap-3 px-4 py-2.5 transition-colors ${active ? 'bg-[#fef2f2]' : 'hover:bg-[#f9fafb]'}`}>
                   <div>
-                    <p className={`text-[13px] font-medium font-display leading-snug ${
-                      isSelected ? 'text-[#d51520]' : 'text-[#111827]'
-                    }`}>
-                      {c.label}
-                    </p>
-                    {c.cohortLabel && (
-                      <p className="text-[11px] text-[#4b5563] font-body mt-0.5">{c.cohortLabel}</p>
-                    )}
+                    <p className={`text-[13px] font-medium font-display leading-snug ${active ? 'text-[#d51520]' : 'text-[#111827]'}`}>{c.label}</p>
+                    {c.cohortLabel && <p className="text-[11px] text-[#4b5563] font-body mt-0.5">{c.cohortLabel}</p>}
                   </div>
-                  {isSelected && (
-                    <CheckmarkCircle01Icon size={15} color="#d51520" strokeWidth={1.5} className="flex-shrink-0" />
-                  )}
+                  {active && <CheckmarkCircle01Icon size={15} color="#d51520" strokeWidth={1.5} className="flex-shrink-0" />}
                 </button>
               )
             })}
@@ -346,34 +274,29 @@ export default function ResourcesPage() {
   const [resources, setResources]       = useState<Resource[]>([])
   const [totalCount, setTotalCount]     = useState(0)
   const [loading, setLoading]           = useState(true)
-  const [filtering, setFiltering]       = useState(false)
   const [error, setError]               = useState<string | null>(null)
   const [activeFilter, setActiveFilter] = useState<string>('All')
+  const [search, setSearch]             = useState('')
 
-  // Step 1 — resolve all enrolled cohorts on mount
+  // Resolve enrolled cohorts on mount
   useEffect(() => {
     async function resolveCohorts() {
       try {
         const res  = await apiClient.get('/users/me/programs')
         const data = unwrap<{ programs: unknown[] }>(res.data)
         const programs = Array.isArray(data?.programs) ? data.programs : []
-
         const options: CohortOption[] = []
         for (const prog of programs) {
           const title   = (prog as Record<string, unknown>)?.['title'] as string ?? 'Programme'
-          const cohorts = readMyCohorts(prog)
-          for (const c of cohorts) {
+          const cohortList = readMyCohorts(prog)
+          for (const c of cohortList) {
             const cId = readCohortId(c)
             if (!cId) continue
             const rawTitle  = readCohortTitle(c)
-            const cohortLbl = rawTitle
-              .replace(`${title} — `, '')
-              .replace(`${title} - `, '')
-              || rawTitle
+            const cohortLbl = rawTitle.replace(`${title} — `, '').replace(`${title} - `, '') || rawTitle
             options.push({ cohortId: cId, label: title, cohortLabel: cohortLbl })
           }
         }
-
         setCohorts(options)
         if (options.length > 0) setSelected(options[0])
         else setLoading(false)
@@ -385,11 +308,9 @@ export default function ResourcesPage() {
     resolveCohorts()
   }, [])
 
-  // Step 2 — fetch resources whenever selected cohort or filter changes
-  const fetchResources = useCallback(async (cohortId: number, apiType: string | null) => {
-    const params: Record<string, string> = {}
-    if (apiType) params.type = apiType
-    const res  = await apiClient.get(`/cohorts/${cohortId}/resources`, { params })
+  // Fetch resources when selected cohort changes
+  const fetchResources = useCallback(async (cohortId: number) => {
+    const res  = await apiClient.get(`/cohorts/${cohortId}/resources`)
     const data = unwrap<ApiResourcesResponse>(res.data)
     return (Array.isArray(data?.resources) ? data.resources : []).map(normaliseResource)
   }, [])
@@ -397,36 +318,34 @@ export default function ResourcesPage() {
   useEffect(() => {
     if (!selected) return
     setActiveFilter('All')
+    setSearch('')
     setLoading(true)
     setError(null)
     ;(async () => {
       try {
-        const rows = await fetchResources(selected.cohortId, null)
+        const rows = await fetchResources(selected.cohortId)
         setResources(rows)
         setTotalCount(rows.length)
-      } catch (err) {
-        setError(getApiError(err))
-      } finally {
-        setLoading(false)
-      }
+      } catch (err) { setError(getApiError(err)) }
+      finally { setLoading(false) }
     })()
   }, [selected, fetchResources])
 
-  async function handleFilterChange(label: string, apiType: string | null) {
-    if (label === activeFilter || !selected) return
-    setActiveFilter(label)
-    setFiltering(true)
-    try {
-      const rows = await fetchResources(selected.cohortId, apiType)
-      setResources(rows)
-    } catch {
-      // keep existing on filter error
-    } finally {
-      setFiltering(false)
+  // Client-side filter + search (avoids extra network calls for filter changes)
+  const displayed = useMemo(() => {
+    let list = resources
+    if (activeFilter !== 'All') {
+      const chip = FILTER_CHIPS.find(f => f.label === activeFilter)
+      if (chip?.apiType) list = list.filter(r => r.fileType.toUpperCase() === inferFileTypeRaw(chip.apiType!))
     }
-  }
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      list = list.filter(r => r.title.toLowerCase().includes(q))
+    }
+    return list
+  }, [resources, activeFilter, search])
 
-  const byWeek      = groupByWeek(resources)
+  const byWeek      = groupByWeek(displayed)
   const weekNumbers = Object.keys(byWeek).map(Number).sort((a, b) => a - b)
 
   return (
@@ -434,33 +353,62 @@ export default function ResourcesPage() {
       <TopNav title="Resources" />
 
       <div className="px-4 md:px-8 pb-10">
-        {/* Page header */}
-        <div className="pt-7 pb-6 flex items-start justify-between gap-4 flex-wrap">
+
+        {/* ── Page header ───────────────────────────────────────────── */}
+        <div className="pt-7 pb-5 flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-[24px] font-bold text-[#111827] font-display leading-tight">
-              Resources
-            </h1>
+            <h1 className="text-[24px] font-bold text-[#111827] font-display leading-tight">Resources</h1>
             <p className="text-[14px] text-[#4b5563] font-body mt-1">
-              Session slides, guides, and materials for your cohort.
+              {selected
+                ? <><span className="font-medium text-[#111827]">{selected.label}</span>{selected.cohortLabel ? ` · ${selected.cohortLabel}` : ''}</>
+                : 'Session slides, guides, and materials for your cohort.'}
             </p>
           </div>
-
-          <div className="flex items-center gap-3 pt-1 flex-wrap">
-            {/* Cohort switcher — only visible when enrolled in 2+ cohorts */}
+          <div className="flex items-center gap-3 pt-1">
             {selected && cohorts.length > 1 && (
-              <CohortSwitcher
-                cohorts={cohorts}
-                selected={selected}
-                onChange={(c) => setSelected(c)}
-              />
+              <CohortPill cohorts={cohorts} selected={selected} onChange={c => setSelected(c)} />
             )}
             {!loading && !error && (
-              <p className="text-[13px] text-[#4b5563] font-body">
-                {totalCount} file{totalCount !== 1 ? 's' : ''}
-              </p>
+              <span className="text-[13px] text-[#6b7280] font-body">{totalCount} file{totalCount !== 1 ? 's' : ''}</span>
             )}
           </div>
         </div>
+
+        {/* ── Search + filter bar ───────────────────────────────────── */}
+        {!loading && !error && totalCount > 0 && (
+          <div className="flex items-center gap-3 mb-6 flex-wrap">
+            {/* Search */}
+            <div className="relative flex-1 min-w-[200px] max-w-[360px]">
+              <Search01Icon size={14} color="#9ca3af" strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search resources…"
+                className="w-full h-9 pl-8 pr-3 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body text-[#111827] placeholder:text-[#9ca3af] outline-none focus:border-[#d51520] bg-white"
+              />
+              {search && (
+                <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#9ca3af] hover:text-[#374151]">
+                  <Cancel01Icon size={13} strokeWidth={1.5} />
+                </button>
+              )}
+            </div>
+
+            {/* Filter chips */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {FILTER_CHIPS.map(({ label }) => (
+                <button key={label} onClick={() => setActiveFilter(label)}
+                  className={cn(
+                    'px-3.5 h-9 rounded-[8px] text-[13px] font-medium transition-colors border',
+                    activeFilter === label
+                      ? 'bg-[#d51520] text-white border-[#d51520] font-display'
+                      : 'bg-white border-[#e5e7eb] text-[#4b5563] font-body hover:bg-[#f9fafb]'
+                  )}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Loading */}
         {loading && (
@@ -477,86 +425,58 @@ export default function ResourcesPage() {
           </div>
         )}
 
-        {/* Empty */}
+        {/* Empty — no resources at all */}
         {!loading && !error && totalCount === 0 && (
           <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)]">
-            <EmptyState
-              icon={BookOpen01Icon}
-              title="No resources yet"
-              description="Your instructor hasn't uploaded any resources for this cohort yet. Check back after your next session."
-            />
+            <EmptyState icon={BookOpen01Icon} title="No resources yet"
+              description="Your instructor hasn't uploaded any resources for this cohort yet. Check back after your next session." />
+          </div>
+        )}
+
+        {/* Empty — search/filter has no matches */}
+        {!loading && !error && totalCount > 0 && weekNumbers.length === 0 && (
+          <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)]">
+            <EmptyState icon={File01Icon} title="No matches"
+              description="Try adjusting the search or filter to find what you're looking for." />
           </div>
         )}
 
         {/* Content */}
-        {!loading && !error && totalCount > 0 && (
-          <>
-            {/* Filter chips */}
-            <div className="flex items-center gap-2 mb-6 flex-wrap">
-              {FILTER_CHIPS.map(({ label, apiType }) => (
-                <button
-                  key={label}
-                  onClick={() => handleFilterChange(label, apiType)}
-                  disabled={filtering}
-                  className={cn(
-                    'px-4 h-8 rounded-full text-[13px] font-medium transition-colors disabled:opacity-60',
-                    activeFilter === label
-                      ? 'bg-[#d51520] text-white font-display'
-                      : 'bg-white border border-[#e5e7eb] text-[#4b5563] font-body hover:bg-[#f9fafb]'
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-              {filtering && (
-                <Loading01Icon size={14} className="animate-spin text-[#4b5563]" strokeWidth={1.5} />
-              )}
-            </div>
-
-            {/* Filter empty */}
-            {weekNumbers.length === 0 ? (
-              <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)]">
-                <EmptyState
-                  icon={File01Icon}
-                  title="No files match this filter"
-                  description="Try a different filter to see more resources."
-                />
-              </div>
-            ) : (
-              <div className="flex flex-col gap-6">
-                {weekNumbers.map((week) => {
-                  const { title, items } = byWeek[week]
-                  return (
-                    <div
-                      key={week}
-                      className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] overflow-hidden"
-                    >
-                      <div className="px-5 py-4 flex items-center justify-between border-b border-[#f3f4f6]">
-                        <div>
-                          <p className="text-[15px] font-semibold text-[#111827] font-display">
-                            {week > 0 ? `Week ${week}` : 'General'}
-                          </p>
-                          {title && title !== `Week ${week}` && (
-                            <p className="text-[12px] text-[#4b5563] font-body mt-0.5">{title}</p>
-                          )}
-                        </div>
-                        <span className="text-[11px] text-[#4b5563] font-body">
-                          {items.length} file{items.length !== 1 ? 's' : ''}
-                        </span>
-                      </div>
-                      <div className="p-2">
-                        {items.map((resource) => (
-                          <ResourceRow key={resource.id} resource={resource} />
-                        ))}
-                      </div>
+        {!loading && !error && weekNumbers.length > 0 && (
+          <div className="flex flex-col gap-6">
+            {weekNumbers.map(week => {
+              const { title, items } = byWeek[week]
+              return (
+                <div key={week} className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] overflow-hidden">
+                  <div className="px-5 py-4 flex items-center justify-between border-b border-[#f3f4f6]">
+                    <div>
+                      <p className="text-[15px] font-semibold text-[#111827] font-display">
+                        {week > 0 ? `Module ${week}` : 'General'}
+                      </p>
+                      {title && title !== `Module ${week}` && title !== 'General' && (
+                        <p className="text-[12px] text-[#4b5563] font-body mt-0.5">{title}</p>
+                      )}
                     </div>
-                  )
-                })}
-              </div>
-            )}
-          </>
+                    <span className="text-[11px] text-[#4b5563] font-body">{items.length} file{items.length !== 1 ? 's' : ''}</span>
+                  </div>
+                  <div className="p-2">
+                    {items.map(resource => <ResourceRow key={resource.id} resource={resource} />)}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         )}
       </div>
     </>
   )
+}
+
+// map FILTER_CHIPS apiType → ResourceFileType key for client-side filtering
+function inferFileTypeRaw(apiType: string): string {
+  if (apiType === 'PDF')          return 'PDF'
+  if (apiType === 'PRESENTATION') return 'PPTX'
+  if (apiType === 'VIDEO')        return 'MP4'
+  if (apiType === 'ARTICLE')      return 'DOCX'
+  return apiType
 }

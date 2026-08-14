@@ -506,15 +506,27 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
       }
 
       // Assign to each selected cohort — best-effort, never blocks success
-      if (resourceId && selectedCohortIds.size > 0) {
-        await Promise.allSettled(
-          Array.from(selectedCohortIds).map(cohortId =>
-            apiClient.post(`/admin/cohorts/${cohortId}/resources`, {
-              program_resource_id: resourceId,
-              status: 'ACTIVE',
-            })
+      if (selectedCohortIds.size > 0) {
+        if (!resourceId) {
+          toast.error('Resource was saved but the server did not return an ID — cohort assignment was skipped. Contact support if the resource does not appear for students.')
+        } else {
+          const assignResults = await Promise.allSettled(
+            Array.from(selectedCohortIds).map(cohortId =>
+              apiClient.post(`/admin/cohorts/${cohortId}/resources`, {
+                program_resource_id: resourceId,
+                status: 'ACTIVE',
+              })
+            )
           )
-        )
+          const failed = assignResults.filter(r => r.status === 'rejected')
+          if (failed.length > 0 && failed.length < assignResults.length) {
+            toast.error(`Resource saved, but ${failed.length} cohort assignment${failed.length > 1 ? 's' : ''} failed. Re-upload to retry.`)
+          } else if (failed.length === assignResults.length) {
+            toast.error(`Resource saved, but cohort assignment failed for all ${failed.length} cohort${failed.length > 1 ? 's' : ''}. Ensure the cohort IDs are correct and try again.`)
+          } else {
+            toast.success(`Resource uploaded and assigned to ${assignResults.length} cohort${assignResults.length > 1 ? 's' : ''}.`)
+          }
+        }
       }
 
       setShowAddResource(false)
