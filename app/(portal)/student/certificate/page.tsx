@@ -185,14 +185,14 @@ function CertificateDesign({ row, fullName }: { row: CertRow; fullName: string }
         boxSizing: 'border-box',
       }}
     >
-      {/* Watermark */}
-      <span style={{
+      {/* Watermark — actual Brixgate logo icon, large + faded */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/images/logo2.png" alt="" aria-hidden="true" style={{
         position: 'absolute', top: '50%', left: '50%',
         transform: 'translate(-50%,-50%)',
-        fontSize: 'clamp(50px, 10vw, 110px)', fontWeight: 900,
-        color: 'rgba(255,255,255,0.03)', letterSpacing: '0.18em',
-        whiteSpace: 'nowrap', pointerEvents: 'none', userSelect: 'none',
-      }}>BRIXGATE</span>
+        width: '52%', height: 'auto',
+        opacity: 0.06, pointerEvents: 'none', userSelect: 'none',
+      }} />
 
       {/* Corner brackets */}
       {[
@@ -204,11 +204,10 @@ function CertificateDesign({ row, fullName }: { row: CertRow; fullName: string }
         <div key={i} style={{ position: 'absolute', width: 22, height: 22, ...s }} />
       ))}
 
-      {/* Logo */}
+      {/* Logo — actual Brixgate icon + wordmark */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 'clamp(8px,1.5%,14px)' }}>
-        <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#D15150', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <span style={{ color: 'white', fontSize: 13, fontWeight: 900 }}>B</span>
-        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/images/logo2.png" alt="Brixgate" style={{ height: 28, width: 28, borderRadius: '50%', display: 'block' }} />
         <span style={{ color: 'white', fontSize: 18, fontWeight: 600 }}>Brixgate</span>
       </div>
 
@@ -263,11 +262,12 @@ function CertificateDesign({ row, fullName }: { row: CertRow; fullName: string }
 }
 
 // ── Generate standalone HTML for print/PDF ────────────────────────────────────
-function generatePrintHtml(row: CertRow, fullName: string): string {
+function generatePrintHtml(row: CertRow, fullName: string, baseUrl: string): string {
   const { title, cohortLabel, issuedAt, certificateNumber, instructorName } = row
   const expertName = instructorName || 'Expert Practitioner'
   const pubLink    = certificateNumber ? `https://brixgate.com/verify/${certificateNumber}` : 'https://brixgate.com'
   const qrUrl      = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&color=ffffff&bgcolor=0A0E1A&data=${encodeURIComponent(pubLink)}`
+  const logoUrl    = `${baseUrl}/images/logo2.png`
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -276,13 +276,14 @@ function generatePrintHtml(row: CertRow, fullName: string): string {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Certificate — ${fullName}</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:#0A0E1A;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
-@media print{@page{margin:0;size:A4 landscape}html,body{width:100%;height:100%}}
-.cert{width:900px;height:600px;background:#0A0E1A;border:1.5px solid rgba(209,81,80,.4);border-radius:16px;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:36px 56px 28px;overflow:hidden}
-.wm{position:absolute;font-size:110px;font-weight:900;color:rgba(255,255,255,.03);top:50%;left:50%;transform:translate(-50%,-50%);letter-spacing:.18em;white-space:nowrap;pointer-events:none;user-select:none}
+/* Force browsers to print background colours and images */
+*{margin:0;padding:0;box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}
+html,body{background:#0A0E1A!important;min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+@media print{@page{margin:0;size:A4 landscape}html,body{width:100%;height:100%;background:#0A0E1A!important}}
+.cert{width:900px;height:600px;background:#0A0E1A!important;border:1.5px solid rgba(209,81,80,.4);border-radius:16px;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:36px 56px 28px;overflow:hidden}
+.wm{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:52%;height:auto;opacity:.06;pointer-events:none}
 .c{position:absolute;width:22px;height:22px}.tl{top:14px;left:14px;border-top:2px solid #D15150;border-left:2px solid #D15150;border-radius:4px 0 0 0}.tr{top:14px;right:14px;border-top:2px solid #D15150;border-right:2px solid #D15150;border-radius:0 4px 0 0}.bl{bottom:14px;left:14px;border-bottom:2px solid #D15150;border-left:2px solid #D15150;border-radius:0 0 0 4px}.br{bottom:14px;right:14px;border-bottom:2px solid #D15150;border-right:2px solid #D15150;border-radius:0 0 4px 0}
-.logo{display:flex;align-items:center;gap:8px;margin-bottom:14px}.licon{width:28px;height:28px;border-radius:50%;background:#D15150;display:flex;align-items:center;justify-content:center}.ltxt{color:white;font-size:18px;font-weight:600}
+.logo{display:flex;align-items:center;gap:8px;margin-bottom:14px}.limg{width:28px;height:28px;border-radius:50%;display:block}.ltxt{color:white;font-size:18px;font-weight:600}
 .lbl{font-size:10px;letter-spacing:.2em;color:rgba(255,255,255,.65);text-transform:uppercase;font-weight:600;margin-bottom:8px}
 .div{width:40px;height:2px;background:#D15150;margin-bottom:16px}
 .it{font-style:italic;color:rgba(255,255,255,.5);font-size:13px;margin-bottom:6px}
@@ -300,9 +301,9 @@ body{background:#0A0E1A;display:flex;align-items:center;justify-content:center;m
 </head>
 <body>
 <div class="cert">
-<span class="wm">BRIXGATE</span>
+<img src="${logoUrl}" class="wm" alt="">
 <div class="c tl"></div><div class="c tr"></div><div class="c bl"></div><div class="c br"></div>
-<div class="logo"><div class="licon"><span style="color:white;font-size:13px;font-weight:900">B</span></div><span class="ltxt">Brixgate</span></div>
+<div class="logo"><img src="${logoUrl}" class="limg" alt="Brixgate"><span class="ltxt">Brixgate</span></div>
 <p class="lbl">Brixer Certificate</p>
 <div class="div"></div>
 <p class="it">This certifies that</p>
@@ -340,7 +341,7 @@ function CertificateModal({ row, fullName, onClose }: {
     : 'https://brixgate.com'
 
   function handleDownload() {
-    const html = generatePrintHtml(row, fullName)
+    const html = generatePrintHtml(row, fullName, window.location.origin)
     const win  = window.open('', '_blank')
     if (!win) { toast.error('Pop-up blocked — please allow pop-ups and try again.'); return }
     win.document.write(html)
@@ -503,7 +504,7 @@ export default function CertificatePage() {
   function handleDownloadRow(row: CertRow, e: React.MouseEvent) {
     e.stopPropagation()
     if (!row.issuedAt) { toast.error('Certificate not yet issued.'); return }
-    const html = generatePrintHtml(row, fullName)
+    const html = generatePrintHtml(row, fullName, window.location.origin)
     const win  = window.open('', '_blank')
     if (!win) { toast.error('Pop-up blocked — please allow pop-ups and try again.'); return }
     win.document.write(html)

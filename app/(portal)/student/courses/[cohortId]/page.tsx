@@ -662,34 +662,91 @@ function ResourceRow({ resource }: { resource: ApiResource }) {
   const type    = (resource.type ?? 'PDF').toUpperCase()
   const Icon    = RES_ICONS[type] ?? File01Icon
   const colours = RES_COLOURS[type] ?? { bg: '#F7F8FA', text: '#6b7280' }
+
+  const [loading,    setLoading]    = useState(false)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+
+  async function openPreview(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (loading) return
+    setLoading(true)
+    try {
+      const res  = await apiClient.get(`/program-resources/${resource.id}/download`)
+      const body = res.data as Record<string, unknown>
+      const inner = (body?.data ?? body) as Record<string, unknown>
+      const url  = (inner?.url ?? inner?.link ?? body?.url ?? resource.link) as string | undefined
+      if (url) setPreviewUrl(url)
+      else if (resource.link) setPreviewUrl(resource.link)
+    } catch {
+      if (resource.link) setPreviewUrl(resource.link)
+    } finally { setLoading(false) }
+  }
+
+  const isPdf   = type === 'PDF'
+  const isVideo = type === 'VIDEO' || type === 'LECTURE'
+
   return (
-    <div className="flex items-center gap-3 p-3 rounded-[8px] bg-[#f9fafb] border border-[#f3f4f6] group">
-      <div
-        className="w-8 h-8 rounded-[7px] flex items-center justify-center flex-shrink-0"
-        style={{ background: colours.bg }}
+    <>
+      <button
+        onClick={openPreview}
+        disabled={loading}
+        className="w-full flex items-center gap-3 p-3 rounded-[8px] bg-[#f9fafb] border border-[#f3f4f6] hover:bg-white hover:border-[#e5e7eb] hover:shadow-[0px_1px_3px_rgba(16,24,40,0.06)] transition-all text-left cursor-pointer disabled:cursor-wait"
       >
-        <Icon size={14} color={colours.text} strokeWidth={1.5} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-[13px] font-medium text-[#111827] font-body truncate">
-          {resource.title ?? 'Resource'}
-        </p>
-        <p className="text-[11px] text-[#4b5563] font-body mt-0.5">
-          {type.charAt(0) + type.slice(1).toLowerCase()}
-        </p>
-      </div>
-      {resource.link && (
-        <a
-          href={resource.link}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1.5 text-[11px] font-medium text-[#374151] font-body border border-[#e5e7eb] px-2.5 py-1.5 rounded-[6px] hover:bg-white transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100"
-        >
-          <Download01Icon size={11} color="#374151" strokeWidth={1.5} />
-          Download
-        </a>
+        <div className="w-8 h-8 rounded-[7px] flex items-center justify-center flex-shrink-0" style={{ background: colours.bg }}>
+          {loading
+            ? <Loading01Icon size={13} color={colours.text} strokeWidth={1.5} className="animate-spin" />
+            : <Icon size={14} color={colours.text} strokeWidth={1.5} />
+          }
+        </div>
+        <div className="flex-1 min-w-0 text-left">
+          <p className="text-[13px] font-medium text-[#111827] font-body truncate">{resource.title ?? 'Resource'}</p>
+          <p className="text-[11px] text-[#4b5563] font-body mt-0.5">{loading ? 'Loading…' : 'Click to preview'}</p>
+        </div>
+        <Download01Icon size={13} color="#9ca3af" strokeWidth={1.5} className="flex-shrink-0" />
+      </button>
+
+      {previewUrl && (
+        <div className="fixed inset-0 z-50 flex flex-col" onClick={() => setPreviewUrl(null)}>
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-3 bg-white border-b border-[#e5e7eb] shadow-sm flex-shrink-0" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-7 h-7 rounded-[6px] flex items-center justify-center flex-shrink-0" style={{ background: colours.bg }}>
+                <Icon size={13} color={colours.text} strokeWidth={1.5} />
+              </div>
+              <p className="text-[14px] font-semibold text-[#111827] font-display truncate">{resource.title ?? 'Resource'}</p>
+            </div>
+            <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+              <a href={previewUrl} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-1.5 h-8 px-3 rounded-[6px] border border-[#e5e7eb] text-[12px] font-medium text-[#374151] font-body hover:bg-[#f3f4f6] transition-colors">
+                <Download01Icon size={13} color="#374151" strokeWidth={1.5} /> Download
+              </a>
+              <button onClick={() => setPreviewUrl(null)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f3f4f6] transition-colors">
+                <Cancel01Icon size={16} color="#374151" strokeWidth={1.5} />
+              </button>
+            </div>
+          </div>
+          {/* Content */}
+          <div className="flex-1 overflow-auto bg-[#1a1a1a] flex items-center justify-center" onClick={e => e.stopPropagation()}>
+            {isPdf ? (
+              <iframe
+                src={`https://docs.google.com/viewer?url=${encodeURIComponent(previewUrl)}&embedded=true`}
+                className="w-full h-full border-0" title={resource.title ?? 'Resource'} />
+            ) : isVideo ? (
+              <video src={previewUrl} controls className="max-w-full max-h-full" />
+            ) : (
+              <div className="text-center text-white px-6">
+                <File01Icon size={40} color="#6b7280" strokeWidth={1} className="mx-auto mb-3" />
+                <p className="text-[15px] font-semibold font-display mb-2">Preview not available</p>
+                <a href={previewUrl} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 h-9 px-4 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119]">
+                  <Download01Icon size={14} color="white" strokeWidth={1.5} /> Download file
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
       )}
-    </div>
+    </>
   )
 }
 
