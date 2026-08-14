@@ -1008,7 +1008,10 @@ function CertificatesTab({ cohortId, programId }: { cohortId: string; programId:
             : Array.isArray(inner?.content)           ? inner.content
             : []
           setCertTypes(list)
-          if (list.length > 0) setSelectedTypeId(list[0].id)
+          if (list.length > 0) {
+            setSelectedTypeId(list[0].id)
+            setCertTemplateUrl(list[0].template_url ?? list[0].templateUrl ?? '')
+          }
         }
 
         // Skip fetching cert defs — GET /admin/certificates is not supported;

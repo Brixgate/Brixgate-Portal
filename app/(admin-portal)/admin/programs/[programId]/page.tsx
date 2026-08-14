@@ -317,6 +317,7 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
   // Cohort assignment state (for new resource modal only)
   const [cohortOptions, setCohortOptions]         = useState<{ id: number; title: string }[]>([])
   const [loadingCohorts, setLoadingCohorts]       = useState(false)
+  const [cohortFetchError, setCohortFetchError]   = useState('')
   const [selectedCohortIds, setSelectedCohortIds] = useState<Set<number>>(new Set())
   // Shared state
   const [saving, setSaving]                   = useState(false)
@@ -415,17 +416,46 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
     setEditLesson(l); setError('')
   }
 
-  // Fetch cohorts for this programme whenever the add-resource modal opens
+  // Fetch cohorts whenever the add-resource modal opens.
+  // Try programme-specific first; if empty, fall back to all programmes.
   useEffect(() => {
     if (!showAddResource) return
     setLoadingCohorts(true)
-    apiClient.get(`/admin/programs/${programId}/cohorts?size=50`)
-      .then(res => {
+    setCohortFetchError('')
+    async function loadCohorts() {
+      try {
+        // 1. Try cohorts scoped to this programme
+        const res  = await apiClient.get(`/admin/programs/${programId}/cohorts?size=100`)
         const data = unwrap<{ cohorts?: { id: number; title: string }[] }>(res.data)
-        setCohortOptions(Array.isArray(data?.cohorts) ? data.cohorts : [])
-      })
-      .catch(() => setCohortOptions([]))
-      .finally(() => setLoadingCohorts(false))
+        const list = Array.isArray(data?.cohorts) ? data.cohorts : []
+
+        if (list.length > 0) { setCohortOptions(list); return }
+
+        // 2. Fallback: fetch all programmes then pull their cohorts in parallel
+        const progsRes  = await apiClient.get('/admin/programs?size=50')
+        const progsData = unwrap<{ programs?: { id: number }[] }>(progsRes.data)
+        const progs     = Array.isArray(progsData?.programs) ? progsData.programs : []
+
+        const results = await Promise.allSettled(
+          progs.map(p => apiClient.get(`/admin/programs/${p.id}/cohorts?size=50`))
+        )
+        const all: { id: number; title: string }[] = []
+        results.forEach(r => {
+          if (r.status !== 'fulfilled') return
+          const d = unwrap<{ cohorts?: { id: number; title: string }[] }>(r.value.data)
+          if (Array.isArray(d?.cohorts)) all.push(...d.cohorts)
+        })
+        // deduplicate by id
+        const seen = new Set<number>()
+        setCohortOptions(all.filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true }))
+      } catch (err) {
+        setCohortFetchError(getApiError(err))
+        setCohortOptions([])
+      } finally {
+        setLoadingCohorts(false)
+      }
+    }
+    loadCohorts()
   }, [showAddResource, programId])
 
   // ── Resource handlers ──────────────────────────────────────────────────────
@@ -523,7 +553,7 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
   function closeResourceModal() {
     setShowAddResource(false); setEditResource(null)
     setUploadFile(null); setResourceMode('url')
-    setSelectedCohortIds(new Set())
+    setSelectedCohortIds(new Set()); setCohortFetchError('')
   }
 
   // ── Empty state ────────────────────────────────────────────────────────────
@@ -771,8 +801,10 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
               <Field label="Assign to Cohorts (optional)">
                 {loadingCohorts ? (
                   <p className="text-[12px] text-[#9ca3af] font-body">Loading cohorts…</p>
+                ) : cohortFetchError ? (
+                  <p className="text-[12px] text-[#d51520] font-body">{cohortFetchError}</p>
                 ) : cohortOptions.length === 0 ? (
-                  <p className="text-[12px] text-[#9ca3af] font-body">No cohorts found for this programme.</p>
+                  <p className="text-[12px] text-[#9ca3af] font-body">No cohorts found. Create a cohort under the Cohorts tab first.</p>
                 ) : (
                   <div className="flex flex-wrap gap-2 mt-1">
                     {cohortOptions.map(c => {
