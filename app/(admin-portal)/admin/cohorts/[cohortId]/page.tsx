@@ -973,6 +973,7 @@ function CertificatesTab({ cohortId, programId }: { cohortId: string; programId:
   const [members, setMembers]                   = useState<SimpleStudent[]>([])
   const [issuedUserIds, setIssuedUserIds]       = useState<Set<number>>(new Set())
   const [selectedTypeId, setSelectedTypeId]     = useState<number | null>(null)
+  const [certTemplateUrl, setCertTemplateUrl]   = useState('')
   const [selectedStudents, setSelectedStudents] = useState<Set<number>>(new Set())
   const [loadingInit, setLoadingInit]           = useState(true)
   const [loadingIssued, setLoadingIssued]       = useState(false)
@@ -1068,9 +1069,12 @@ function CertificatesTab({ cohortId, programId }: { cohortId: string; programId:
         const typeName = certTypes.find(t => t.id === selectedTypeId)?.name
           ?? certTypes.find(t => t.id === selectedTypeId)?.title
           ?? 'Certificate'
+        const resolvedTemplateUrl = certTemplateUrl.trim()
+          || (typeof window !== 'undefined' ? `${window.location.origin}/certificate-template.html` : '/certificate-template.html')
         const createRes = await apiClient.post('/admin/certificates', {
           certificate_type_id: selectedTypeId, cohort_id: Number(cohortId),
           title: typeName,
+          template_url: resolvedTemplateUrl,
           ...(programId ? { program_id: programId } : {}), status: 'ACTIVE',
         })
         const created = createRes.data?.data ?? createRes.data
@@ -1122,11 +1126,30 @@ function CertificatesTab({ cohortId, programId }: { cohortId: string; programId:
       {/* Type selector */}
       <div className="flex items-center gap-3">
         <label className="text-[12px] font-semibold text-[#374151] font-display shrink-0">Certificate type</label>
-        <select value={selectedTypeId ?? ''} onChange={e => { setSelectedTypeId(Number(e.target.value)); setSuccessCount(null); setError('') }}
+        <select value={selectedTypeId ?? ''} onChange={e => {
+          const id = Number(e.target.value)
+          setSelectedTypeId(id); setSuccessCount(null); setError('')
+          const t = certTypes.find(c => c.id === id)
+          setCertTemplateUrl(t?.template_url ?? t?.templateUrl ?? '')
+        }}
           className="h-9 px-3 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body outline-none focus:border-[#d51520] bg-white">
           {certTypes.map(t => <option key={t.id} value={t.id}>{t.name ?? t.title ?? `Type #${t.id}`}</option>)}
         </select>
         <span className="text-[12px] text-[#9ca3af] font-body">{issuedMembers.length} of {members.length} issued</span>
+      </div>
+
+      {/* Template URL — required by backend; auto-filled from cert type, editable */}
+      <div className="flex flex-col gap-1">
+        <label className="text-[12px] font-semibold text-[#374151] font-display">
+          Certificate template URL
+          <span className="text-[#9ca3af] font-normal ml-1">(auto-filled from type — paste a custom link to override)</span>
+        </label>
+        <input
+          value={certTemplateUrl}
+          onChange={e => setCertTemplateUrl(e.target.value)}
+          placeholder="Defaults to the portal's built-in template if left empty"
+          className="h-9 px-3 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body outline-none focus:border-[#d51520] bg-white w-full"
+        />
       </div>
 
       {successCount !== null && (
