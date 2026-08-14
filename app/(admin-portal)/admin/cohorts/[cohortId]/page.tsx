@@ -1065,8 +1065,12 @@ function CertificatesTab({ cohortId, programId }: { cohortId: string; programId:
     try {
       let defId = certDef?.id
       if (!defId) {
+        const typeName = certTypes.find(t => t.id === selectedTypeId)?.name
+          ?? certTypes.find(t => t.id === selectedTypeId)?.title
+          ?? 'Certificate'
         const createRes = await apiClient.post('/admin/certificates', {
           certificate_type_id: selectedTypeId, cohort_id: Number(cohortId),
+          title: typeName,
           ...(programId ? { program_id: programId } : {}), status: 'ACTIVE',
         })
         const created = createRes.data?.data ?? createRes.data
