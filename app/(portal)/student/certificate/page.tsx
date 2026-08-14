@@ -1,8 +1,17 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useCallback } from 'react'
+import { useEffect } from 'react'
 import TopNav from '@/components/layout/TopNav'
-import { Award01Icon, LockIcon, Download01Icon, CheckmarkCircle01Icon, Loading01Icon, Share01Icon } from 'hugeicons-react'
+import {
+  Award01Icon,
+  Download01Icon,
+  Loading01Icon,
+  Share01Icon,
+  EyeIcon,
+  Cancel01Icon,
+  Copy01Icon,
+} from 'hugeicons-react'
 import EmptyState from '@/components/shared/EmptyState'
 import { apiClient, unwrap } from '@/lib/api-client'
 import { useAuth } from '@/lib/auth-context'
@@ -10,53 +19,33 @@ import { useToast, ToastContainer } from '@/components/shared/Toast'
 
 // ── API shapes ────────────────────────────────────────────────────────────────
 interface ApiCohort {
-  id: number
-  name: string
-  end_date?: string
-  start_date?: string
+  id: number; name: string; end_date?: string; start_date?: string
 }
-
 interface ApiEnrollment {
-  id: number
-  progress?: number
-  cohort_id?: number
-  cohort?: ApiCohort
+  id: number; progress?: number; cohort_id?: number; cohort?: ApiCohort
 }
-
 interface ApiProgram {
-  id: number
-  title: string
-  category?: string
-  duration?: string
-  enrollment?: ApiEnrollment
-  progress?: number
-  cohort?: ApiCohort
-  cohort_id?: number
+  id: number; title: string; category?: string; duration?: string
+  enrollment?: ApiEnrollment; progress?: number; cohort?: ApiCohort; cohort_id?: number
 }
-
 interface ApiCertification {
   id: number
-  // top-level fields (some endpoints flatten these)
-  program_id?: number;  programId?: number
-  cohort_id?: number;   cohortId?: number
+  program_id?: number; programId?: number
+  cohort_id?: number; cohortId?: number
   program_title?: string
-  issued_at?: string;   issuedAt?: string
+  issued_at?: string; issuedAt?: string
   certificate_url?: string; certificateUrl?: string
-  pdf_url?: string;     pdfUrl?: string
+  pdf_url?: string; pdfUrl?: string
   certificate_number?: string; certificateNumber?: string
   cohort_title?: string; cohortTitle?: string
   metadata?: { signatories?: string[] }
-  // nested certificate definition (user-certificate response shape)
   certificate?: {
-    id?: number
-    program_id?: number; programId?: number
-    cohort_id?: number;  cohortId?: number
-    title?: string
-    template_url?: string
+    id?: number; program_id?: number; programId?: number
+    cohort_id?: number; cohortId?: number; title?: string; template_url?: string
   }
 }
 
-// ── Normalised ────────────────────────────────────────────────────────────────
+// ── Normalised row ────────────────────────────────────────────────────────────
 interface CertRow {
   key: string
   programId: number
@@ -66,6 +55,7 @@ interface CertRow {
   cohortId: number
   endDate: string
   certificateUrl: string | null
+  pdfUrl: string | null
   issuedAt: string | null
   certificateNumber: string | null
   signatories: string[]
@@ -74,18 +64,16 @@ interface CertRow {
 function normaliseProgramToCertRow(
   raw: ApiProgram,
   byProgram: Map<number, ApiCertification>,
-  byCohort:  Map<number, ApiCertification>,
+  byCohort: Map<number, ApiCertification>,
 ): CertRow {
-  const enrollment = raw.enrollment
-  const cohort     = enrollment?.cohort ?? raw.cohort ?? null
-  const title      = raw.title ?? 'Untitled Programme'
-  const cohortName = cohort?.name ?? ''
+  const enrollment  = raw.enrollment
+  const cohort      = enrollment?.cohort ?? raw.cohort ?? null
+  const title       = raw.title ?? 'Untitled Programme'
+  const cohortName  = cohort?.name ?? ''
   const cohortLabel = cohortName.replace(`${title} — `, '').replace(`${title} - `, '') || cohortName
-  const cohortId   = enrollment?.cohort_id ?? cohort?.id ?? raw.cohort_id ?? 0
+  const cohortId    = enrollment?.cohort_id ?? cohort?.id ?? raw.cohort_id ?? 0
 
-  // look up by program_id first, then by cohort_id as fallback
-  const cert = byProgram.get(raw.id) ?? byCohort.get(cohortId) ?? null
-
+  const cert       = byProgram.get(raw.id) ?? byCohort.get(cohortId) ?? null
   const rawIssuedAt = cert?.issued_at ?? cert?.issuedAt ?? null
 
   return {
@@ -98,7 +86,8 @@ function normaliseProgramToCertRow(
     endDate: cohort?.end_date
       ? new Date(cohort.end_date).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })
       : '—',
-    certificateUrl:    cert?.certificate_url ?? cert?.certificateUrl ?? cert?.pdf_url ?? cert?.pdfUrl ?? null,
+    certificateUrl:    cert?.certificate_url ?? cert?.certificateUrl ?? null,
+    pdfUrl:            cert?.pdf_url         ?? cert?.pdfUrl         ?? null,
     issuedAt:          rawIssuedAt
       ? new Date(rawIssuedAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })
       : null,
@@ -107,329 +96,403 @@ function normaliseProgramToCertRow(
   }
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+// ── Certificate card design (matches the screenshot) ─────────────────────────
+function CertificateDesign({
+  row, fullName, size = 'modal',
+}: { row: CertRow; fullName: string; size?: 'modal' | 'print' }) {
+  const { title, cohortLabel, issuedAt, certificateNumber, signatories } = row
+  const tutorName  = signatories[0] ?? 'Lead Instructor'
+  const expertName = signatories[1] ?? 'Expert Practitioner'
+  const pubLink    = certificateNumber
+    ? `https://brixgate.com/verify/${certificateNumber}`
+    : 'https://brixgate.com'
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&color=ffffff&bgcolor=0A0E1A&data=${encodeURIComponent(pubLink)}`
 
-function RequirementItem({ done, label }: { done: boolean; label: string }) {
+  const scale = size === 'modal' ? 1 : 1
+
   return (
-    <div className="flex items-start gap-3">
-      <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${done ? 'bg-[#d51520]' : 'bg-[#f3f4f6]'}`}>
-        {done
-          ? <CheckmarkCircle01Icon size={12} color="white" strokeWidth={2} />
-          : <div className="w-1.5 h-1.5 rounded-full bg-[#d1d5db]" />}
+    <div
+      id="brixgate-certificate"
+      style={{
+        width:  size === 'modal' ? '100%' : '900px',
+        aspectRatio: '3/2',
+        background: '#0A0E1A',
+        border: '1.5px solid rgba(209,81,80,0.4)',
+        borderRadius: `${16 * scale}px`,
+        position: 'relative',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'flex-start',
+        padding: `${36 * scale}px ${56 * scale}px ${28 * scale}px`,
+        overflow: 'hidden',
+        fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+        boxSizing: 'border-box',
+      }}
+    >
+      {/* Watermark */}
+      <span style={{
+        position: 'absolute', top: '50%', left: '50%',
+        transform: 'translate(-50%,-50%)',
+        fontSize: 'clamp(60px, 12vw, 120px)', fontWeight: 900,
+        color: 'rgba(255,255,255,0.03)', letterSpacing: '0.18em',
+        whiteSpace: 'nowrap', pointerEvents: 'none', userSelect: 'none',
+      }}>BRIXGATE</span>
+
+      {/* Corner brackets */}
+      {[
+        { top: 14, left: 14, borderTop: '2px solid #D15150', borderLeft: '2px solid #D15150', borderRadius: '4px 0 0 0' },
+        { top: 14, right: 14, borderTop: '2px solid #D15150', borderRight: '2px solid #D15150', borderRadius: '0 4px 0 0' },
+        { bottom: 14, left: 14, borderBottom: '2px solid #D15150', borderLeft: '2px solid #D15150', borderRadius: '0 0 0 4px' },
+        { bottom: 14, right: 14, borderBottom: '2px solid #D15150', borderRight: '2px solid #D15150', borderRadius: '0 0 4px 0' },
+      ].map((s, i) => (
+        <div key={i} style={{ position: 'absolute', width: 22, height: 22, ...s }} />
+      ))}
+
+      {/* Logo */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+        <div style={{
+          width: 28, height: 28, borderRadius: '50%', background: '#D15150',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <span style={{ color: 'white', fontSize: 13, fontWeight: 900 }}>B</span>
+        </div>
+        <span style={{ color: 'white', fontSize: 18, fontWeight: 600 }}>Brixgate</span>
       </div>
-      <p className={`text-[13px] font-body leading-snug ${done ? 'text-[#374151]' : 'text-[#4b5563]'}`}>
-        {label}
+
+      {/* "BRIXER CERTIFICATE" */}
+      <p style={{
+        fontSize: 10, letterSpacing: '0.2em', color: 'rgba(255,255,255,0.65)',
+        textTransform: 'uppercase', fontWeight: 600, marginBottom: 8,
+      }}>Brixer Certificate</p>
+      <div style={{ width: 40, height: 2, background: '#D15150', marginBottom: 16 }} />
+
+      {/* Body text */}
+      <p style={{ fontStyle: 'italic', color: 'rgba(255,255,255,0.5)', fontSize: 13, marginBottom: 6 }}>
+        This certifies that
+      </p>
+      <p style={{
+        fontSize: 'clamp(28px, 5.5vw, 52px)', fontWeight: 800, color: 'white',
+        lineHeight: 1.05, marginBottom: 8, textAlign: 'center',
+      }}>
+        {fullName || 'Student Name'}
+      </p>
+      <p style={{ fontStyle: 'italic', color: 'rgba(255,255,255,0.5)', fontSize: 13, marginBottom: 6 }}>
+        has successfully completed the
+      </p>
+      <p style={{
+        fontSize: 'clamp(16px, 2.5vw, 22px)', fontWeight: 700, color: '#D15150',
+        marginBottom: 4, textAlign: 'center',
+      }}>
+        {title}
+      </p>
+      {cohortLabel && (
+        <p style={{
+          fontSize: 10, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.4)',
+          textTransform: 'uppercase', marginBottom: 4,
+        }}>
+          {cohortLabel}
+        </p>
+      )}
+
+      {/* Divider */}
+      <div style={{ width: '100%', height: 1, background: 'rgba(255,255,255,0.1)', margin: '14px 0' }} />
+
+      {/* Footer row */}
+      <div style={{ width: '100%', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        {/* Left sig */}
+        <div style={{ textAlign: 'center', flex: 1 }}>
+          <div style={{ width: 110, height: 1, background: 'rgba(255,255,255,0.3)', margin: '0 auto 7px' }} />
+          <p style={{ fontSize: 12, fontWeight: 700, color: 'white' }}>{tutorName}</p>
+          <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>{tutorName} · Brixgate</p>
+        </div>
+
+        {/* QR + cert number */}
+        <div style={{ textAlign: 'center', flex: 1 }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={qrUrl} width={80} height={80} alt="QR code"
+            style={{ background: 'white', padding: 5, borderRadius: 4, display: 'block', margin: '0 auto' }} />
+          {certificateNumber && (
+            <p style={{ fontSize: 9, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.4)', marginTop: 5, textTransform: 'uppercase' }}>
+              {certificateNumber}
+            </p>
+          )}
+        </div>
+
+        {/* Right sig */}
+        <div style={{ textAlign: 'center', flex: 1 }}>
+          <div style={{ width: 110, height: 1, background: 'rgba(255,255,255,0.3)', margin: '0 auto 7px' }} />
+          <p style={{ fontSize: 12, fontWeight: 700, color: 'white' }}>{expertName}</p>
+          <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>{expertName} · Brixgate</p>
+        </div>
+      </div>
+
+      {/* Bottom date */}
+      <p style={{
+        fontSize: 9, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.3)',
+        textTransform: 'uppercase', marginTop: 12,
+      }}>
+        {issuedAt ?? '—'} · BRIXGATE.COM
       </p>
     </div>
   )
 }
 
-function CertificateCard({ row, fullName }: { row: CertRow; fullName: string }) {
+// ── Generate standalone HTML for print/PDF ────────────────────────────────────
+function generatePrintHtml(row: CertRow, fullName: string): string {
   const { title, cohortLabel, issuedAt, certificateNumber, signatories } = row
-  // Unlocked = admin has issued the certificate (not based on progress)
-  const isUnlocked = issuedAt !== null
-  const [sharing, setSharing] = useState(false)
+  const tutorName  = signatories[0] ?? 'Lead Instructor'
+  const expertName = signatories[1] ?? 'Expert Practitioner'
+  const pubLink    = certificateNumber ? `https://brixgate.com/verify/${certificateNumber}` : 'https://brixgate.com'
+  const qrUrl      = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&color=ffffff&bgcolor=0A0E1A&data=${encodeURIComponent(pubLink)}`
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Certificate — ${fullName}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0A0E1A;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+@media print{@page{margin:0;size:A4 landscape}html,body{width:100%;height:100%}}
+.cert{width:900px;height:600px;background:#0A0E1A;border:1.5px solid rgba(209,81,80,.4);border-radius:16px;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:36px 56px 28px;overflow:hidden}
+.wm{position:absolute;font-size:120px;font-weight:900;color:rgba(255,255,255,.03);top:50%;left:50%;transform:translate(-50%,-50%);letter-spacing:.18em;white-space:nowrap;pointer-events:none;user-select:none}
+.c{position:absolute;width:22px;height:22px}.tl{top:14px;left:14px;border-top:2px solid #D15150;border-left:2px solid #D15150;border-radius:4px 0 0 0}.tr{top:14px;right:14px;border-top:2px solid #D15150;border-right:2px solid #D15150;border-radius:0 4px 0 0}.bl{bottom:14px;left:14px;border-bottom:2px solid #D15150;border-left:2px solid #D15150;border-radius:0 0 0 4px}.br{bottom:14px;right:14px;border-bottom:2px solid #D15150;border-right:2px solid #D15150;border-radius:0 0 4px 0}
+.logo{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.licon{width:28px;height:28px;border-radius:50%;background:#D15150;display:flex;align-items:center;justify-content:center}
+.ltxt{color:white;font-size:18px;font-weight:600}
+.lbl{font-size:10px;letter-spacing:.2em;color:rgba(255,255,255,.65);text-transform:uppercase;font-weight:600;margin-bottom:8px}
+.div{width:40px;height:2px;background:#D15150;margin-bottom:16px}
+.it{font-style:italic;color:rgba(255,255,255,.5);font-size:13px;margin-bottom:6px}
+.name{font-size:52px;font-weight:800;color:white;line-height:1.05;margin-bottom:8px;text-align:center}
+.prog{font-size:22px;font-weight:700;color:#D15150;margin-bottom:4px;text-align:center}
+.trk{font-size:10px;letter-spacing:.1em;color:rgba(255,255,255,.4);text-transform:uppercase;margin-bottom:4px}
+.line{width:100%;height:1px;background:rgba(255,255,255,.1);margin:14px 0}
+.ft{width:100%;display:flex;align-items:flex-start;justify-content:space-between}
+.sig{text-align:center;flex:1}.sline{width:110px;height:1px;background:rgba(255,255,255,.3);margin:0 auto 7px}.sname{font-size:12px;font-weight:700;color:white}.srole{font-size:10px;color:rgba(255,255,255,.4);margin-top:2px}
+.qw{text-align:center;flex:1}.cnum{font-size:9px;letter-spacing:.1em;color:rgba(255,255,255,.4);margin-top:5px;text-transform:uppercase}
+.dtf{font-size:9px;letter-spacing:.12em;color:rgba(255,255,255,.3);text-transform:uppercase;margin-top:12px}
+</style>
+</head>
+<body>
+<div class="cert">
+<span class="wm">BRIXGATE</span>
+<div class="c tl"></div><div class="c tr"></div><div class="c bl"></div><div class="c br"></div>
+<div class="logo"><div class="licon"><span style="color:white;font-size:13px;font-weight:900">B</span></div><span class="ltxt">Brixgate</span></div>
+<p class="lbl">Brixer Certificate</p>
+<div class="div"></div>
+<p class="it">This certifies that</p>
+<p class="name">${fullName}</p>
+<p class="it">has successfully completed the</p>
+<p class="prog">${title}</p>
+${cohortLabel ? `<p class="trk">${cohortLabel}</p>` : ''}
+<div class="line"></div>
+<div class="ft">
+<div class="sig"><div class="sline"></div><p class="sname">${tutorName}</p><p class="srole">${tutorName} · Brixgate</p></div>
+<div class="qw"><img src="${qrUrl}" width="80" height="80" style="background:white;padding:5px;border-radius:4px;display:block;margin:0 auto" alt="QR"><p class="cnum">${certificateNumber ?? ''}</p></div>
+<div class="sig"><div class="sline"></div><p class="sname">${expertName}</p><p class="srole">${expertName} · Brixgate</p></div>
+</div>
+<p class="dtf">${issuedAt ?? ''} · BRIXGATE.COM</p>
+</div>
+<script>window.addEventListener('load',function(){setTimeout(function(){window.print()},600)})<\/script>
+</body></html>`
+}
+
+// ── Certificate modal ─────────────────────────────────────────────────────────
+function CertificateModal({ row, fullName, onClose }: {
+  row: CertRow; fullName: string; onClose: () => void
+}) {
   const { toasts, toast, removeToast } = useToast()
+  const { title, cohortLabel, issuedAt, certificateNumber } = row
 
-  async function handleDownload() {
-    try {
-      const res = await fetch('/certificate-template.html')
-      let html = await res.text()
+  const pubLink = certificateNumber
+    ? `https://brixgate.com/verify/${certificateNumber}`
+    : 'https://brixgate.com'
 
-      const certUrl = `https://brixgate.com/verify/${certificateNumber ?? ''}`
-      const linkedInUrl = `https://www.linkedin.com/shareArticle?mini=true&url=${encodeURIComponent(certUrl)}&title=${encodeURIComponent(`${title} Certificate`)}&summary=${encodeURIComponent(`I completed ${title} at Brixgate!`)}`
-
-      // signatories from cert metadata: [0] = tutor/instructor, [1] = expert/practitioner
-      const tutorLabel  = signatories[0] ?? 'Lead Instructor'
-      const expertLabel = signatories[1] ?? 'Expert Practitioner'
-
-      const replacements: Record<string, string> = {
-        '{{HOLDER_NAME}}':       fullName,
-        '{{FIELD_NAME}}':        title,
-        '{{CERT_ID}}':           certificateNumber ?? '',
-        '{{DATE_ISSUED}}':       issuedAt ?? '',
-        '{{TUTOR_NAME}}':        tutorLabel,
-        '{{TUTOR_ROLE}}':        `${tutorLabel} · Brixgate`,
-        '{{EXPERT_NAME}}':       expertLabel,
-        '{{EXPERT_ROLE}}':       `${expertLabel} · Brixgate`,
-        '{{CERT_URL}}':          certUrl,
-        '{{CERT_URL_ENCODED}}':  encodeURIComponent(certUrl),
-        '{{PROGRAMME_BLURB}}':   `This programme equips professionals with practical, job-ready skills in ${title}. Delivered by Brixgate — Nigeria's leading AI training company.`,
-        '{{LINKEDIN_SHARE_URL}}': linkedInUrl,
-      }
-
-      for (const [key, val] of Object.entries(replacements)) {
-        html = html.split(key).join(val)
-      }
-
-      const win = window.open('', '_blank')
-      if (!win) return
-      win.document.write(html)
-      win.document.close()
-      win.addEventListener('load', () => {
-        setTimeout(() => { win.print() }, 400)
-      })
-    } catch {
-      // Fallback: print current page
-      window.print()
-    }
+  function handleDownload() {
+    const html = generatePrintHtml(row, fullName)
+    const win  = window.open('', '_blank')
+    if (!win) { toast.error('Pop-up blocked — please allow pop-ups and try again.'); return }
+    win.document.write(html)
+    win.document.close()
   }
 
-  async function handleShare() {
-    const text = `🎓 I'm proud to have completed ${title} at Brixgate!\n\nThis certificate was awarded to ${fullName} on ${issuedAt} for successfully completing ${title}${cohortLabel ? ` — ${cohortLabel}` : ''}.${certificateNumber ? `\n\nCertificate No: ${certificateNumber}` : ''}\n\n#Brixgate #AITraining #Certificate`
-    setSharing(true)
+  async function handleCopyLink() {
     try {
-      if (typeof navigator !== 'undefined' && navigator.share) {
-        await navigator.share({ title: 'My Brixgate Certificate', text })
-      } else {
-        await navigator.clipboard.writeText(text)
-        toast.success('Share text copied to clipboard!')
-      }
-    } catch { /* user cancelled */ } finally { setSharing(false) }
+      await navigator.clipboard.writeText(pubLink)
+      toast.success('Certificate link copied!')
+    } catch { toast.error('Could not copy to clipboard.') }
+  }
+
+  function handleLinkedIn() {
+    const certDate  = issuedAt ?? new Date().toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })
+    const shareText = `🎓 Excited to share that I've completed ${title} at Brixgate${cohortLabel ? ` (${cohortLabel})` : ''}!\n\nCertificate awarded on ${certDate}${certificateNumber ? ` — Cert No: ${certificateNumber}` : ''}.\n\nVerify: ${pubLink}\n\n#Brixgate #AITraining #Certificate`
+    const url = `https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(shareText)}`
+    window.open(url, '_blank')
+  }
+
+  async function handleNativeShare() {
+    const certDate  = issuedAt ?? ''
+    const shareText = `🎓 I'm proud to have completed ${title} at Brixgate${cohortLabel ? ` (${cohortLabel})` : ''}!\n\nCertificate awarded to ${fullName} on ${certDate}${certificateNumber ? `\n\nCertificate No: ${certificateNumber}` : ''}.\n\nVerify: ${pubLink}\n\n#Brixgate #AITraining #Certificate`
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try { await navigator.share({ title: `${fullName} — Brixgate Certificate`, text: shareText, url: pubLink }) }
+      catch { /* cancelled */ }
+    } else {
+      await handleCopyLink()
+    }
   }
 
   return (
     <>
-    <div className="grid grid-cols-[1fr_340px] gap-5">
-      {/* Left: certificate visual */}
-      <div className="flex flex-col gap-4">
-
-        {/* Status banner */}
-        <div className={`rounded-[12px] p-5 border ${isUnlocked ? 'bg-[#ecfdf3] border-[#bbf7d0]' : 'bg-[#fef2f2] border-[#fecdca]'}`}>
-          <div className="flex items-center gap-3">
-            <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${isUnlocked ? 'bg-[#dcfce7]' : 'bg-[#fee2e2]'}`}>
-              {isUnlocked
-                ? <CheckmarkCircle01Icon size={20} color="#16a34a" strokeWidth={1.5} />
-                : <LockIcon size={18} color="#d51520" strokeWidth={1.5} />
-              }
-            </div>
-            <div>
-              <p className={`text-[14px] font-semibold font-display ${isUnlocked ? 'text-[#166534]' : 'text-[#991b1b]'}`}>
-                {isUnlocked ? 'Certificate issued' : 'Certificate pending'}
-              </p>
-              <p className={`text-[12px] font-body mt-0.5 ${isUnlocked ? 'text-[#16a34a]' : 'text-[#d51520]'}`}>
-                {isUnlocked
-                  ? `Issued on ${issuedAt}`
-                  : 'Your instructor has not yet issued your certificate'}
-              </p>
-            </div>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-start overflow-y-auto py-10 px-4"
+        onClick={onClose}
+      >
+        <div
+          className="w-full max-w-[820px] flex flex-col gap-4"
+          onClick={e => e.stopPropagation()}
+        >
+          {/* Certificate card */}
+          <div className="w-full">
+            <CertificateDesign row={row} fullName={fullName} size="modal" />
           </div>
-        </div>
 
-        {/* Certificate preview */}
-        <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] overflow-hidden" id="certificate-print-area">
-          <div className="relative">
-            {/* Certificate visual — replace inner content with <img> when template image is provided */}
-            <div
-              className={`relative min-h-[380px] flex flex-col items-center justify-center p-10 text-center ${!isUnlocked ? 'select-none' : ''}`}
-              style={{ background: 'linear-gradient(160deg, #fff9f9 0%, #ffffff 50%, #fff9f9 100%)', borderBottom: '1px solid #f3f4f6' }}
-            >
-              {/* Corner decorations */}
-              <div className="absolute top-4 left-4 w-8 h-8 border-t-2 border-l-2 border-[#fecdca] rounded-tl-[4px]" />
-              <div className="absolute top-4 right-4 w-8 h-8 border-t-2 border-r-2 border-[#fecdca] rounded-tr-[4px]" />
-              <div className="absolute bottom-4 left-4 w-8 h-8 border-b-2 border-l-2 border-[#fecdca] rounded-bl-[4px]" />
-              <div className="absolute bottom-4 right-4 w-8 h-8 border-b-2 border-r-2 border-[#fecdca] rounded-br-[4px]" />
-
-              {/* Lock overlay */}
-              {!isUnlocked && (
-                <div className="absolute inset-0 backdrop-blur-[6px] bg-white/70 z-10 flex flex-col items-center justify-center gap-3">
-                  <div className="w-14 h-14 rounded-full bg-[#f3f4f6] flex items-center justify-center">
-                    <LockIcon size={26} color="#9ca3af" strokeWidth={1.5} />
-                  </div>
-                  <p className="text-[14px] font-semibold text-[#374151] font-display">Certificate not yet issued</p>
-                  <p className="text-[12px] text-[#6b7280] font-body max-w-[240px]">
-                    Your instructor will issue your certificate once they&apos;ve reviewed your performance.
-                  </p>
-                </div>
-              )}
-
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#d51520] font-display mb-5">
-                Certificate of Completion
-              </p>
-              <p className="text-[13px] text-[#6b7280] font-body mb-2">This is to certify that</p>
-              <p className="text-[30px] font-bold text-[#111827] font-display leading-tight mb-3">{fullName}</p>
-              <p className="text-[12px] text-[#6b7280] font-body mb-2">has successfully completed</p>
-              <p className="text-[17px] font-semibold text-[#111827] font-display max-w-[380px] leading-snug mb-1">{title}</p>
-              {cohortLabel && <p className="text-[12px] text-[#6b7280] font-body">{cohortLabel}</p>}
-
-              <div className="mt-6 flex items-center gap-8">
-                <div className="text-center">
-                  <div className="w-24 h-px bg-[#e5e7eb] mb-1.5 mx-auto" />
-                  <p className="text-[10px] text-[#6b7280] font-body">{issuedAt ?? '—'}</p>
-                  <p className="text-[9px] text-[#9ca3af] font-body uppercase tracking-wider mt-0.5">Date Issued</p>
-                </div>
-                <div className="w-10 h-10 rounded-full border-2 border-[#d51520] flex items-center justify-center">
-                  <span className="text-[10px] font-bold text-[#d51520] font-display">BG</span>
-                </div>
-                <div className="text-center">
-                  <div className="w-24 h-px bg-[#e5e7eb] mb-1.5 mx-auto" />
-                  <p className="text-[10px] text-[#6b7280] font-body">Brixgate Academy</p>
-                  <p className="text-[9px] text-[#9ca3af] font-body uppercase tracking-wider mt-0.5">Issuer</p>
-                </div>
-              </div>
-
-              {certificateNumber && (
-                <p className="mt-4 text-[9px] text-[#9ca3af] font-body tracking-widest uppercase">
-                  Certificate No: {certificateNumber}
-                </p>
-              )}
+          {/* Action bar */}
+          <div className="bg-white rounded-[12px] p-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Copy link */}
+              <button onClick={handleCopyLink}
+                className="flex items-center gap-2 h-9 px-4 rounded-[8px] border border-[#e5e7eb] text-[13px] font-medium text-[#374151] font-display hover:bg-[#f9fafb] transition-colors">
+                <Copy01Icon size={14} color="#374151" strokeWidth={1.5} />
+                Copy link
+              </button>
+              {/* LinkedIn */}
+              <button onClick={handleLinkedIn}
+                className="flex items-center gap-2 h-9 px-4 rounded-[8px] bg-[#0A66C2] text-[13px] font-medium text-white font-display hover:bg-[#084fa1] transition-colors">
+                <span style={{ fontWeight: 900, fontSize: 12, fontStyle: 'italic', lineHeight: 1, background: 'rgba(255,255,255,0.15)', borderRadius: 3, padding: '1px 4px' }}>in</span>
+                Post to LinkedIn
+              </button>
+              {/* Share */}
+              <button onClick={handleNativeShare}
+                className="flex items-center gap-2 h-9 px-4 rounded-[8px] border border-[#e5e7eb] text-[13px] font-medium text-[#374151] font-display hover:bg-[#f9fafb] transition-colors">
+                <Share01Icon size={14} color="#374151" strokeWidth={1.5} />
+                Share
+              </button>
             </div>
-
-            {/* Action bar */}
-            <div className="px-6 py-4 flex items-center justify-between gap-3">
-              <p className="text-[12px] text-[#6b7280] font-body">
-                {isUnlocked ? 'Download or share your certificate.' : 'Available once your instructor issues it.'}
-              </p>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleShare}
-                  disabled={!isUnlocked || sharing}
-                  className={`inline-flex items-center gap-2 text-[13px] font-semibold font-display px-4 py-2 rounded-[8px] border transition-colors ${
-                    isUnlocked
-                      ? 'border-[#d1d5dd] text-[#374151] hover:bg-[#f9fafb]'
-                      : 'border-[#e5e7eb] text-[#d1d5db] cursor-not-allowed'
-                  }`}
-                >
-                  <Share01Icon size={14} strokeWidth={1.5} />
-                  Share
-                </button>
-                <button
-                  onClick={handleDownload}
-                  disabled={!isUnlocked}
-                  className={`inline-flex items-center gap-2 text-[13px] font-semibold font-display px-4 py-2 rounded-[8px] transition-colors ${
-                    isUnlocked
-                      ? 'bg-[#d51520] text-white hover:bg-[#b81119]'
-                      : 'bg-[#f3f4f6] text-[#d1d5db] cursor-not-allowed'
-                  }`}
-                >
-                  <Download01Icon size={14} strokeWidth={1.5} />
-                  Download
-                </button>
-              </div>
+            <div className="flex items-center gap-2">
+              <button onClick={handleDownload}
+                className="flex items-center gap-2 h-9 px-5 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] transition-colors">
+                <Download01Icon size={14} color="white" strokeWidth={1.5} />
+                Download PDF
+              </button>
+              <button onClick={onClose}
+                className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-[#f3f4f6] transition-colors">
+                <Cancel01Icon size={16} color="#374151" strokeWidth={1.5} />
+              </button>
             </div>
           </div>
         </div>
       </div>
-
-      {/* Right: details */}
-      <div className="flex flex-col gap-4">
-        <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] p-6">
-          <p className="text-[15px] font-semibold text-[#111827] font-display mb-4">Certificate Details</p>
-          <div className="flex flex-col gap-4">
-            {[
-              { label: 'Recipient',          value: fullName },
-              { label: 'Programme',          value: title },
-              { label: 'Cohort',             value: cohortLabel || '—' },
-              { label: 'Date of Issue',      value: issuedAt ?? 'Pending' },
-              { label: 'Certificate No.',    value: certificateNumber ?? 'Pending' },
-              { label: 'Issuer',             value: 'Brixgate Academy' },
-            ].map(({ label, value }) => (
-              <div key={label} className="flex flex-col gap-0.5">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">{label}</p>
-                <p className="text-[13px] font-medium text-[#374151] font-body">{value}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {!isUnlocked && (
-          <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] p-6">
-            <p className="text-[15px] font-semibold text-[#111827] font-display mb-0.5">What&apos;s next?</p>
-            <p className="text-[12px] text-[#6b7280] font-body mb-4">Steps your instructor evaluates before issuing your certificate.</p>
-            <div className="flex flex-col gap-3">
-              {[
-                'Attend at least 80% of live sessions',
-                'Submit all required assignments',
-                'Complete all session materials',
-                'Pass the final assessment',
-              ].map(label => (
-                <RequirementItem key={label} done={false} label={label} />
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-    <ToastContainer toasts={toasts} onRemove={removeToast} />
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
     </>
+  )
+}
+
+// ── Status badge ──────────────────────────────────────────────────────────────
+function StatusBadge({ issued }: { issued: boolean }) {
+  if (issued) return (
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[#ecfdf3] text-[#166534] border border-[#bbf7d0] font-display">
+      <span className="w-1.5 h-1.5 rounded-full bg-[#16a34a] flex-shrink-0" />
+      Ready
+    </span>
+  )
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[#fffbeb] text-[#92400e] border border-[#fde68a] font-display">
+      <span className="w-1.5 h-1.5 rounded-full bg-[#f59e0b] flex-shrink-0" />
+      Pending
+    </span>
   )
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function CertificatePage() {
   const { user } = useAuth()
-  const [rows, setRows]       = useState<CertRow[]>([])
-  const [loading, setLoading] = useState(true)
+  const [rows, setRows]             = useState<CertRow[]>([])
+  const [loading, setLoading]       = useState(true)
+  const [selectedRow, setSelectedRow] = useState<CertRow | null>(null)
+  const { toasts, toast, removeToast } = useToast()
 
-  const fullName = user ? `${user.firstName} ${user.lastName}`.trim() : ''
+  const fullName = user ? `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() : ''
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const [programsRes, certsRes] = await Promise.all([
-          apiClient.get('/users/me/programs'),
-          apiClient.get('/users/me/certifications').catch(() => ({ data: null })),
-        ])
+  const load = useCallback(async () => {
+    try {
+      const [programsRes, certsRes] = await Promise.all([
+        apiClient.get('/users/me/programs'),
+        apiClient.get('/users/me/certifications').catch(() => ({ data: null })),
+      ])
 
-        // Programs: unwrap handles { data: [...] } or bare array
-        const programsRaw = unwrap<unknown>(programsRes.data)
-        const programs: ApiProgram[] = Array.isArray(programsRaw)
-          ? programsRaw
-          : Array.isArray((programsRaw as Record<string, unknown>)?.programs)
-            ? (programsRaw as Record<string, unknown>).programs as ApiProgram[]
-            : []
+      const programsRaw = unwrap<unknown>(programsRes.data)
+      const programs: ApiProgram[] = Array.isArray(programsRaw)
+        ? programsRaw
+        : Array.isArray((programsRaw as Record<string, unknown>)?.programs)
+          ? (programsRaw as Record<string, unknown>).programs as ApiProgram[]
+          : []
 
-        // Certifications: API may return array, or { certifications:[...] },
-        // or { certificates:[...] }, or { user_certificates:[...] }
-        const certsRaw = unwrap<unknown>(certsRes.data)
-        const certs: ApiCertification[] = (() => {
-          if (!certsRaw) return []
-          if (Array.isArray(certsRaw)) return certsRaw as ApiCertification[]
-          const r = certsRaw as Record<string, unknown>
-          if (Array.isArray(r.certifications))     return r.certifications     as ApiCertification[]
-          if (Array.isArray(r.certificates))       return r.certificates       as ApiCertification[]
-          if (Array.isArray(r.user_certificates))  return r.user_certificates  as ApiCertification[]
-          return []
-        })()
+      const certsRaw = unwrap<unknown>(certsRes.data)
+      const certs: ApiCertification[] = (() => {
+        if (!certsRaw) return []
+        if (Array.isArray(certsRaw)) return certsRaw as ApiCertification[]
+        const r = certsRaw as Record<string, unknown>
+        if (Array.isArray(r.certifications))    return r.certifications    as ApiCertification[]
+        if (Array.isArray(r.certificates))      return r.certificates      as ApiCertification[]
+        if (Array.isArray(r.user_certificates)) return r.user_certificates as ApiCertification[]
+        return []
+      })()
 
-        // Build two lookup maps: by program_id and by cohort_id.
-        // User-certificate responses may nest ids inside a `certificate` object.
-        const byProgram = new Map<number, ApiCertification>()
-        const byCohort  = new Map<number, ApiCertification>()
-
-        for (const c of certs) {
-          const def    = c.certificate ?? c                      // unwrap nested shape
-          const progId = def.program_id ?? def.programId ?? c.program_id ?? c.programId
-          const cohId  = def.cohort_id  ?? def.cohortId  ?? c.cohort_id  ?? c.cohortId
-          if (progId) byProgram.set(progId, c)
-          if (cohId)  byCohort.set(cohId,  c)
-        }
-
-        setRows(programs.map(p => normaliseProgramToCertRow(p, byProgram, byCohort)))
-      } catch {
-        // show empty state rather than an error — student may just not be enrolled yet
-      } finally {
-        setLoading(false)
+      const byProgram = new Map<number, ApiCertification>()
+      const byCohort  = new Map<number, ApiCertification>()
+      for (const c of certs) {
+        const def    = c.certificate ?? c
+        const progId = def.program_id ?? def.programId ?? c.program_id ?? c.programId
+        const cohId  = def.cohort_id  ?? def.cohortId  ?? c.cohort_id  ?? c.cohortId
+        if (progId) byProgram.set(progId, c)
+        if (cohId)  byCohort.set(cohId,  c)
       }
+
+      setRows(programs.map(p => normaliseProgramToCertRow(p, byProgram, byCohort)))
+    } catch {
+      // show empty state — student may not be enrolled yet
+    } finally {
+      setLoading(false)
     }
-    load()
   }, [])
+
+  useEffect(() => { load() }, [load])
+
+  function handleDownloadRow(row: CertRow, e: React.MouseEvent) {
+    e.stopPropagation()
+    if (!row.issuedAt) { toast.error('Certificate not yet issued.'); return }
+    const html = generatePrintHtml(row, fullName)
+    const win  = window.open('', '_blank')
+    if (!win) { toast.error('Pop-up blocked — please allow pop-ups and try again.'); return }
+    win.document.write(html)
+    win.document.close()
+  }
 
   return (
     <>
-      <TopNav title="My Certificate" />
+      <TopNav title="My Certificates" />
 
       <div className="px-4 md:px-8 pb-10">
         <div className="pt-7 pb-6">
-          <h1 className="text-[24px] font-bold text-[#111827] font-display leading-tight">
-            My Certificates
-          </h1>
+          <h1 className="text-[24px] font-bold text-[#111827] font-display leading-tight">My Certificates</h1>
           <p className="text-[14px] text-[#4b5563] font-body mt-1">
-            Complete each programme to earn and download your Brixgate certificate.
+            Your Brixgate certificates — one per programme you complete.
           </p>
         </div>
 
-        {/* Loading */}
         {loading && (
           <div className="flex items-center justify-center py-16 gap-2 text-[#4b5563]">
             <Loading01Icon size={18} className="animate-spin" strokeWidth={1.5} />
@@ -437,27 +500,88 @@ export default function CertificatePage() {
           </div>
         )}
 
-        {/* Empty */}
         {!loading && rows.length === 0 && (
           <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)]">
-            <EmptyState
-              icon={Award01Icon}
-              title="No certificates yet"
+            <EmptyState icon={Award01Icon} title="No certificates yet"
               description="Enrol in a programme and complete all requirements to earn your certificate."
-              action={{ label: 'View Programmes', href: '/student/programs' }}
-            />
+              action={{ label: 'View Programmes', href: '/student/programs' }} />
           </div>
         )}
 
-        {/* Cards */}
         {!loading && rows.length > 0 && (
-          <div className="flex flex-col gap-10">
-            {rows.map((row) => (
-              <CertificateCard key={row.key} row={row} fullName={fullName} />
-            ))}
+          <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] overflow-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
+                  {['Programme', 'Cohort', 'Status', 'Date Issued', 'Certificate No.', 'Actions'].map(h => (
+                    <th key={h} className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display whitespace-nowrap">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#f3f4f6]">
+                {rows.map(row => {
+                  const issued = row.issuedAt !== null
+                  return (
+                    <tr key={row.key} className="hover:bg-[#fafafa] transition-colors">
+                      <td className="px-5 py-4">
+                        <p className="text-[13px] font-semibold text-[#111827] font-display">{row.title}</p>
+                      </td>
+                      <td className="px-5 py-4">
+                        <p className="text-[13px] text-[#4b5563] font-body">{row.cohortLabel || '—'}</p>
+                      </td>
+                      <td className="px-5 py-4">
+                        <StatusBadge issued={issued} />
+                      </td>
+                      <td className="px-5 py-4">
+                        <p className="text-[13px] text-[#4b5563] font-body">{row.issuedAt ?? '—'}</p>
+                      </td>
+                      <td className="px-5 py-4">
+                        <p className="text-[12px] text-[#4b5563] font-body tracking-wide">{row.certificateNumber ?? '—'}</p>
+                      </td>
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => { if (issued) setSelectedRow(row) }}
+                            disabled={!issued}
+                            className={`flex items-center gap-1.5 h-8 px-3 rounded-[6px] text-[12px] font-medium font-display border transition-colors ${
+                              issued
+                                ? 'border-[#e5e7eb] text-[#374151] hover:bg-[#f9fafb]'
+                                : 'border-[#f3f4f6] text-[#d1d5db] cursor-not-allowed'
+                            }`}
+                          >
+                            <EyeIcon size={13} strokeWidth={1.5} />
+                            View
+                          </button>
+                          <button
+                            onClick={e => handleDownloadRow(row, e)}
+                            disabled={!issued}
+                            className={`flex items-center gap-1.5 h-8 px-3 rounded-[6px] text-[12px] font-medium font-display transition-colors ${
+                              issued
+                                ? 'bg-[#d51520] text-white hover:bg-[#b81119]'
+                                : 'bg-[#f3f4f6] text-[#d1d5db] cursor-not-allowed'
+                            }`}
+                          >
+                            <Download01Icon size={13} strokeWidth={1.5} />
+                            Download
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
+
+      {selectedRow && (
+        <CertificateModal row={selectedRow} fullName={fullName} onClose={() => setSelectedRow(null)} />
+      )}
+
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
     </>
   )
 }
