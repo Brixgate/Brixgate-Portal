@@ -11,24 +11,21 @@ import {
   Video01Icon,
   BookOpen01Icon,
   Loading01Icon,
-  ArrowDown01Icon,
-  CheckmarkCircle01Icon,
   EyeIcon,
   Cancel01Icon,
   Search01Icon,
 } from 'hugeicons-react'
 import EmptyState from '@/components/shared/EmptyState'
-import { cn } from '@/lib/utils'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 import { useToast, ToastContainer } from '@/components/shared/Toast'
 
-// ── Filter chips ──────────────────────────────────────────────────────────────
-const FILTER_CHIPS: { label: string; apiType: string | null }[] = [
-  { label: 'All',         apiType: null           },
-  { label: 'PDF',         apiType: 'PDF'          },
-  { label: 'Slides',      apiType: 'PRESENTATION' },
-  { label: 'Video',       apiType: 'VIDEO'        },
-  { label: 'Doc',         apiType: 'ARTICLE'      },
+// ── File type filter options ──────────────────────────────────────────────────
+const FILE_TYPE_OPTIONS: { label: string; value: string }[] = [
+  { label: 'All Types',   value: 'all'          },
+  { label: 'PDF',         value: 'PDF'          },
+  { label: 'Slides',      value: 'PRESENTATION' },
+  { label: 'Video',       value: 'VIDEO'        },
+  { label: 'Doc',         value: 'ARTICLE'      },
 ]
 
 const FILE_ICONS: Record<string, React.ElementType> = {
@@ -226,60 +223,44 @@ function ResourceRow({ resource }: { resource: Resource }) {
   )
 }
 
-// ── Cohort pill (inline selector when enrolled in multiple) ───────────────────
-function CohortPill({ cohorts, selected, onChange }: {
-  cohorts: CohortOption[]
-  selected: CohortOption
-  onChange: (c: CohortOption) => void
+// ── Dropdown component ────────────────────────────────────────────────────────
+function FilterSelect({ label, value, onChange, options }: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  options: { label: string; value: string }[]
 }) {
-  const [open, setOpen] = useState(false)
-  if (cohorts.length <= 1) return null
-
   return (
-    <div className="relative">
-      <button onClick={() => setOpen(v => !v)}
-        className="flex items-center gap-2 h-9 pl-3.5 pr-2.5 bg-white border border-[#e5e7eb] rounded-[8px] hover:bg-[#f9fafb] transition-colors">
-        <span className="text-[13px] font-semibold text-[#111827] font-display">{selected.label}</span>
-        {selected.cohortLabel && <span className="text-[11px] text-[#6b7280] font-body">· {selected.cohortLabel}</span>}
-        <ArrowDown01Icon size={13} color="#4b5563" strokeWidth={1.5} className={`flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-[calc(100%+6px)] z-50 bg-white rounded-[10px] shadow-[0px_8px_24px_rgba(16,24,40,0.12)] border border-[#f3f4f6] min-w-[240px] py-1.5 overflow-hidden">
-            {cohorts.map(c => {
-              const active = c.cohortId === selected.cohortId
-              return (
-                <button key={c.cohortId} onClick={() => { onChange(c); setOpen(false) }}
-                  className={`w-full text-left flex items-center justify-between gap-3 px-4 py-2.5 transition-colors ${active ? 'bg-[#fef2f2]' : 'hover:bg-[#f9fafb]'}`}>
-                  <div>
-                    <p className={`text-[13px] font-medium font-display leading-snug ${active ? 'text-[#d51520]' : 'text-[#111827]'}`}>{c.label}</p>
-                    {c.cohortLabel && <p className="text-[11px] text-[#4b5563] font-body mt-0.5">{c.cohortLabel}</p>}
-                  </div>
-                  {active && <CheckmarkCircle01Icon size={15} color="#d51520" strokeWidth={1.5} className="flex-shrink-0" />}
-                </button>
-              )
-            })}
-          </div>
-        </>
-      )}
+    <div className="flex flex-col gap-1">
+      <label className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6b7280] font-display">{label}</label>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="h-9 pl-3 pr-8 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body text-[#111827] bg-white outline-none focus:border-[#d51520] appearance-none cursor-pointer min-w-[180px]"
+        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center' }}
+      >
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
     </div>
   )
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function ResourcesPage() {
-  const [cohorts, setCohorts]           = useState<CohortOption[]>([])
-  const [selected, setSelected]         = useState<CohortOption | null>(null)
-  const [resources, setResources]       = useState<Resource[]>([])
-  const [totalCount, setTotalCount]     = useState(0)
-  const [loading, setLoading]           = useState(true)
-  const [error, setError]               = useState<string | null>(null)
-  const [activeFilter, setActiveFilter] = useState<string>('All')
-  const [search, setSearch]             = useState('')
+  const [cohorts, setCohorts]         = useState<CohortOption[]>([])
+  const [programFilter, setProg]      = useState<string>('all')  // 'all' | cohortId string
+  const [fileTypeFilter, setFileType] = useState<string>('all')
+  const [search, setSearch]           = useState('')
+  const [resources, setResources]     = useState<Resource[]>([])
+  const [loading, setLoading]         = useState(true)
+  const [error, setError]             = useState<string | null>(null)
 
-  // Resolve enrolled cohorts on mount
+  // Resolve enrolled cohorts + read ?cohort= URL param on mount
   useEffect(() => {
+    const urlParam = typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('cohort')
+      : null
+
     async function resolveCohorts() {
       try {
         const res  = await apiClient.get('/users/me/programs')
@@ -287,7 +268,7 @@ export default function ResourcesPage() {
         const programs = Array.isArray(data?.programs) ? data.programs : []
         const options: CohortOption[] = []
         for (const prog of programs) {
-          const title   = (prog as Record<string, unknown>)?.['title'] as string ?? 'Programme'
+          const title      = (prog as Record<string, unknown>)?.['title'] as string ?? 'Programme'
           const cohortList = readMyCohorts(prog)
           for (const c of cohortList) {
             const cId = readCohortId(c)
@@ -298,8 +279,11 @@ export default function ResourcesPage() {
           }
         }
         setCohorts(options)
-        if (options.length > 0) setSelected(options[0])
-        else setLoading(false)
+        // Pre-select from URL param if present and valid
+        if (urlParam && options.some(o => String(o.cohortId) === urlParam)) {
+          setProg(urlParam)
+        }
+        if (options.length === 0) setLoading(false)
       } catch (err) {
         setError(getApiError(err))
         setLoading(false)
@@ -308,45 +292,63 @@ export default function ResourcesPage() {
     resolveCohorts()
   }, [])
 
-  // Fetch resources when selected cohort changes
-  const fetchResources = useCallback(async (cohortId: number) => {
+  // Fetch resources whenever the programme filter or cohort list changes
+  const fetchForCohort = useCallback(async (cohortId: number) => {
     const res  = await apiClient.get(`/cohorts/${cohortId}/resources`)
     const data = unwrap<ApiResourcesResponse>(res.data)
     return (Array.isArray(data?.resources) ? data.resources : []).map(normaliseResource)
   }, [])
 
   useEffect(() => {
-    if (!selected) return
-    setActiveFilter('All')
-    setSearch('')
-    setLoading(true)
-    setError(null)
+    if (cohorts.length === 0) return
+    setLoading(true); setError(null)
     ;(async () => {
       try {
-        const rows = await fetchResources(selected.cohortId)
-        setResources(rows)
-        setTotalCount(rows.length)
+        if (programFilter === 'all') {
+          // Fetch all cohorts in parallel and merge
+          const results = await Promise.allSettled(cohorts.map(c => fetchForCohort(c.cohortId)))
+          const seen = new Set<string>()
+          const merged: Resource[] = []
+          results.forEach(r => {
+            if (r.status === 'fulfilled') {
+              r.value.forEach(res => { if (!seen.has(res.id)) { seen.add(res.id); merged.push(res) } })
+            }
+          })
+          setResources(merged)
+        } else {
+          const rows = await fetchForCohort(Number(programFilter))
+          setResources(rows)
+        }
       } catch (err) { setError(getApiError(err)) }
       finally { setLoading(false) }
     })()
-  }, [selected, fetchResources])
+  }, [cohorts, programFilter, fetchForCohort])
 
-  // Client-side filter + search (avoids extra network calls for filter changes)
+  // Client-side file type filter + search
   const displayed = useMemo(() => {
     let list = resources
-    if (activeFilter !== 'All') {
-      const chip = FILTER_CHIPS.find(f => f.label === activeFilter)
-      if (chip?.apiType) list = list.filter(r => r.fileType.toUpperCase() === inferFileTypeRaw(chip.apiType!))
+    if (fileTypeFilter !== 'all') {
+      list = list.filter(r => inferFileTypeRaw(r.fileType.toUpperCase()) === inferFileTypeRaw(fileTypeFilter))
     }
     if (search.trim()) {
       const q = search.toLowerCase()
       list = list.filter(r => r.title.toLowerCase().includes(q))
     }
     return list
-  }, [resources, activeFilter, search])
+  }, [resources, fileTypeFilter, search])
 
   const byWeek      = groupByWeek(displayed)
   const weekNumbers = Object.keys(byWeek).map(Number).sort((a, b) => a - b)
+  const totalCount  = resources.length
+
+  // Build programme dropdown options
+  const programOptions = useMemo(() => [
+    { label: 'All Programmes', value: 'all' },
+    ...cohorts.map(c => ({
+      label: c.cohortLabel ? `${c.label} · ${c.cohortLabel}` : c.label,
+      value: String(c.cohortId),
+    })),
+  ], [cohorts])
 
   return (
     <>
@@ -355,30 +357,31 @@ export default function ResourcesPage() {
       <div className="px-4 md:px-8 pb-10">
 
         {/* ── Page header ───────────────────────────────────────────── */}
-        <div className="pt-7 pb-5 flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="text-[24px] font-bold text-[#111827] font-display leading-tight">Resources</h1>
-            <p className="text-[14px] text-[#4b5563] font-body mt-1">
-              {selected
-                ? <><span className="font-medium text-[#111827]">{selected.label}</span>{selected.cohortLabel ? ` · ${selected.cohortLabel}` : ''}</>
-                : 'Session slides, guides, and materials for your cohort.'}
-            </p>
-          </div>
-          <div className="flex items-center gap-3 pt-1">
-            {selected && cohorts.length > 1 && (
-              <CohortPill cohorts={cohorts} selected={selected} onChange={c => setSelected(c)} />
-            )}
-            {!loading && !error && (
-              <span className="text-[13px] text-[#6b7280] font-body">{totalCount} file{totalCount !== 1 ? 's' : ''}</span>
-            )}
-          </div>
+        <div className="pt-7 pb-5">
+          <h1 className="text-[24px] font-bold text-[#111827] font-display leading-tight">Resources</h1>
+          <p className="text-[14px] text-[#4b5563] font-body mt-1">
+            Session slides, guides, and materials for your cohorts.
+          </p>
         </div>
 
-        {/* ── Search + filter bar ───────────────────────────────────── */}
-        {!loading && !error && totalCount > 0 && (
-          <div className="flex items-center gap-3 mb-6 flex-wrap">
-            {/* Search */}
-            <div className="relative flex-1 min-w-[200px] max-w-[360px]">
+        {/* ── Filter bar — always visible ───────────────────────────── */}
+        <div className="flex items-end gap-4 mb-6 flex-wrap">
+          <FilterSelect
+            label="Programme"
+            value={programFilter}
+            onChange={v => { setProg(v); setFileType('all'); setSearch('') }}
+            options={programOptions}
+          />
+          <FilterSelect
+            label="File type"
+            value={fileTypeFilter}
+            onChange={setFileType}
+            options={FILE_TYPE_OPTIONS}
+          />
+          {/* Search */}
+          <div className="flex flex-col gap-1 flex-1 min-w-[200px] max-w-[320px]">
+            <label className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6b7280] font-display">Search</label>
+            <div className="relative">
               <Search01Icon size={14} color="#9ca3af" strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 value={search}
@@ -392,23 +395,11 @@ export default function ResourcesPage() {
                 </button>
               )}
             </div>
-
-            {/* Filter chips */}
-            <div className="flex items-center gap-2 flex-wrap">
-              {FILTER_CHIPS.map(({ label }) => (
-                <button key={label} onClick={() => setActiveFilter(label)}
-                  className={cn(
-                    'px-3.5 h-9 rounded-[8px] text-[13px] font-medium transition-colors border',
-                    activeFilter === label
-                      ? 'bg-[#d51520] text-white border-[#d51520] font-display'
-                      : 'bg-white border-[#e5e7eb] text-[#4b5563] font-body hover:bg-[#f9fafb]'
-                  )}>
-                  {label}
-                </button>
-              ))}
-            </div>
           </div>
-        )}
+          {!loading && !error && (
+            <span className="text-[13px] text-[#6b7280] font-body pb-1">{totalCount} file{totalCount !== 1 ? 's' : ''}</span>
+          )}
+        </div>
 
         {/* Loading */}
         {loading && (
@@ -433,11 +424,11 @@ export default function ResourcesPage() {
           </div>
         )}
 
-        {/* Empty — search/filter has no matches */}
+        {/* Empty — filter/search has no matches */}
         {!loading && !error && totalCount > 0 && weekNumbers.length === 0 && (
           <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)]">
             <EmptyState icon={File01Icon} title="No matches"
-              description="Try adjusting the search or filter to find what you're looking for." />
+              description="Try adjusting the filters or search to find what you're looking for." />
           </div>
         )}
 
