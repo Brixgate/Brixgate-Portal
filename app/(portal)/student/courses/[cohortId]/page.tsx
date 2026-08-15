@@ -65,9 +65,13 @@ interface ApiResource {
   type?: string
   link?: string
   createdAt?: string
-  // module association — present if backend links resources to a specific module
-  moduleId?: number
-  cohortModuleId?: number
+  // module association — camelCase (Swagger) and snake_case (actual backend) variants
+  moduleId?: number;          module_id?: number
+  cohortModuleId?: number;    cohort_module_id?: number
+  programModuleId?: number;   program_module_id?: number
+}
+function resourceModuleId(r: ApiResource): number | undefined {
+  return r.moduleId ?? r.module_id ?? r.cohortModuleId ?? r.cohort_module_id ?? r.programModuleId ?? r.program_module_id
 }
 interface ApiResourcesResponse {
   cohortId?: number
@@ -774,15 +778,13 @@ function DetailPanel({ item, resources }: { item: SelectedItem | null; resources
     const lessonCount = mod.lessons?.length ?? 0
     // Resources associated with this module (by moduleId / cohortModuleId),
     // falling back to all resources if none are module-scoped
-    const moduleResources = resources.filter(
-      (r) => r.moduleId === mod.id || r.cohortModuleId === mod.id
-    )
-    const hasModuleScoping = resources.some((r) => r.moduleId !== undefined || r.cohortModuleId !== undefined)
+    const moduleResources = resources.filter((r) => resourceModuleId(r) === mod.id)
+    const hasModuleScoping = resources.some((r) => resourceModuleId(r) !== undefined)
     const visibleResources = moduleResources.length > 0
       ? moduleResources
       : hasModuleScoping
-        ? []                 // other modules have resources, this one just has none
-        : resources          // flat list — show all under every module
+        ? []        // other modules have resources, this one just has none
+        : resources // no module scoping at all — show flat list under every module
 
     return (
       <div className="p-8">

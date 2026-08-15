@@ -792,8 +792,13 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
               <Field label="Link / URL">
                 <input value={resourceForm.link}
                   onChange={e => setResourceForm(p => ({ ...p, link: e.target.value }))}
-                  placeholder="https://docs.google.com/… or https://drive.google.com/…"
+                  placeholder="https://drive.google.com/uc?export=download&id=FILE_ID"
                   className={inputCls} />
+                <p className="text-[11px] text-[#6b7280] font-body mt-1.5 leading-relaxed">
+                  Google Drive: use a <strong>direct download</strong> link —{' '}
+                  <code className="bg-[#f3f4f6] px-1 rounded text-[10px]">drive.google.com/uc?export=download&amp;id=FILE_ID</code>
+                  , not a viewer link. The server rejects viewer/share links.
+                </p>
               </Field>
             )}
 
