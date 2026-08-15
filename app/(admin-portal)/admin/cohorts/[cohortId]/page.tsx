@@ -1048,7 +1048,7 @@ function CertificatesTab({ cohortId, programId }: { cohortId: string; programId:
     if (!certDef) { setIssuedUserIds(new Set()); return }
     setLoadingIssued(true)
     setSelectedStudents(new Set())
-    apiClient.get(`/admin/user-certificates?cohort_id=${cohortId}&certificate_id=${certDef.id}&size=200`)
+    apiClient.get(`/admin/user-certificates?cohort_id=${cohortId}&certificate_type_id=${certDef.certificate_type_id ?? certDef.certificateTypeId ?? ''}&size=200`)
       .then(res => {
         const raw = res.data?.data ?? res.data
         const inner = raw?.data ?? raw
@@ -1086,7 +1086,9 @@ function CertificatesTab({ cohortId, programId }: { cohortId: string; programId:
         if (created) setCertDefs(prev => [...prev, created as AdminCertificateDef])
       }
       if (!defId) throw new Error('Could not get certificate definition')
-      const targetIds = Array.from(selectedStudents)
+      // Strip anyone who already has this certificate (client-side guard against duplicates)
+      const targetIds = Array.from(selectedStudents).filter(id => !issuedUserIds.has(id))
+      if (targetIds.length === 0) { setError('All selected students already have this certificate.'); return }
       await apiClient.post('/admin/user-certificates/issue', {
         certificate_id: defId, cohort_id: Number(cohortId), user_ids: targetIds,
       })

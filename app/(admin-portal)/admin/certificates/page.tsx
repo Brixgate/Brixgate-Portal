@@ -26,14 +26,29 @@ interface IssuedCert {
   issued_at?: string; issuedAt?: string
   created_at?: string; createdAt?: string
   certificate_number?: string; certificateNumber?: string
-  // flat cohort fields some API shapes return
+  // flat cohort fields
+  cohort_id?: number;    cohortId?: number
   cohort_title?: string; cohortTitle?: string
   cohort_name?: string;  cohortName?: string
   user?: { id?: number; name?: string; first_name?: string; firstName?: string; last_name?: string; lastName?: string; email?: string }
   program?: { id?: number; title?: string }
   cohort?: { id?: number; title?: string; name?: string }
-  certificate?: { cohort?: { id?: number; title?: string; name?: string } }
+  certificate?: {
+    id?: number
+    cohort_id?: number; cohortId?: number
+    cohort?: { id?: number; title?: string; name?: string }
+  }
   certificate_type?: { id?: number; name?: string; title?: string }
+}
+
+function certCohortLabel(c: IssuedCert): string {
+  const name = c.cohort?.title ?? c.cohort?.name
+    ?? c.certificate?.cohort?.title ?? c.certificate?.cohort?.name
+    ?? c.cohort_title ?? c.cohortTitle ?? c.cohort_name ?? c.cohortName
+  if (name) return name
+  const id = c.cohort?.id ?? c.cohort_id ?? c.cohortId
+    ?? c.certificate?.cohort_id ?? c.certificate?.cohortId ?? c.certificate?.cohort?.id
+  return id ? `Cohort #${id}` : '—'
 }
 
 interface Pagination {
@@ -315,6 +330,9 @@ function IssuedCertsTab() {
   const [page, setPage]             = useState(1)
   const [statusFilter, setStatus]   = useState('')
   const [loading, setLoading]       = useState(true)
+  const [revokeTarget, setRevokeTarget] = useState<IssuedCert | null>(null)
+  const [revoking, setRevoking]         = useState(false)
+  const [revokeError, setRevokeError]   = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -337,6 +355,19 @@ function IssuedCertsTab() {
 
   useEffect(() => { load() }, [load])
 
+  async function doRevoke() {
+    if (!revokeTarget) return
+    setRevoking(true); setRevokeError('')
+    try {
+      await apiClient.delete(`/admin/user-certificates/${revokeTarget.id}`)
+      setCerts(prev => prev.filter(c => c.id !== revokeTarget.id))
+      setRevokeTarget(null)
+    } catch (e) {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
+      setRevokeError(msg ?? 'Failed to revoke. Try again.')
+    } finally { setRevoking(false) }
+  }
+
   const totalPages = pagination?.totalPages ?? pagination?.total_pages ?? 1
 
   return (
@@ -353,7 +384,7 @@ function IssuedCertsTab() {
           <table className="w-full">
             <thead>
               <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
-                {['Student', 'Email', 'Certificate Type', 'Programme', 'Cohort', 'Status', 'Issued'].map(h => (
+                {['Student', 'Email', 'Certificate Type', 'Programme', 'Cohort', 'Status', 'Issued', ''].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display">{h}</th>
                 ))}
               </tr>
@@ -378,11 +409,17 @@ function IssuedCertsTab() {
                   <td className="px-4 py-3.5"><p className="text-[12px] text-[#4b5563] font-body">{c.user?.email ?? '—'}</p></td>
                   <td className="px-4 py-3.5"><p className="text-[13px] text-[#374151] font-body">{c.certificate_type?.name ?? c.certificate_type?.title ?? '—'}</p></td>
                   <td className="px-4 py-3.5"><p className="text-[13px] text-[#374151] font-body">{c.program?.title ?? '—'}</p></td>
-                  <td className="px-4 py-3.5"><p className="text-[12px] text-[#4b5563] font-body">{c.cohort?.title ?? c.cohort?.name ?? c.certificate?.cohort?.title ?? c.certificate?.cohort?.name ?? c.cohort_title ?? c.cohortTitle ?? c.cohort_name ?? c.cohortName ?? '—'}</p></td>
+                  <td className="px-4 py-3.5"><p className="text-[12px] text-[#4b5563] font-body">{certCohortLabel(c)}</p></td>
                   <td className="px-4 py-3.5">
                     {c.status && <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold font-display ${STATUS_STYLE[c.status] ?? 'bg-[#f3f4f6] text-[#374151]'}`}>{c.status}</span>}
                   </td>
                   <td className="px-4 py-3.5"><p className="text-[12px] text-[#4b5563] font-body">{fmtDate(c.issuedAt ?? c.issued_at ?? c.createdAt ?? c.created_at)}</p></td>
+                  <td className="px-4 py-3.5">
+                    <button onClick={() => { setRevokeTarget(c); setRevokeError('') }}
+                      className="h-7 px-3 rounded-[6px] border border-[#fecaca] text-[11px] font-semibold text-[#d51520] font-display hover:bg-[#fef2f2] transition-colors">
+                      Revoke
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -398,6 +435,30 @@ function IssuedCertsTab() {
           </div>
         )}
       </div>
+
+      {/* Revoke confirm dialog */}
+      {revokeTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-[12px] shadow-lg w-full max-w-sm p-6">
+            <h3 className="text-[15px] font-bold text-[#111827] font-display mb-2">Revoke certificate?</h3>
+            <p className="text-[13px] text-[#4b5563] font-body mb-4">
+              This will revoke <span className="font-semibold text-[#111827]">{certUserName(revokeTarget.user)}</span>&#39;s certificate and remove it from their portal. This cannot be undone.
+            </p>
+            {revokeError && <p className="text-[12px] text-[#d51520] font-body mb-3">{revokeError}</p>}
+            <div className="flex gap-2">
+              <button onClick={() => setRevokeTarget(null)} disabled={revoking}
+                className="flex-1 h-9 rounded-[8px] border border-[#e5e7eb] text-[13px] font-medium text-[#374151] font-display hover:bg-[#f9fafb] disabled:opacity-50">
+                Cancel
+              </button>
+              <button onClick={doRevoke} disabled={revoking}
+                className="flex-1 h-9 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-50 flex items-center justify-center gap-2">
+                {revoking && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
+                Revoke
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
