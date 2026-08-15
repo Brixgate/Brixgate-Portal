@@ -80,19 +80,26 @@ function inferFileType(type: string): ResourceFileType {
   return 'pdf'
 }
 
+function isExternalLinkType(type?: string): boolean {
+  const t = (type ?? '').toUpperCase()
+  return t === 'EXTERNAL_LINK' || t === 'URL' || t === 'LINK'
+}
+
 function normaliseResource(raw: ApiResource): Resource {
+  const external = isExternalLinkType(raw.type)
   return {
-    id:          String(raw.id),
-    cohortId:    '',
-    title:       raw.title ?? 'Untitled Resource',
-    fileName:    raw.title ?? 'file',
-    fileType:    inferFileType(raw.type ?? ''),
-    fileSize:    '',
-    weekNumber:  raw.programModuleId ?? raw.program_module_id ?? 0,
-    weekTitle:   '',
-    uploadedAt:  raw.createdAt ?? raw.created_at ?? '',
-    uploadedBy:  '',
-    downloadUrl: raw.link ?? '#',
+    id:             String(raw.id),
+    cohortId:       '',
+    title:          raw.title ?? 'Untitled Resource',
+    fileName:       raw.title ?? 'file',
+    fileType:       inferFileType(raw.type ?? ''),
+    fileSize:       '',
+    weekNumber:     raw.programModuleId ?? raw.program_module_id ?? 0,
+    weekTitle:      '',
+    uploadedAt:     raw.createdAt ?? raw.created_at ?? '',
+    uploadedBy:     '',
+    downloadUrl:    raw.link ?? '#',
+    isExternalLink: external,
   }
 }
 
@@ -135,6 +142,11 @@ function ResourceRow({ resource }: { resource: Resource }) {
 
   async function handleDownload() {
     if (downloading) return
+    // External links: open the stored URL directly — no presigned URL needed
+    if (resource.isExternalLink) {
+      window.open(resource.downloadUrl, '_blank')
+      return
+    }
     setDownloading(true)
     try {
       const { url } = await getPresignedUrl()
@@ -145,6 +157,11 @@ function ResourceRow({ resource }: { resource: Resource }) {
 
   async function handlePreview() {
     if (previewing) return
+    // External links: open directly rather than trying to iframe a non-S3 URL
+    if (resource.isExternalLink) {
+      window.open(resource.downloadUrl, '_blank')
+      return
+    }
     setPreviewing(true)
     try {
       const { url, contentType } = await getPresignedUrl()

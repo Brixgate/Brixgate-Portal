@@ -105,6 +105,8 @@ interface CohortModule {
   visibilityStatus?: string
   releaseDate?: string
   createdBy?: string
+  // link back to the program module — backend may include this on cohort modules
+  program_module_id?: number; programModuleId?: number
   lessons: CohortLesson[]
 }
 interface CohortModulesResponse {
@@ -670,9 +672,16 @@ function ResourceRow({ resource }: { resource: ApiResource }) {
   const [loading,    setLoading]    = useState(false)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
+  const isExternal = ['EXTERNAL_LINK', 'URL', 'LINK'].includes(type)
+
   async function openPreview(e: React.MouseEvent) {
     e.stopPropagation()
     if (loading) return
+    // External links: open directly without calling the download endpoint
+    if (isExternal && resource.link) {
+      window.open(resource.link, '_blank')
+      return
+    }
     setLoading(true)
     try {
       const res  = await apiClient.get(`/program-resources/${resource.id}/download`)
@@ -778,7 +787,11 @@ function DetailPanel({ item, resources }: { item: SelectedItem | null; resources
     const lessonCount = mod.lessons?.length ?? 0
     // Resources associated with this module (by moduleId / cohortModuleId),
     // falling back to all resources if none are module-scoped
-    const moduleResources = resources.filter((r) => resourceModuleId(r) === mod.id)
+    const modProgramId = mod.program_module_id ?? mod.programModuleId
+    const moduleResources = resources.filter((r) => {
+      const rModId = resourceModuleId(r)
+      return rModId === mod.id || (modProgramId && rModId === modProgramId)
+    })
     const hasModuleScoping = resources.some((r) => resourceModuleId(r) !== undefined)
     const visibleResources = moduleResources.length > 0
       ? moduleResources

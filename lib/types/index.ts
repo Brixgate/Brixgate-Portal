@@ -113,6 +113,7 @@ export interface Resource {
   uploadedAt: string        // ISO date string
   uploadedBy: string        // Instructor name
   downloadUrl: string
+  isExternalLink?: boolean
 }
 
 // ── Certificate ──────────────────────────────────────────────────────────────
