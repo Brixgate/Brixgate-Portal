@@ -672,7 +672,8 @@ function ResourceRow({ resource }: { resource: ApiResource }) {
   const [loading,    setLoading]    = useState(false)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
-  const isExternal = ['EXTERNAL_LINK', 'URL', 'LINK'].includes(type)
+  // Resources uploaded as files have link=null; external links have link set to the URL
+  const isExternal = !!(resource.link && resource.link.startsWith('http'))
 
   async function openPreview(e: React.MouseEvent) {
     e.stopPropagation()

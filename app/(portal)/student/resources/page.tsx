@@ -80,13 +80,9 @@ function inferFileType(type: string): ResourceFileType {
   return 'pdf'
 }
 
-function isExternalLinkType(type?: string): boolean {
-  const t = (type ?? '').toUpperCase()
-  return t === 'EXTERNAL_LINK' || t === 'URL' || t === 'LINK'
-}
-
 function normaliseResource(raw: ApiResource): Resource {
-  const external = isExternalLinkType(raw.type)
+  // Resources uploaded as files have link=null; external links have link set to the URL
+  const external = !!(raw.link && raw.link.startsWith('http'))
   return {
     id:             String(raw.id),
     cohortId:       '',
