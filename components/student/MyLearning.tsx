@@ -82,15 +82,7 @@ interface ApiResourcesResponse {
   resources: ApiResource[]
 }
 
-interface ApiCertification {
-  id: number
-  program_title?: string; programTitle?: string
-  cohort_title?: string;  cohortTitle?: string
-  issued_at?: string;     issuedAt?: string
-  certificate_number?: string; certificateNumber?: string
-}
-
-const TABS = ['My Programs', 'Resources', 'Certifications']
+const TABS = ['My Programs', 'Resources']
 
 // ── File type config ─────────────────────────────────────────────────────────
 function inferFileType(type: string) {
@@ -302,10 +294,8 @@ export default function MyLearning() {
 
   const [programs, setPrograms]                   = useState<ApiProgram[]>([])
   const [resources, setResources]                 = useState<ApiResource[]>([])
-  const [certifications, setCertifications]       = useState<ApiCertification[]>([])
   const [loadingPrograms, setLoadingPrograms]     = useState(true)
   const [loadingResources, setLoadingResources]   = useState(false)
-  const [loadingCerts, setLoadingCerts]           = useState(false)
 
   // Fetch programs on mount
   useEffect(() => {
@@ -348,21 +338,6 @@ export default function MyLearning() {
     }).finally(() => setLoadingResources(false))
   }, [activeTab, programs])
 
-  // Fetch certifications when Certifications tab is activated
-  useEffect(() => {
-    if (activeTab !== 'Certifications') return
-    setLoadingCerts(true)
-    apiClient.get('/users/me/certifications')
-      .then((res) => {
-        const d = (res.data?.data ?? res.data) as Record<string, unknown>
-        const list = (Array.isArray(d?.certificates) ? d.certificates
-          : Array.isArray(d?.user_certificates) ? d.user_certificates
-          : Array.isArray(d) ? d : []) as ApiCertification[]
-        setCertifications(list)
-      })
-      .catch(() => setCertifications([]))
-      .finally(() => setLoadingCerts(false))
-  }, [activeTab])
 
   return (
     <div className="bg-white rounded-[10px] overflow-hidden shadow-[0px_1px_3px_rgba(16,24,40,0.06)]">
@@ -434,58 +409,6 @@ export default function MyLearning() {
           )
         )}
 
-        {/* Certifications */}
-        {activeTab === 'Certifications' && (
-          loadingCerts ? (
-            <div className="flex items-center justify-center py-10 gap-2 text-[#4b5563]">
-              <Loading01Icon size={16} className="animate-spin" strokeWidth={1.5} />
-              <span className="text-[13px] font-body">Loading certificates…</span>
-            </div>
-          ) : certifications.length === 0 ? (
-            <div className="py-8 text-center">
-              <p className="text-[14px] font-semibold text-[#374151] font-display mb-1">No certificates yet</p>
-              <p className="text-[13px] text-[#4b5563] font-body">Complete your programme to earn your certificate.</p>
-              <Link href="/student/certificate" className="inline-flex items-center gap-1.5 mt-4 text-[13px] font-semibold text-[#d51520] font-display hover:underline">
-                View requirements
-                <ArrowRight01Icon size={13} color="#d51520" strokeWidth={2} />
-              </Link>
-            </div>
-          ) : (
-            <>
-              <div className="flex flex-col gap-2">
-                {certifications.slice(0, 3).map((cert) => {
-                  const title = cert.program_title ?? cert.programTitle ?? 'Certificate'
-                  const cohort = cert.cohort_title ?? cert.cohortTitle ?? ''
-                  const issued = cert.issued_at ?? cert.issuedAt ?? ''
-                  const issuedDate = issued
-                    ? new Date(issued).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })
-                    : ''
-                  return (
-                    <div key={cert.id} className="flex items-center gap-3 p-3 rounded-[8px] bg-[#f9fafb] border border-[#f3f4f6]">
-                      <div className="w-8 h-8 rounded-[7px] bg-[#FEF3F2] flex items-center justify-center flex-shrink-0">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="#d51520"/>
-                        </svg>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-semibold text-[#111827] font-display truncate">{title}</p>
-                        <p className="text-[11px] text-[#4b5563] font-body mt-0.5">
-                          {cohort}{cohort && issuedDate ? ' · ' : ''}{issuedDate}
-                        </p>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-              <div className="mt-3 pt-3 border-t border-[#f3f4f6]">
-                <Link href="/student/certificate" className="flex items-center justify-center gap-1.5 text-[13px] font-semibold text-[#d51520] font-display hover:underline">
-                  View all certificates
-                  <ArrowRight01Icon size={13} color="#d51520" strokeWidth={2} />
-                </Link>
-              </div>
-            </>
-          )
-        )}
       </div>
     </div>
   )
