@@ -170,62 +170,12 @@ function formatDisplay(format: string): string {
   return map[format.toUpperCase()] ?? ''
 }
 
-// ── Progress ring ─────────────────────────────────────────────────────────────
-function ProgressRing({ value }: { value: number }) {
-  const r = 20
-  const circumference = 2 * Math.PI * r
-  const offset = circumference - (value / 100) * circumference
-
-  return (
-    <div className="relative w-[48px] h-[48px] flex items-center justify-center flex-shrink-0">
-      <svg className="w-full h-full -rotate-90" viewBox="0 0 48 48">
-        <circle cx="24" cy="24" r={r} fill="none" stroke="#f3f4f6" strokeWidth="4" />
-        <circle
-          cx="24"
-          cy="24"
-          r={r}
-          fill="none"
-          stroke="#d51520"
-          strokeWidth="4"
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          className="transition-all duration-500"
-        />
-      </svg>
-      <span className="absolute text-[10px] font-bold text-white font-display">{value}%</span>
-    </div>
-  )
-}
-
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function ProgramsPage() {
   const [programs, setPrograms]   = useState<ProgramRow[]>([])
   const [loading, setLoading]     = useState(true)
   const [error, setError]         = useState<string | null>(null)
   const [teamProgram, setTeamProgram] = useState<ProgramRow | null>(null)
-  const [scheduleProgress, setScheduleProgress] = useState<Map<number, number>>(new Map())
-
-  // Fetch schedule-based progress for each enrolled cohort
-  useEffect(() => {
-    if (programs.length === 0) return
-    programs.forEach(async (p) => {
-      if (!p.cohortId) return
-      try {
-        const res = await apiClient.get(`/cohort-schedules?cohortId=${p.cohortId}`)
-        const d = unwrap<{ schedules?: Array<{ status: string }> }>(res.data)
-        const schedules = Array.isArray(d?.schedules) ? d.schedules : []
-        if (schedules.length === 0) return
-        const completed = schedules.filter(s => s.status === 'COMPLETED').length
-        const pct = Math.round((completed / schedules.length) * 100)
-        setScheduleProgress(prev => {
-          const next = new Map(prev)
-          next.set(p.cohortId, pct)
-          return next
-        })
-      } catch { /* silent — fall back to autoPercentCompletion */ }
-    })
-  }, [programs])
 
   useEffect(() => {
     async function load() {
@@ -327,9 +277,6 @@ export default function ProgramsPage() {
                         </span>
                       )}
                     </div>
-                    <div className="absolute bottom-3 right-3">
-                      <ProgressRing value={scheduleProgress.get(p.cohortId) ?? p.progress} />
-                    </div>
                   </div>
 
                   {/* Card body */}
@@ -395,19 +342,7 @@ export default function ProgramsPage() {
                       )}
                     </div>
 
-                    {/* Progress bar */}
-                    <div className="mb-5">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-[11px] text-[#4b5563] font-body">Progress</span>
-                        <span className="text-[11px] font-semibold text-[#d51520] font-display">{scheduleProgress.get(p.cohortId) ?? p.progress}%</span>
-                      </div>
-                      <div className="h-1.5 bg-[#f3f4f6] rounded-full overflow-hidden w-full">
-                        <div
-                          className="h-full bg-[#d51520] rounded-full transition-all duration-500"
-                          style={{ width: `${scheduleProgress.get(p.cohortId) ?? p.progress}%` }}
-                        />
-                      </div>
-                    </div>
+                    {/* Progress bar — hidden until tracking is implemented */}
 
                     {/* CTAs */}
                     <div className="flex gap-2 mt-auto">
@@ -419,7 +354,7 @@ export default function ProgramsPage() {
                         <ArrowRight01Icon size={13} color="white" strokeWidth={2} />
                       </Link>
                       <Link
-                        href="/student/resources"
+                        href={`/student/resources?cohort=${p.cohortId}`}
                         className="flex-1 inline-flex items-center justify-center border border-[#e5e7eb] text-[#374151] text-[12px] font-medium font-display px-4 py-2.5 rounded-[8px] hover:bg-[#f9fafb] transition-colors"
                       >
                         Resources
