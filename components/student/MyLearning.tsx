@@ -309,7 +309,7 @@ function CourseCard({ program, progress: progressOverride }: { program: ApiProgr
             <ArrowRight01Icon size={13} color="white" strokeWidth={2} />
           </Link>
           <Link
-            href="/student/resources"
+            href={`/student/resources?cohort=${cohortId}`}
             className="flex-1 inline-flex items-center justify-center border border-[#e5e7eb] text-[#374151] text-[12px] font-medium font-display px-4 py-2.5 rounded-[8px] hover:bg-[#f9fafb] transition-colors"
           >
             Resources
@@ -368,7 +368,9 @@ export default function MyLearning() {
   // Fetch resources when Resources tab is activated — needs cohortId from programs
   useEffect(() => {
     if (activeTab !== 'Resources') return
-    const cohortId = programs[0]?.myCohorts?.[0]?.cohortId
+    const firstProgram = programs[0]
+    const firstCohort  = rCohorts(firstProgram)[0] ?? null
+    const cohortId     = firstCohort ? rId(firstCohort) : (firstProgram?.id ?? 0)
     if (!cohortId) return
 
     setLoadingResources(true)
