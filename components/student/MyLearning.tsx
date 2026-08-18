@@ -170,28 +170,9 @@ function formatDisplay(f: string) {
   return { BOOTCAMP: 'Bootcamp', WORKSHOP: 'Workshop', COURSE: 'Course' }[f.toUpperCase()] ?? ''
 }
 
-// ── Progress ring ─────────────────────────────────────────────────────────────
-function ProgressRing({ value }: { value: number }) {
-  const r = 20, circ = 2 * Math.PI * r
-  return (
-    <div className="relative w-[48px] h-[48px] flex items-center justify-center flex-shrink-0">
-      <svg className="w-full h-full -rotate-90" viewBox="0 0 48 48">
-        <circle cx="24" cy="24" r={r} fill="none" stroke="#f3f4f6" strokeWidth="4" />
-        <circle cx="24" cy="24" r={r} fill="none" stroke="#d51520" strokeWidth="4"
-          strokeLinecap="round" strokeDasharray={circ}
-          strokeDashoffset={circ - (value / 100) * circ}
-          className="transition-all duration-500"
-        />
-      </svg>
-      <span className="absolute text-[10px] font-bold text-white font-display">{value}%</span>
-    </div>
-  )
-}
-
-// ── Course card (identical to the programmes page card) ───────────────────────
-function CourseCard({ program, progress: progressOverride }: { program: ApiProgram; progress?: number }) {
+// ── Course card ───────────────────────────────────────────────────────────────
+function CourseCard({ program }: { program: ApiProgram }) {
   const title        = program.title ?? 'Untitled Programme'
-  const progress     = progressOverride ?? program.autoPercentCompletion ?? 0
   const subtitle     = program.subtitle ?? program.description ?? ''
   const cohorts      = rCohorts(program)
   const cohort       = cohorts[0] ?? null
@@ -223,9 +204,6 @@ function CourseCard({ program, progress: progressOverride }: { program: ApiProgr
               {formatDisplay(program.format ?? '')}
             </span>
           )}
-        </div>
-        <div className="absolute bottom-3 right-3">
-          <ProgressRing value={progress} />
         </div>
       </div>
 
@@ -288,16 +266,6 @@ function CourseCard({ program, progress: progressOverride }: { program: ApiProgr
           )}
         </div>
 
-        {/* Progress bar */}
-        <div className="mb-5">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[11px] text-[#4b5563] font-body">Progress</span>
-            <span className="text-[11px] font-semibold text-[#d51520] font-display">{progress}%</span>
-          </div>
-          <div className="h-1.5 bg-[#f3f4f6] rounded-full overflow-hidden w-full">
-            <div className="h-full bg-[#d51520] rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
-          </div>
-        </div>
 
         {/* CTAs */}
         <div className="flex gap-2 mt-auto">
@@ -328,8 +296,6 @@ export default function MyLearning() {
   const [resources, setResources]             = useState<ApiResource[]>([])
   const [loadingPrograms, setLoadingPrograms] = useState(true)
   const [loadingResources, setLoadingResources] = useState(false)
-  const [scheduleProgress, setScheduleProgress] = useState<Map<number, number>>(new Map())
-
   // Fetch programs on mount
   useEffect(() => {
     apiClient.get('/users/me/programs')
@@ -340,30 +306,6 @@ export default function MyLearning() {
       .catch(() => setPrograms([]))
       .finally(() => setLoadingPrograms(false))
   }, [])
-
-  // Fetch schedule-based progress for each enrolled cohort
-  useEffect(() => {
-    if (programs.length === 0) return
-    programs.forEach(async (p) => {
-      const cohorts  = rCohorts(p)
-      const cohort   = cohorts[0] ?? null
-      const cohortId = rId(cohort) || p.id
-      if (!cohortId) return
-      try {
-        const res = await apiClient.get(`/cohort-schedules?cohortId=${cohortId}`)
-        const d = unwrap<{ schedules?: Array<{ status: string }> }>(res.data)
-        const schedules = Array.isArray(d?.schedules) ? d.schedules : []
-        if (schedules.length === 0) return
-        const completed = schedules.filter(s => s.status === 'COMPLETED').length
-        const pct = Math.round((completed / schedules.length) * 100)
-        setScheduleProgress(prev => {
-          const next = new Map(prev)
-          next.set(cohortId, pct)
-          return next
-        })
-      } catch { /* silent — fall back to autoPercentCompletion */ }
-    })
-  }, [programs])
 
   // Fetch resources when Resources tab is activated — needs cohortId from programs
   useEffect(() => {
@@ -421,18 +363,7 @@ export default function MyLearning() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-              {programs.map((p) => {
-                const cohorts  = rCohorts(p)
-                const cohort   = cohorts[0] ?? null
-                const cohortId = rId(cohort) || p.id
-                return (
-                  <CourseCard
-                    key={p.id}
-                    program={p}
-                    progress={scheduleProgress.get(cohortId)}
-                  />
-                )
-              })}
+              {programs.map((p) => <CourseCard key={p.id} program={p} />)}
             </div>
           )
         )}
