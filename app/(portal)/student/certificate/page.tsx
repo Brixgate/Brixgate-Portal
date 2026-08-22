@@ -164,156 +164,176 @@ async function fetchCohortInstructor(cohortId: number): Promise<InstructorData> 
   return { name: '', signatureUrl: '' }
 }
 
-// ── Certificate card design (based on brixer-certificate.html template) ───────
-const CORNER_SVG = (
-  <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-    <path d="M1 11 V1 H11" stroke="#FF294E" strokeWidth="2" strokeLinecap="round"/>
-  </svg>
-)
+// ── Certificate design using the official Brixgate SVG template ───────────────
+// The SVG has all text as paths (Figma "outline text" export), so we overlay
+// dynamic fields using absolutely-positioned HTML on top of the SVG image.
+// Background colour #F6F4F2 (from SVG path fill) masks the placeholder paths.
+
+const CERT_SVG_SRC  = '/Brixgate_Certificate_light_editable_11%202.svg'
+const CERT_BODY_BG  = '#F6F4F2'
 
 function CertificateDesign({ row, fullName }: { row: CertRow; fullName: string }) {
-  const { title, cohortLabel, certificateNumber } = row
-
-  const pubLink = certificateNumber
-    ? `https://brixgate.com/verify/${certificateNumber}`
-    : 'https://brixgate.com'
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&color=000000&bgcolor=ffffff&data=${encodeURIComponent(pubLink)}`
-  const programmeLabel = cohortLabel || 'Expert Practitioner Programme · AI in My Field'
+  const { title, issuedAt, instructorName } = row
+  const completedDate = issuedAt
+    ?? new Date().toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })
 
   return (
     <div
       id="brixgate-certificate"
-      style={{
-        position: 'relative',
-        width: '100%',
-        background: '#0B1224',
-        border: '1.5px solid #FF294E',
-        borderRadius: 18,
-        padding: 'clamp(32px,5%,52px) clamp(28px,7%,64px) clamp(28px,4%,48px)',
-        overflow: 'hidden',
-        boxShadow: '0 0 0 1px rgba(255,41,78,.12), 0 0 40px rgba(255,41,78,.1), 0 32px 80px rgba(0,0,0,.5)',
-        fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-        boxSizing: 'border-box',
-      }}
+      style={{ position: 'relative', width: '100%', aspectRatio: '1188/840', overflow: 'hidden', borderRadius: 12 }}
     >
-      {/* Watermark */}
-      <div aria-hidden="true" style={{
-        position: 'absolute', inset: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        pointerEvents: 'none', userSelect: 'none', zIndex: 0,
+      {/* SVG template as background */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={CERT_SVG_SRC}
+        alt="Brixgate certificate"
+        draggable={false}
+        style={{ width: '100%', height: '100%', display: 'block', userSelect: 'none' }}
+      />
+
+      {/* ── Student name: height 10%, padding-top 3% pushes text to ~42% to align with SVG paths ── */}
+      <div style={{
+        position: 'absolute',
+        top: '39%', left: '18.5%', right: '5%',
+        height: '10%',
+        background: CERT_BODY_BG,
+        paddingTop: '3%',
+        overflow: 'hidden',
       }}>
-        <span style={{
-          fontSize: 'clamp(60px,16vw,140px)', fontWeight: 900, letterSpacing: '0.12em',
-          color: 'rgba(255,255,255,0.03)', whiteSpace: 'nowrap',
+        <div style={{
           fontFamily: "DM Sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-        }}>BRIXGATE</span>
-      </div>
-
-      {/* Corner brackets */}
-      <div style={{ position: 'absolute', top: 18, left: 18, zIndex: 1 }}>{CORNER_SVG}</div>
-      <div style={{ position: 'absolute', top: 18, right: 18, zIndex: 1, transform: 'scaleX(-1)' }}>{CORNER_SVG}</div>
-      <div style={{ position: 'absolute', bottom: 18, left: 18, zIndex: 1, transform: 'scaleY(-1)' }}>{CORNER_SVG}</div>
-      <div style={{ position: 'absolute', bottom: 18, right: 18, zIndex: 1, transform: 'scale(-1)' }}>{CORNER_SVG}</div>
-
-      {/* Body */}
-      <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-
-        {/* Logo — left-aligned row */}
-        <div style={{ width: '100%', display: 'flex', alignItems: 'center', marginBottom: 32 }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/images/logo2.png" alt="Brixgate" style={{ height: 28, width: 'auto', display: 'block' }} />
-        </div>
-
-        {/* Eyebrow */}
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)', marginBottom: 14 }}>
-          Expert Practitioner Certificate
-        </div>
-        <div style={{ width: 56, height: 2, background: '#FF294E', borderRadius: 2, marginBottom: 36 }} />
-
-        <div style={{ fontSize: 14, fontStyle: 'italic', color: 'rgba(255,255,255,0.4)', marginBottom: 12 }}>This certifies that</div>
-        <div style={{ fontSize: 'clamp(24px,4vw,38px)', fontWeight: 800, color: '#ffffff', letterSpacing: '-0.01em', lineHeight: 1.15, marginBottom: 12 }}>
+          fontSize: 'clamp(16px, 3.2vw, 38px)',
+          fontWeight: 700,
+          color: '#1A1D2E',
+          lineHeight: 1.1,
+          letterSpacing: '-0.01em',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}>
           {fullName || 'Student Name'}
         </div>
-        <div style={{ fontSize: 14, fontStyle: 'italic', color: 'rgba(255,255,255,0.4)', marginBottom: 10 }}>has successfully completed the</div>
-        <div style={{ fontSize: 'clamp(16px,3vw,22px)', fontWeight: 800, color: '#FF294E', marginBottom: 8 }}>{title}</div>
-        <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: 36 }}>
-          {programmeLabel}
-        </div>
-
-        {/* QR */}
-        <div style={{ background: '#ffffff', borderRadius: 10, padding: 10, marginBottom: 14, display: 'inline-flex' }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={qrUrl} width={120} height={120} alt="QR code" style={{ display: 'block' }} />
-        </div>
-        {certificateNumber && (
-          <div style={{ fontSize: 11, fontFamily: "'SF Mono','Fira Code','Courier New',monospace", color: 'rgba(255,255,255,0.35)', letterSpacing: '0.1em' }}>
-            {certificateNumber}
-          </div>
-        )}
       </div>
+
+      {/* ── Programme name: height 13% covers SVG programme + its hardcoded date below ── */}
+      <div style={{
+        position: 'absolute',
+        top: '59%', left: '18.5%', right: '5%',
+        height: '13%',
+        background: CERT_BODY_BG,
+        paddingTop: '3%',
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          fontFamily: "DM Sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+          fontSize: 'clamp(12px, 2.5vw, 30px)',
+          fontWeight: 700,
+          color: '#D92D20',
+          lineHeight: 1.1,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}>
+          {title}
+        </div>
+      </div>
+
+      {/* ── Completion date: centred in the content zone ── */}
+      <div style={{
+        position: 'absolute',
+        top: '79%', left: '18.5%', right: '5%',
+        height: '3%',
+        background: CERT_BODY_BG,
+        paddingTop: '0.5%',
+        textAlign: 'center',
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          fontFamily: "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
+          fontSize: 'clamp(7px, 0.9vw, 12px)',
+          color: '#475467',
+          whiteSpace: 'nowrap',
+        }}>
+          Completed {completedDate}
+        </div>
+      </div>
+
+      {/* ── Instructor: extends to cert bottom, fully masks SVG instructor name paths ── */}
+      {instructorName && (
+        <div style={{
+          position: 'absolute',
+          top: '92%', left: '18.5%', right: '50%',
+          bottom: 0,
+          background: CERT_BODY_BG,
+          paddingTop: '1.5%',
+          overflow: 'hidden',
+        }}>
+          <div style={{
+            fontFamily: "DM Sans, -apple-system, BlinkMacSystemFont, sans-serif",
+            fontSize: 'clamp(6px, 0.72vw, 9px)',
+            fontWeight: 600,
+            color: '#101828',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}>
+            {instructorName}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
 // ── Generate standalone HTML for print/PDF ────────────────────────────────────
+// Uses the official SVG template with HTML overlays for dynamic fields.
 function generatePrintHtml(row: CertRow, fullName: string, baseUrl: string): string {
-  const { title, cohortLabel, certificateNumber } = row
-  const pubLink        = certificateNumber ? `https://brixgate.com/verify/${certificateNumber}` : 'https://brixgate.com'
-  const qrUrl          = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&color=000000&bgcolor=ffffff&data=${encodeURIComponent(pubLink)}`
-  const logoUrl        = `${baseUrl}/images/logo2.png`
-  const programmeLabel = cohortLabel || 'Expert Practitioner Programme · AI in My Field'
+  const { title, issuedAt, instructorName } = row
+  const completedDate = issuedAt
+    ?? new Date().toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })
+  const svgUrl = `${baseUrl}/Brixgate_Certificate_light_editable_11%202.svg`
+  const bg     = '#F6F4F2'
+
+  // Pixel positions calibrated for 1188×840 SVG canvas (scale 1:1)
+  // top%  × 840 = px, left% × 1188 = px
+  const instructorHtml = instructorName
+    ? `<div class="ol" style="top:773px;left:220px;right:594px;bottom:0;padding-top:13px;">
+        <div style="font-family:'DM Sans',-apple-system,sans-serif;font-size:11px;font-weight:600;color:#101828;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${instructorName}</div>
+       </div>`
+    : ''
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Certificate — ${fullName}</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}
-html,body{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 24px;background:#E8EBF0!important;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
-@media print{@page{margin:0;size:A4 landscape}html,body{background:#E8EBF0!important}}
-.cert-card{position:relative;width:860px;max-width:100%;background:#0B1224!important;border:1.5px solid #FF294E;border-radius:18px;padding:52px 64px 48px;overflow:hidden;box-shadow:0 0 0 1px rgba(255,41,78,.12),0 0 40px rgba(255,41,78,.1),0 32px 80px rgba(0,0,0,.5)}
-.wm{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;user-select:none;z-index:0}
-.wm span{font-size:140px;font-weight:900;letter-spacing:.12em;color:rgba(255,255,255,.03);white-space:nowrap;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
-.corner{position:absolute;width:22px;height:22px;z-index:1}
-.corner svg{display:block}
-.tl{top:18px;left:18px}.tr{top:18px;right:18px;transform:scaleX(-1)}.bl{bottom:18px;left:18px;transform:scaleY(-1)}.br{bottom:18px;right:18px;transform:scale(-1)}
-.body{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;text-align:center}
-.logo-row{width:100%;display:flex;align-items:center;margin-bottom:32px}
-.logo-row img{height:28px;width:auto}
-.eyebrow{font-size:11px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:rgba(255,255,255,.5);margin-bottom:14px}
-.divider{width:56px;height:2px;background:#FF294E;border-radius:2px;margin-bottom:36px}
-.certifies{font-size:14px;font-style:italic;color:rgba(255,255,255,.4);margin-bottom:12px}
-.name{font-size:38px;font-weight:800;color:#fff;letter-spacing:-.01em;line-height:1.15;margin-bottom:12px}
-.completed{font-size:14px;font-style:italic;color:rgba(255,255,255,.4);margin-bottom:10px}
-.field{font-size:22px;font-weight:800;color:#FF294E;margin-bottom:8px}
-.programme{font-size:10.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.3);margin-bottom:36px}
-.qr-wrap{background:#fff!important;border-radius:10px;padding:10px;margin-bottom:14px;display:inline-flex}
-.cert-id{font-size:11px;font-family:'SF Mono','Fira Code','Courier New',monospace;color:rgba(255,255,255,.35);letter-spacing:.1em}
+html,body{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#E8EBF0!important;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+@media print{@page{margin:0;size:A4 landscape}html,body{background:#E8EBF0!important;padding:0}}
+.cert-wrap{position:relative;width:1188px;height:840px;overflow:hidden;border-radius:12px;flex-shrink:0;}
+.cert-wrap img{width:1188px;height:840px;display:block;user-select:none;}
+.ol{position:absolute;background:${bg};overflow:hidden;}
 </style>
 </head>
 <body>
-<div class="cert-card">
-<div class="wm"><span>BRIXGATE</span></div>
-<div class="corner tl"><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M1 11 V1 H11" stroke="#FF294E" stroke-width="2" stroke-linecap="round"/></svg></div>
-<div class="corner tr"><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M1 11 V1 H11" stroke="#FF294E" stroke-width="2" stroke-linecap="round"/></svg></div>
-<div class="corner bl"><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M1 11 V1 H11" stroke="#FF294E" stroke-width="2" stroke-linecap="round"/></svg></div>
-<div class="corner br"><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M1 11 V1 H11" stroke="#FF294E" stroke-width="2" stroke-linecap="round"/></svg></div>
-<div class="body">
-<div class="logo-row"><img src="${logoUrl}" alt="Brixgate"></div>
-<div class="eyebrow">Expert Practitioner Certificate</div>
-<div class="divider"></div>
-<div class="certifies">This certifies that</div>
-<div class="name">${fullName}</div>
-<div class="completed">has successfully completed the</div>
-<div class="field">${title}</div>
-<div class="programme">${programmeLabel}</div>
-<div class="qr-wrap"><img src="${qrUrl}" width="120" height="120" alt="QR"></div>
-<div class="cert-id">${certificateNumber ?? ''}</div>
+<div class="cert-wrap">
+  <img src="${svgUrl}" alt="Certificate">
+  <!-- name: top 39% = 328px, height 10% = 84px, padding-top 3% = 25px -->
+  <div class="ol" style="top:328px;left:220px;right:60px;height:84px;padding-top:25px;">
+    <div style="font-family:'DM Sans',-apple-system,sans-serif;font-size:50px;font-weight:700;color:#1A1D2E;line-height:1.1;letter-spacing:-0.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${fullName}</div>
+  </div>
+  <!-- programme: top 59% = 496px, height 13% = 109px, padding-top 3% = 25px -->
+  <div class="ol" style="top:496px;left:220px;right:60px;height:109px;padding-top:25px;">
+    <div style="font-family:'DM Sans',-apple-system,sans-serif;font-size:40px;font-weight:700;color:#D92D20;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${title}</div>
+  </div>
+  <!-- date: top 79% = 664px, height 3% = 25px -->
+  <div class="ol" style="top:664px;left:220px;right:60px;height:25px;padding-top:4px;text-align:center;">
+    <div style="font-family:Inter,-apple-system,sans-serif;font-size:13px;color:#475467;white-space:nowrap;">Completed ${completedDate}</div>
+  </div>
+  ${instructorHtml}
 </div>
-</div>
-<script>window.addEventListener('load',function(){setTimeout(function(){window.print()},600)})<\/script>
+<script>window.addEventListener('load',function(){setTimeout(function(){window.print()},800)})<\/script>
 </body></html>`
 }
 
