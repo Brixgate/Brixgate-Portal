@@ -93,7 +93,8 @@ function normaliseProgramToCertRow(
       ? new Date(rawIssuedAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })
       : null,
     certificateNumber: cert?.certificate_number ?? cert?.certificateNumber ?? null,
-    instructorName: '',
+    // Pre-populate from cert metadata if available; cohort API lookup may override later
+    instructorName: cert?.metadata?.signatories?.[0] ?? '',
     instructorSignatureUrl: '',
   }
 }
@@ -199,7 +200,7 @@ async function buildFilledSvg(row: CertRow, fullName: string): Promise<string> {
     .replace('{{completion-date}}', escapeXml(completedDate))
     .replace('{{instructor-name}}', escapeXml(instructorName || ''))
     .replace('BXG-CYB-2609-0147',  escapeXml(certId))
-    .replace('brixgate.com/verify', certUrl)
+    // Leave 'brixgate.com/verify' display text as-is — QR code encodes the full URL
     .replace('</svg>', `${qrOverlay}</svg>`)
 }
 
@@ -433,8 +434,8 @@ export default function CertificatePage() {
 
       setRows(baseRows.map(r => ({
         ...r,
-        instructorName:         instructorMap.get(r.cohortId)?.name         ?? '',
-        instructorSignatureUrl: instructorMap.get(r.cohortId)?.signatureUrl ?? '',
+        instructorName:         instructorMap.get(r.cohortId)?.name         || r.instructorName,
+        instructorSignatureUrl: instructorMap.get(r.cohortId)?.signatureUrl ?? r.instructorSignatureUrl,
       })))
     } catch {
       // show empty state
