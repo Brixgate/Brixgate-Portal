@@ -102,65 +102,28 @@ function normaliseProgramToCertRow(
 // ── Fetch the instructor for a given cohort ───────────────────────────────────
 interface InstructorData { name: string; signatureUrl: string }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function extractName(u: any): string {
-  if (!u) return ''
-  return (
-    u.name ??
-    `${u.first_name ?? u.firstName ?? ''} ${u.last_name ?? u.lastName ?? ''}`.trim()
-  ) || u.email || ''
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function extractSignatureUrl(u: any): string {
-  if (!u) return ''
-  return u.signature_url ?? u.signatureUrl ?? u.signature ?? ''
+interface CohortMember {
+  role: string
+  user: {
+    name?: string
+    profile_image_url?: string | null
+  }
 }
 
 async function fetchCohortInstructor(cohortId: number): Promise<InstructorData> {
-  const endpoints = [
-    `/cohorts/${cohortId}/instructors`,
-    `/cohorts/${cohortId}/users?role=INSTRUCTOR`,
-    `/cohorts/${cohortId}/members?role=INSTRUCTOR`,
-    `/cohorts/${cohortId}`,
-  ]
-  for (const ep of endpoints) {
-    try {
-      const res  = await apiClient.get(ep)
-      const data = unwrap<unknown>(res.data)
-      if (!data) continue
-
-      const candidates: unknown[] = (() => {
-        if (Array.isArray(data)) return data
-        const d = data as Record<string, unknown>
-        if (Array.isArray(d.instructors)) return d.instructors
-        if (Array.isArray(d.users))       return d.users
-        if (Array.isArray(d.members))     return d.members
-        return []
-      })()
-
-      if (candidates.length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const match = candidates.find((u: any) =>
-          !u?.role || String(u.role).toUpperCase() === 'INSTRUCTOR'
-        ) ?? candidates[0]
-        const name = extractName(match)
-        if (name) return { name, signatureUrl: extractSignatureUrl(match) }
+  try {
+    const res  = await apiClient.get(`/cohorts/${cohortId}/members?size=100`)
+    const data = unwrap<{ members: CohortMember[] }>(res.data)
+    const instructor = (data?.members ?? []).find(
+      m => String(m.role).toUpperCase() === 'INSTRUCTOR'
+    )
+    if (instructor?.user?.name) {
+      return {
+        name: instructor.user.name,
+        signatureUrl: instructor.user.profile_image_url ?? '',
       }
-
-      const cohort = data as Record<string, unknown>
-      const nested: unknown = cohort.instructors ?? cohort.instructor ?? cohort.tutor
-      if (nested) {
-        if (Array.isArray(nested) && nested.length > 0) {
-          const name = extractName(nested[0])
-          if (name) return { name, signatureUrl: extractSignatureUrl(nested[0]) }
-        } else if (typeof nested === 'object' && nested !== null) {
-          const name = extractName(nested)
-          if (name) return { name, signatureUrl: extractSignatureUrl(nested) }
-        }
-      }
-    } catch { /* try next endpoint */ }
-  }
+    }
+  } catch { /* cohort has no instructor record */ }
   return { name: '', signatureUrl: '' }
 }
 
