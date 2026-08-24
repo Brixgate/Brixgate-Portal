@@ -57,8 +57,8 @@ interface CertRow {
   pdfUrl: string | null
   issuedAt: string | null
   certificateNumber: string | null
-  instructorName: string          // fetched from cohort members after initial load
-  instructorSignatureUrl: string  // signature image URL from instructor profile
+  instructorName: string
+  instructorSignatureUrl: string
 }
 
 function normaliseProgramToCertRow(
@@ -128,7 +128,6 @@ async function fetchCohortInstructor(cohortId: number): Promise<InstructorData> 
       const data = unwrap<unknown>(res.data)
       if (!data) continue
 
-      // endpoint returned a list of instructors / users
       const candidates: unknown[] = (() => {
         if (Array.isArray(data)) return data
         const d = data as Record<string, unknown>
@@ -147,7 +146,6 @@ async function fetchCohortInstructor(cohortId: number): Promise<InstructorData> 
         if (name) return { name, signatureUrl: extractSignatureUrl(match) }
       }
 
-      // endpoint returned cohort details — check for nested instructors
       const cohort = data as Record<string, unknown>
       const nested: unknown = cohort.instructors ?? cohort.instructor ?? cohort.tutor
       if (nested) {
@@ -164,175 +162,76 @@ async function fetchCohortInstructor(cohortId: number): Promise<InstructorData> 
   return { name: '', signatureUrl: '' }
 }
 
-// ── Certificate design using the official Brixgate SVG template ───────────────
-// The SVG has all text as paths (Figma "outline text" export), so we overlay
-// dynamic fields using absolutely-positioned HTML on top of the SVG image.
-// Background colour #F6F4F2 (from SVG path fill) masks the placeholder paths.
+// ── SVG helpers ───────────────────────────────────────────────────────────────
+const SVG_TEMPLATE_URL = '/Brixgate_Certificate_light_.svg'
 
-const CERT_SVG_SRC  = '/Brixgate_Certificate_light_editable_11%202.svg'
-const CERT_BODY_BG  = '#F6F4F2'
+function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
 
-function CertificateDesign({ row, fullName }: { row: CertRow; fullName: string }) {
-  const { title, issuedAt, instructorName } = row
+async function buildFilledSvg(row: CertRow, fullName: string): Promise<string> {
+  const { title, issuedAt, instructorName, certificateNumber } = row
   const completedDate = issuedAt
     ?? new Date().toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })
+  const certId  = certificateNumber ?? '—'
+  const certUrl = certificateNumber
+    ? `https://brixgate.com/verify/${certificateNumber}`
+    : 'https://brixgate.com/verify'
 
+  const raw = await fetch(SVG_TEMPLATE_URL).then(r => r.text())
+  return raw
+    .replace(/width="1188" height="840"/, 'width="100%" height="auto"')
+    .replace('{{fullname}}',        escapeXml(fullName   || 'Student Name'))
+    .replace('{{programme}}',       escapeXml(title      || ''))
+    .replace('{{completion-date}}', escapeXml(completedDate))
+    .replace('{{instructor-name}}', escapeXml(instructorName || ''))
+    .replace('BXG-CYB-2609-0147',  escapeXml(certId))
+    .replace('brixgate.com/verify', certUrl)
+}
+
+// ── Certificate preview (inline SVG) ─────────────────────────────────────────
+function CertificatePreview({ svgHtml }: { svgHtml: string }) {
+  if (!svgHtml) {
+    return (
+      <div style={{
+        width: '100%', aspectRatio: '1188/840',
+        background: '#F6F4F2', borderRadius: 12,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <Loading01Icon size={28} className="animate-spin text-[#98A2B3]" strokeWidth={1.5} />
+      </div>
+    )
+  }
   return (
     <div
       id="brixgate-certificate"
-      style={{ position: 'relative', width: '100%', aspectRatio: '1188/840', overflow: 'hidden', borderRadius: 12 }}
-    >
-      {/* SVG template as background */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={CERT_SVG_SRC}
-        alt="Brixgate certificate"
-        draggable={false}
-        style={{ width: '100%', height: '100%', display: 'block', userSelect: 'none' }}
-      />
-
-      {/* ── Student name: height 10%, padding-top 3% pushes text to ~42% to align with SVG paths ── */}
-      <div style={{
-        position: 'absolute',
-        top: '39%', left: '18.5%', right: '5%',
-        height: '10%',
-        background: CERT_BODY_BG,
-        paddingTop: '3%',
-        overflow: 'hidden',
-      }}>
-        <div style={{
-          fontFamily: "DM Sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-          fontSize: 'clamp(16px, 3.2vw, 38px)',
-          fontWeight: 700,
-          color: '#1A1D2E',
-          lineHeight: 1.1,
-          letterSpacing: '-0.01em',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-        }}>
-          {fullName || 'Student Name'}
-        </div>
-      </div>
-
-      {/* ── Programme name: height 13% covers SVG programme + its hardcoded date below ── */}
-      <div style={{
-        position: 'absolute',
-        top: '59%', left: '18.5%', right: '5%',
-        height: '13%',
-        background: CERT_BODY_BG,
-        paddingTop: '3%',
-        overflow: 'hidden',
-      }}>
-        <div style={{
-          fontFamily: "DM Sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-          fontSize: 'clamp(12px, 2.5vw, 30px)',
-          fontWeight: 700,
-          color: '#D92D20',
-          lineHeight: 1.1,
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-        }}>
-          {title}
-        </div>
-      </div>
-
-      {/* ── Completion date: centred in the content zone ── */}
-      <div style={{
-        position: 'absolute',
-        top: '79%', left: '18.5%', right: '5%',
-        height: '3%',
-        background: CERT_BODY_BG,
-        paddingTop: '0.5%',
-        textAlign: 'center',
-        overflow: 'hidden',
-      }}>
-        <div style={{
-          fontFamily: "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
-          fontSize: 'clamp(7px, 0.9vw, 12px)',
-          color: '#475467',
-          whiteSpace: 'nowrap',
-        }}>
-          Completed {completedDate}
-        </div>
-      </div>
-
-      {/* ── Instructor: extends to cert bottom, fully masks SVG instructor name paths ── */}
-      {instructorName && (
-        <div style={{
-          position: 'absolute',
-          top: '92%', left: '18.5%', right: '50%',
-          bottom: 0,
-          background: CERT_BODY_BG,
-          paddingTop: '1.5%',
-          overflow: 'hidden',
-        }}>
-          <div style={{
-            fontFamily: "DM Sans, -apple-system, BlinkMacSystemFont, sans-serif",
-            fontSize: 'clamp(6px, 0.72vw, 9px)',
-            fontWeight: 600,
-            color: '#101828',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-          }}>
-            {instructorName}
-          </div>
-        </div>
-      )}
-    </div>
+      style={{ width: '100%', borderRadius: 12, overflow: 'hidden', lineHeight: 0 }}
+      dangerouslySetInnerHTML={{ __html: svgHtml }}
+    />
   )
 }
 
-// ── Generate standalone HTML for print/PDF ────────────────────────────────────
-// Uses the official SVG template with HTML overlays for dynamic fields.
-function generatePrintHtml(row: CertRow, fullName: string, baseUrl: string): string {
-  const { title, issuedAt, instructorName } = row
-  const completedDate = issuedAt
-    ?? new Date().toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })
-  const svgUrl = `${baseUrl}/Brixgate_Certificate_light_editable_11%202.svg`
-  const bg     = '#F6F4F2'
-
-  // Pixel positions calibrated for 1188×840 SVG canvas (scale 1:1)
-  // top%  × 840 = px, left% × 1188 = px
-  const instructorHtml = instructorName
-    ? `<div class="ol" style="top:773px;left:220px;right:594px;bottom:0;padding-top:13px;">
-        <div style="font-family:'DM Sans',-apple-system,sans-serif;font-size:11px;font-weight:600;color:#101828;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${instructorName}</div>
-       </div>`
-    : ''
-
+// ── Generate print HTML from the filled SVG string ────────────────────────────
+function generatePrintHtml(svgHtml: string, fullName: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Certificate — ${fullName}</title>
+<title>Certificate — ${escapeXml(fullName)}</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}
-html,body{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#E8EBF0!important;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
-@media print{@page{margin:0;size:A4 landscape}html,body{background:#E8EBF0!important;padding:0}}
-.cert-wrap{position:relative;width:1188px;height:840px;overflow:hidden;border-radius:12px;flex-shrink:0;}
-.cert-wrap img{width:1188px;height:840px;display:block;user-select:none;}
-.ol{position:absolute;background:${bg};overflow:hidden;}
+html,body{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#E8EBF0!important}
+@media print{@page{margin:0;size:A4 landscape}html,body{background:#E8EBF0!important}}
+.wrap{width:100%;max-width:1188px}
+svg{width:100%;height:auto;display:block}
 </style>
 </head>
 <body>
-<div class="cert-wrap">
-  <img src="${svgUrl}" alt="Certificate">
-  <!-- name: top 39% = 328px, height 10% = 84px, padding-top 3% = 25px -->
-  <div class="ol" style="top:328px;left:220px;right:60px;height:84px;padding-top:25px;">
-    <div style="font-family:'DM Sans',-apple-system,sans-serif;font-size:50px;font-weight:700;color:#1A1D2E;line-height:1.1;letter-spacing:-0.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${fullName}</div>
-  </div>
-  <!-- programme: top 59% = 496px, height 13% = 109px, padding-top 3% = 25px -->
-  <div class="ol" style="top:496px;left:220px;right:60px;height:109px;padding-top:25px;">
-    <div style="font-family:'DM Sans',-apple-system,sans-serif;font-size:40px;font-weight:700;color:#D92D20;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${title}</div>
-  </div>
-  <!-- date: top 79% = 664px, height 3% = 25px -->
-  <div class="ol" style="top:664px;left:220px;right:60px;height:25px;padding-top:4px;text-align:center;">
-    <div style="font-family:Inter,-apple-system,sans-serif;font-size:13px;color:#475467;white-space:nowrap;">Completed ${completedDate}</div>
-  </div>
-  ${instructorHtml}
-</div>
+<div class="wrap">${svgHtml}</div>
 <script>window.addEventListener('load',function(){setTimeout(function(){window.print()},800)})<\/script>
 </body></html>`
 }
@@ -342,14 +241,22 @@ function CertificateModal({ row, fullName, onClose }: {
   row: CertRow; fullName: string; onClose: () => void
 }) {
   const { toasts, toast, removeToast } = useToast()
+  const [svgHtml, setSvgHtml] = useState('')
   const { title, cohortLabel, issuedAt, certificateNumber } = row
 
   const pubLink = certificateNumber
     ? `https://brixgate.com/verify/${certificateNumber}`
     : 'https://brixgate.com'
 
+  useEffect(() => {
+    buildFilledSvg(row, fullName)
+      .then(setSvgHtml)
+      .catch(() => { /* silently fail — preview shows loader */ })
+  }, [row, fullName])
+
   function handleDownload() {
-    const html = generatePrintHtml(row, fullName, window.location.origin)
+    if (!svgHtml) { toast.error('Certificate is still loading, please wait.'); return }
+    const html = generatePrintHtml(svgHtml, fullName)
     const win  = window.open('', '_blank')
     if (!win) { toast.error('Pop-up blocked — please allow pop-ups and try again.'); return }
     win.document.write(html)
@@ -380,33 +287,45 @@ function CertificateModal({ row, fullName, onClose }: {
 
   return (
     <>
-      <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-start overflow-y-auto py-10 px-4" onClick={onClose}>
+      <div
+        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-start overflow-y-auto py-10 px-4"
+        onClick={onClose}
+      >
         <div className="w-full max-w-[820px] flex flex-col gap-4" onClick={e => e.stopPropagation()}>
-          {/* Certificate card */}
-          <CertificateDesign row={row} fullName={fullName} />
+          {/* Certificate */}
+          <CertificatePreview svgHtml={svgHtml} />
 
           {/* Action bar */}
           <div className="bg-white rounded-[12px] p-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2 flex-wrap">
-              <button onClick={handleCopyLink}
-                className="flex items-center gap-2 h-9 px-4 rounded-[8px] border border-[#e5e7eb] text-[13px] font-medium text-[#374151] font-display hover:bg-[#f9fafb] transition-colors">
+              <button
+                onClick={handleCopyLink}
+                className="flex items-center gap-2 h-9 px-4 rounded-[8px] border border-[#e5e7eb] text-[13px] font-medium text-[#374151] font-display hover:bg-[#f9fafb] transition-colors"
+              >
                 <Copy01Icon size={14} color="#374151" strokeWidth={1.5} />
                 Copy link
               </button>
-              <button onClick={handleLinkedIn}
-                className="flex items-center gap-2 h-9 px-4 rounded-[8px] bg-[#0A66C2] text-[13px] font-medium text-white font-display hover:bg-[#084fa1] transition-colors">
+              <button
+                onClick={handleLinkedIn}
+                className="flex items-center gap-2 h-9 px-4 rounded-[8px] bg-[#0A66C2] text-[13px] font-medium text-white font-display hover:bg-[#084fa1] transition-colors"
+              >
                 <span style={{ fontWeight: 900, fontSize: 11, fontStyle: 'italic', background: 'rgba(255,255,255,0.18)', borderRadius: 3, padding: '1px 4px', lineHeight: 1 }}>in</span>
                 Post to LinkedIn
               </button>
-              <button onClick={handleNativeShare}
-                className="flex items-center gap-2 h-9 px-4 rounded-[8px] border border-[#e5e7eb] text-[13px] font-medium text-[#374151] font-display hover:bg-[#f9fafb] transition-colors">
+              <button
+                onClick={handleNativeShare}
+                className="flex items-center gap-2 h-9 px-4 rounded-[8px] border border-[#e5e7eb] text-[13px] font-medium text-[#374151] font-display hover:bg-[#f9fafb] transition-colors"
+              >
                 <Share01Icon size={14} color="#374151" strokeWidth={1.5} />
                 Share
               </button>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={handleDownload}
-                className="flex items-center gap-2 h-9 px-5 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] transition-colors">
+              <button
+                onClick={handleDownload}
+                disabled={!svgHtml}
+                className="flex items-center gap-2 h-9 px-5 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <Download01Icon size={14} color="white" strokeWidth={1.5} />
                 Download PDF
               </button>
@@ -485,9 +404,12 @@ export default function CertificatePage() {
 
       const baseRows = programs.map(p => normaliseProgramToCertRow(p, byProgram, byCohort))
 
-      // Fetch instructor for each unique cohort (best-effort, parallel)
       const seen = new Set<number>()
-      const uniqueCohortIds = baseRows.map(r => r.cohortId).filter(id => { if (!id || seen.has(id)) return false; seen.add(id); return true })
+      const uniqueCohortIds = baseRows.map(r => r.cohortId).filter(id => {
+        if (!id || seen.has(id)) return false
+        seen.add(id)
+        return true
+      })
       const instructorResults = await Promise.allSettled(
         uniqueCohortIds.map(id => fetchCohortInstructor(id))
       )
@@ -505,7 +427,7 @@ export default function CertificatePage() {
         instructorSignatureUrl: instructorMap.get(r.cohortId)?.signatureUrl ?? '',
       })))
     } catch {
-      // show empty state — student may not be enrolled yet
+      // show empty state
     } finally {
       setLoading(false)
     }
@@ -513,14 +435,17 @@ export default function CertificatePage() {
 
   useEffect(() => { load() }, [load])
 
-  function handleDownloadRow(row: CertRow, e: React.MouseEvent) {
+  async function handleDownloadRow(row: CertRow, e: React.MouseEvent) {
     e.stopPropagation()
     if (!row.issuedAt) { toast.error('Certificate not yet issued.'); return }
-    const html = generatePrintHtml(row, fullName, window.location.origin)
-    const win  = window.open('', '_blank')
-    if (!win) { toast.error('Pop-up blocked — please allow pop-ups and try again.'); return }
-    win.document.write(html)
-    win.document.close()
+    try {
+      const svg  = await buildFilledSvg(row, fullName)
+      const html = generatePrintHtml(svg, fullName)
+      const win  = window.open('', '_blank')
+      if (!win) { toast.error('Pop-up blocked — please allow pop-ups and try again.'); return }
+      win.document.write(html)
+      win.document.close()
+    } catch { toast.error('Could not load certificate template.') }
   }
 
   return (
@@ -544,9 +469,12 @@ export default function CertificatePage() {
 
         {!loading && rows.length === 0 && (
           <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)]">
-            <EmptyState icon={Award01Icon} title="No certificates yet"
+            <EmptyState
+              icon={Award01Icon}
+              title="No certificates yet"
               description="Enrol in a programme and complete all requirements to earn your certificate."
-              action={{ label: 'View Programmes', href: '/student/programs' }} />
+              action={{ label: 'View Programmes', href: '/student/programs' }}
+            />
           </div>
         )}
 
@@ -614,7 +542,11 @@ export default function CertificatePage() {
       </div>
 
       {selectedRow && (
-        <CertificateModal row={selectedRow} fullName={fullName} onClose={() => setSelectedRow(null)} />
+        <CertificateModal
+          row={selectedRow}
+          fullName={fullName}
+          onClose={() => setSelectedRow(null)}
+        />
       )}
 
       <ToastContainer toasts={toasts} onRemove={removeToast} />
