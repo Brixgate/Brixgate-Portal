@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import QRCode from 'qrcode'
 import TopNav from '@/components/layout/TopNav'
 import {
   Award01Icon,
@@ -182,7 +183,15 @@ async function buildFilledSvg(row: CertRow, fullName: string): Promise<string> {
     ? `https://brixgate.com/verify/${certificateNumber}`
     : 'https://brixgate.com/verify'
 
-  const raw = await fetch(SVG_TEMPLATE_URL).then(r => r.text())
+  const [raw, qrDataUri] = await Promise.all([
+    fetch(SVG_TEMPLATE_URL).then(r => r.text()),
+    QRCode.toDataURL(certUrl, { width: 200, margin: 1, color: { dark: '#021024', light: '#FFFFFF' } }),
+  ])
+
+  // The SVG has a hardcoded QR code drawn as vector paths inside a white box
+  // at (1014, 698) — (1114, 798). We overlay it with the dynamic QR code.
+  const qrOverlay = `<rect x="1014" y="698" width="100" height="100" fill="white"/><image x="1016" y="700" width="96" height="96" href="${qrDataUri}" preserveAspectRatio="xMidYMid meet"/>`
+
   return raw
     .replace(/width="1188" height="840"/, 'width="100%" height="auto"')
     .replace('{{fullname}}',        escapeXml(fullName   || 'Student Name'))
@@ -191,6 +200,7 @@ async function buildFilledSvg(row: CertRow, fullName: string): Promise<string> {
     .replace('{{instructor-name}}', escapeXml(instructorName || ''))
     .replace('BXG-CYB-2609-0147',  escapeXml(certId))
     .replace('brixgate.com/verify', certUrl)
+    .replace('</svg>', `${qrOverlay}</svg>`)
 }
 
 // ── Certificate preview (inline SVG) ─────────────────────────────────────────
