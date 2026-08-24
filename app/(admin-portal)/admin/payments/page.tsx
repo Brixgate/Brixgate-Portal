@@ -8,7 +8,7 @@ import AdminPageLoader from '@/components/admin/AdminPageLoader'
 // ── Shared types ──────────────────────────────────────────────────────────────
 interface Payment {
   id: number
-  user?: { id?: number; name?: string; first_name?: string; firstName?: string; last_name?: string; lastName?: string; email: string }
+  user?: AnyUser & { id?: number }
   payable_amount?: number; payableAmount?: number; amount?: number
   currency?: string; payable_currency?: string; payableCurrency?: string
   payment_status?: string; paymentStatus?: string; status?: string
@@ -22,7 +22,7 @@ interface Pagination { totalElements?: number; total_elements?: number; total?: 
 
 interface PaymentIntent {
   id: number
-  user?: { id?: number; name?: string; first_name?: string; firstName?: string; last_name?: string; lastName?: string; email?: string }
+  user?: AnyUser & { id?: number }
   amount?: number
   currency?: string
   status?: string
@@ -47,10 +47,12 @@ const PAYMENT_TYPES = ['', 'ENROLLMENT', 'CERTIFICATE', 'MEMBERSHIP']
 const PAY_STATUSES  = ['', 'PENDING', 'SUCCESS', 'FAILED']
 const INTENT_STATUSES = ['', 'CREATED', 'INITIALIZED', 'PAID', 'CONSUMED', 'FAILED', 'EXPIRED', 'CANCELLED']
 
-function userName(u?: Payment['user'] | PaymentIntent['user']): string {
+type AnyUser = { name?: string; first_name?: string; firstName?: string; last_name?: string; lastName?: string; email?: string }
+
+function userName(u?: AnyUser): string {
   if (!u) return '—'
   if (u.name) return u.name
-  return `${(u as any).firstName ?? (u as any).first_name ?? ''} ${(u as any).lastName ?? (u as any).last_name ?? ''}`.trim() || (u as any).email || '—'
+  return `${u.firstName ?? u.first_name ?? ''} ${u.lastName ?? u.last_name ?? ''}`.trim() || u.email || '—'
 }
 function formatDate(d?: string) {
   if (!d) return '—'
