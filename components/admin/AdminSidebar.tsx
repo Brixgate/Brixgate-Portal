@@ -19,6 +19,7 @@ import {
   ArrowRight01Icon,
   TeacherIcon,
   Queue01Icon,
+  Notification01Icon,
 } from 'hugeicons-react'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -57,8 +58,9 @@ const NAV_GROUPS = [
   {
     label: 'CONTENT',
     items: [
-      { label: 'Certificates', href: '/admin/certificates', icon: Award01Icon                },
-      { label: 'Polls',        href: '/admin/polls',        icon: BarChartIcon               },
+      { label: 'Certificates',   href: '/admin/certificates',   icon: Award01Icon          },
+      { label: 'Polls',          href: '/admin/polls',          icon: BarChartIcon         },
+      { label: 'Announcements',  href: '/admin/announcements',  icon: Notification01Icon   },
     ],
   },
 ]
