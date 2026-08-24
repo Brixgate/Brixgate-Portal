@@ -126,21 +126,20 @@ interface CohortMember {
 async function fetchCohortInstructor(cohortId: number): Promise<InstructorData> {
   try {
     const res  = await apiClient.get(`/cohorts/${cohortId}/members?size=100`)
-    console.log('[cert] cohortId', cohortId, 'raw response', res.data)
     const data = unwrap<{ members: CohortMember[] }>(res.data)
-    console.log('[cert] unwrapped', data)
     const instructor = (data?.members ?? []).find(
       m => String(m.role).toUpperCase() === 'INSTRUCTOR'
     )
-    console.log('[cert] instructor found', instructor)
+    console.log('[cert] instructor for cohort', cohortId, '→', instructor?.user?.name ?? 'not found', { status: res.status, memberCount: data?.members?.length })
     if (instructor?.user?.name) {
       return {
         name: instructor.user.name,
         signatureUrl: instructor.user.profile_image_url ?? '',
       }
     }
-  } catch (err) {
-    console.error('[cert] instructor fetch error for cohortId', cohortId, err)
+  } catch (err: unknown) {
+    const status = (err as { response?: { status?: number } })?.response?.status
+    console.error('[cert] instructor fetch failed for cohort', cohortId, '— HTTP', status ?? 'network error')
   }
   return { name: '', signatureUrl: '' }
 }
@@ -394,9 +393,7 @@ export default function CertificatePage() {
         if (cohId)  byCohort.set(cohId,  c)
       }
 
-      console.log('[cert] raw programs[0]', JSON.stringify(programs[0], null, 2))
       const baseRows = programs.map(p => normaliseProgramToCertRow(p, byProgram, byCohort))
-      console.log('[cert] baseRows cohortIds', baseRows.map(r => ({ title: r.title, cohortId: r.cohortId })))
 
       const seen = new Set<number>()
       const uniqueCohortIds = baseRows.map(r => r.cohortId).filter(id => {
@@ -404,7 +401,6 @@ export default function CertificatePage() {
         seen.add(id)
         return true
       })
-      console.log('[cert] uniqueCohortIds to fetch instructors for', uniqueCohortIds)
       const instructorResults = await Promise.allSettled(
         uniqueCohortIds.map(id => fetchCohortInstructor(id))
       )
