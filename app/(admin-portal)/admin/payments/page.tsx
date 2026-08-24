@@ -23,20 +23,25 @@ interface Pagination { totalElements?: number; total_elements?: number; total?: 
 interface PaymentIntent {
   id: number
   user?: AnyUser & { id?: number }
-  amount?: number
+  total_amount?: number
+  original_amount?: number
+  discount_amount?: number
   currency?: string
   status?: string
   payment_type?: string; paymentType?: string
-  reference?: string
-  checkout_url?: string; checkoutUrl?: string
+  payment_mode?: string
+  installment_role?: string
+  provider?: string
+  brixgate_reference?: string
+  provider_reference?: string
+  authorization_url?: string
+  coupon_value?: number
   coupon?: { code?: string; discount?: number; discount_type?: string }
-  programme?: { id?: number; title?: string }
+  program?: { id?: number; title?: string; slug?: string }
   cohort?: { id?: number; name?: string; title?: string }
-  payment_mode?: string; paymentMode?: string
-  payment_provider?: string; paymentProvider?: string
-  created_at?: string; createdAt?: string
-  updated_at?: string; updatedAt?: string
-  expires_at?: string; expiresAt?: string
+  created_at?: string
+  updated_at?: string
+  expires_at?: string
 }
 
 interface Program { id: number; title: string }
@@ -69,9 +74,10 @@ function resolveAmount(p: Payment): string {
   return `${cur === 'USD' ? '$' : '₦'}${amt.toLocaleString('en-NG')}`
 }
 function intentAmount(i: PaymentIntent): string {
-  if (i.amount == null) return '—'
+  const amt = i.total_amount ?? i.original_amount
+  if (amt == null) return '—'
   const cur = i.currency ?? 'NGN'
-  return `${cur === 'USD' ? '$' : '₦'}${i.amount.toLocaleString('en-NG')}`
+  return `${cur === 'USD' ? '$' : '₦'}${amt.toLocaleString('en-NG')}`
 }
 function resolveStatus(p: Payment): string {
   return p.payment_status ?? p.paymentStatus ?? p.status ?? ''
@@ -305,10 +311,10 @@ function IntentDetailPanel({ intent, onClose }: { intent: PaymentIntent; onClose
     navigator.clipboard.writeText(val).then(() => { setCopied(key); setTimeout(() => setCopied(null), 1500) })
   }
 
-  const status   = (intent.status ?? '').toUpperCase()
-  const checkoutUrl = intent.checkout_url ?? intent.checkoutUrl
+  const status      = (intent.status ?? '').toUpperCase()
+  const checkoutUrl = intent.authorization_url
   const cohortName  = intent.cohort?.title ?? intent.cohort?.name ?? '—'
-  const progTitle   = intent.programme?.title ?? '—'
+  const progTitle   = intent.program?.title ?? '—'
 
   return (
     <>
@@ -335,7 +341,7 @@ function IntentDetailPanel({ intent, onClose }: { intent: PaymentIntent; onClose
               </div>
               <IntentStatusBadge status={status} />
             </div>
-            {status === 'INITIALIZED' && checkoutUrl && (
+            {checkoutUrl && (
               <a
                 href={checkoutUrl}
                 target="_blank"
@@ -374,8 +380,9 @@ function IntentDetailPanel({ intent, onClose }: { intent: PaymentIntent; onClose
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-widest text-[#4b5563] font-display mb-3">References</p>
             <div className="space-y-2.5">
-              <CopyRow label="Reference" value={intent.reference ?? '—'} id="ref" copied={copied} onCopy={copy} />
-              <Row     label="Intent ID" value={String(intent.id)} />
+              <CopyRow label="Brixgate Reference" value={intent.brixgate_reference ?? '—'} id="brixref" copied={copied} onCopy={copy} />
+              <CopyRow label="Provider Reference" value={intent.provider_reference ?? '—'} id="provref" copied={copied} onCopy={copy} />
+              <Row     label="Intent ID"          value={String(intent.id)} />
             </div>
           </div>
 
@@ -385,18 +392,12 @@ function IntentDetailPanel({ intent, onClose }: { intent: PaymentIntent; onClose
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-widest text-[#4b5563] font-display mb-3">Payment Info</p>
             <div className="space-y-2.5">
-              <Row label="Type"     value={intent.payment_type ?? intent.paymentType ?? '—'} />
-              <Row label="Mode"     value={intent.payment_mode ?? intent.paymentMode ?? '—'} />
-              <Row label="Provider" value={intent.payment_provider ?? intent.paymentProvider ?? '—'} />
-              <Row label="Currency" value={intent.currency ?? 'NGN'} />
-              {intent.coupon?.code && (
-                <div className="flex items-center justify-between py-2">
-                  <p className="text-[12px] text-[#4b5563] font-body">Coupon Applied</p>
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] bg-[#f5f3ff] text-[#7c3aed] text-[11px] font-bold font-display">{intent.coupon.code}</span>
-                    {intent.coupon.discount != null && <span className="text-[12px] text-[#4b5563] font-body">−{intent.coupon.discount}%</span>}
-                  </div>
-                </div>
+              <Row label="Mode"             value={intent.payment_mode ?? '—'} />
+              <Row label="Installment Role" value={intent.installment_role ?? '—'} />
+              <Row label="Provider"         value={intent.provider ?? '—'} />
+              <Row label="Currency"         value={intent.currency ?? 'NGN'} />
+              {intent.discount_amount != null && intent.discount_amount > 0 && (
+                <Row label="Discount" value={`₦${intent.discount_amount.toLocaleString('en-NG')}`} />
               )}
             </div>
           </div>
@@ -407,13 +408,9 @@ function IntentDetailPanel({ intent, onClose }: { intent: PaymentIntent; onClose
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-widest text-[#4b5563] font-display mb-3">Timeline</p>
             <div className="space-y-2.5">
-              <Row label="Created"     value={formatDateTime(intent.created_at ?? intent.createdAt)} />
-              {(intent.expires_at ?? intent.expiresAt) && (
-                <Row label="Expires"   value={formatDateTime(intent.expires_at ?? intent.expiresAt)} />
-              )}
-              {(intent.updated_at ?? intent.updatedAt) && (
-                <Row label="Last Updated" value={formatDateTime(intent.updated_at ?? intent.updatedAt)} />
-              )}
+              <Row label="Created"      value={formatDateTime(intent.created_at)} />
+              {intent.expires_at  && <Row label="Expires"      value={formatDateTime(intent.expires_at)} />}
+              {intent.updated_at  && <Row label="Last Updated" value={formatDateTime(intent.updated_at)} />}
             </div>
           </div>
         </div>
@@ -557,21 +554,21 @@ function PaymentIntentsTab() {
                     <span className="text-[13px] font-semibold text-[#111827] font-display">{intentAmount(intent)}</span>
                   </td>
                   <td className="px-4 py-3.5">
-                    <span className="text-[11px] font-mono text-[#4b5563] font-body tracking-wide">{intent.reference ?? '—'}</span>
+                    <span className="text-[11px] font-mono text-[#4b5563] font-body tracking-wide">{intent.brixgate_reference ?? '—'}</span>
                   </td>
                   <td className="px-4 py-3.5">
-                    <span className="text-[12px] text-[#4b5563] font-body">{intent.payment_type ?? intent.paymentType ?? '—'}</span>
+                    <span className="text-[12px] text-[#4b5563] font-body">{intent.payment_mode ?? '—'}</span>
                   </td>
                   <td className="px-4 py-3.5">
-                    {intent.coupon?.code
-                      ? <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] bg-[#f5f3ff] text-[#7c3aed] text-[11px] font-bold font-display">{intent.coupon.code}</span>
+                    {(intent.discount_amount ?? 0) > 0
+                      ? <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] bg-[#f5f3ff] text-[#7c3aed] text-[11px] font-bold font-display">₦{intent.discount_amount?.toLocaleString('en-NG')}</span>
                       : <span className="text-[#d1d5db] text-[12px] font-body">—</span>}
                   </td>
                   <td className="px-4 py-3.5">
                     <IntentStatusBadge status={intent.status} />
                   </td>
                   <td className="px-4 py-3.5">
-                    <p className="text-[12px] text-[#4b5563] font-body">{formatDate(intent.created_at ?? intent.createdAt)}</p>
+                    <p className="text-[12px] text-[#4b5563] font-body">{formatDate(intent.created_at)}</p>
                   </td>
                 </tr>
               ))}
