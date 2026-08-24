@@ -24,9 +24,17 @@ interface ApiCohort {
 interface ApiEnrollment {
   id: number; progress?: number; cohort_id?: number; cohort?: ApiCohort
 }
+interface ApiMyCohort {
+  cohort_id: number
+  cohort_title?: string
+  role?: string
+  membership_status?: string
+  cohort_enrollment?: { completion_status?: string; status?: string }
+}
 interface ApiProgram {
   id: number; title: string; category?: string; duration?: string
   enrollment?: ApiEnrollment; progress?: number; cohort?: ApiCohort; cohort_id?: number
+  my_cohorts?: ApiMyCohort[]
 }
 interface ApiCertification {
   id: number
@@ -70,9 +78,14 @@ function normaliseProgramToCertRow(
   const enrollment  = raw.enrollment
   const cohort      = enrollment?.cohort ?? raw.cohort ?? null
   const title       = raw.title ?? 'Untitled Programme'
-  const cohortName  = cohort?.name ?? ''
-  const cohortLabel = cohortName.replace(`${title} — `, '').replace(`${title} - `, '') || cohortName
-  const cohortId    = enrollment?.cohort_id ?? cohort?.id ?? raw.cohort_id ?? 0
+
+  // my_cohorts is the actual field the API returns for student membership
+  const myCohort    = raw.my_cohorts?.[0]
+  const cohortId    = myCohort?.cohort_id ?? enrollment?.cohort_id ?? cohort?.id ?? raw.cohort_id ?? 0
+
+  const rawCohortTitle = myCohort?.cohort_title ?? cohort?.name ?? ''
+  const cohortLabel    = rawCohortTitle
+    .replace(`${title} - `, '').replace(`${title} — `, '').trim() || rawCohortTitle
 
   const cert        = byProgram.get(raw.id) ?? byCohort.get(cohortId) ?? null
   const rawIssuedAt = cert?.issued_at ?? cert?.issuedAt ?? null
