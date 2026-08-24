@@ -130,18 +130,21 @@ async function fetchCohortInstructor(cohortId: number): Promise<InstructorData> 
     const instructor = (data?.members ?? []).find(
       m => String(m.role).toUpperCase() === 'INSTRUCTOR'
     )
-    console.log('[cert] instructor for cohort', cohortId, '→', instructor?.user?.name ?? 'not found', { status: res.status, memberCount: data?.members?.length })
     if (instructor?.user?.name) {
       return {
         name: instructor.user.name,
         signatureUrl: instructor.user.profile_image_url ?? '',
       }
     }
-  } catch (err: unknown) {
-    const status = (err as { response?: { status?: number } })?.response?.status
-    console.error('[cert] instructor fetch failed for cohort', cohortId, '— HTTP', status ?? 'network error')
-  }
+  } catch { /* cohort has no instructor record */ }
   return { name: '', signatureUrl: '' }
+}
+
+// Returns 'ready' only when every field required to render the certificate is present
+function certReadiness(row: CertRow): 'ready' | 'incomplete' | 'pending' {
+  if (!row.issuedAt) return 'pending'
+  if (!row.certificateNumber || !row.instructorName) return 'incomplete'
+  return 'ready'
 }
 
 // ── SVG helpers ───────────────────────────────────────────────────────────────
@@ -333,11 +336,17 @@ function CertificateModal({ row, fullName, onClose }: {
 }
 
 // ── Status badge ──────────────────────────────────────────────────────────────
-function StatusBadge({ issued }: { issued: boolean }) {
-  if (issued) return (
+function StatusBadge({ status }: { status: 'ready' | 'incomplete' | 'pending' }) {
+  if (status === 'ready') return (
     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[#ecfdf3] text-[#166534] border border-[#bbf7d0] font-display">
       <span className="w-1.5 h-1.5 rounded-full bg-[#16a34a] flex-shrink-0" />
       Ready
+    </span>
+  )
+  if (status === 'incomplete') return (
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[#fff7ed] text-[#9a3412] border border-[#fed7aa] font-display">
+      <span className="w-1.5 h-1.5 rounded-full bg-[#ea580c] flex-shrink-0" />
+      Incomplete
     </span>
   )
   return (
@@ -428,7 +437,7 @@ export default function CertificatePage() {
 
   async function handleDownloadRow(row: CertRow, e: React.MouseEvent) {
     e.stopPropagation()
-    if (!row.issuedAt) { toast.error('Certificate not yet issued.'); return }
+    if (certReadiness(row) !== 'ready') { toast.error('Certificate is not ready for download.'); return }
     try {
       const svg  = await buildFilledSvg(row, fullName)
       const html = generatePrintHtml(svg, fullName)
@@ -481,7 +490,11 @@ export default function CertificatePage() {
               </thead>
               <tbody className="divide-y divide-[#f3f4f6]">
                 {rows.map(row => {
-                  const issued = row.issuedAt !== null
+                  const status  = certReadiness(row)
+                  const canView = status === 'ready'
+                  const incompleteTitle = !row.certificateNumber
+                    ? 'Certificate number not yet assigned'
+                    : 'No facilitator has been assigned to this cohort yet'
                   return (
                     <tr key={row.key} className="hover:bg-[#fafafa] transition-colors">
                       <td className="px-5 py-4">
@@ -491,7 +504,7 @@ export default function CertificatePage() {
                         <p className="text-[13px] text-[#4b5563] font-body">{row.cohortLabel || '—'}</p>
                       </td>
                       <td className="px-5 py-4">
-                        <StatusBadge issued={issued} />
+                        <StatusBadge status={status} />
                       </td>
                       <td className="px-5 py-4">
                         <p className="text-[13px] text-[#4b5563] font-body">{row.issuedAt ?? '—'}</p>
@@ -502,10 +515,11 @@ export default function CertificatePage() {
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={() => { if (issued) setSelectedRow(row) }}
-                            disabled={!issued}
+                            onClick={() => { if (canView) setSelectedRow(row) }}
+                            disabled={!canView}
+                            title={status === 'incomplete' ? incompleteTitle : undefined}
                             className={`flex items-center gap-1.5 h-8 px-3 rounded-[6px] text-[12px] font-medium font-display border transition-colors ${
-                              issued ? 'border-[#e5e7eb] text-[#374151] hover:bg-[#f9fafb]' : 'border-[#f3f4f6] text-[#d1d5db] cursor-not-allowed'
+                              canView ? 'border-[#e5e7eb] text-[#374151] hover:bg-[#f9fafb]' : 'border-[#f3f4f6] text-[#d1d5db] cursor-not-allowed'
                             }`}
                           >
                             <EyeIcon size={13} strokeWidth={1.5} />
@@ -513,9 +527,10 @@ export default function CertificatePage() {
                           </button>
                           <button
                             onClick={e => handleDownloadRow(row, e)}
-                            disabled={!issued}
+                            disabled={!canView}
+                            title={status === 'incomplete' ? incompleteTitle : undefined}
                             className={`flex items-center gap-1.5 h-8 px-3 rounded-[6px] text-[12px] font-medium font-display transition-colors ${
-                              issued ? 'bg-[#d51520] text-white hover:bg-[#b81119]' : 'bg-[#f3f4f6] text-[#d1d5db] cursor-not-allowed'
+                              canView ? 'bg-[#d51520] text-white hover:bg-[#b81119]' : 'bg-[#f3f4f6] text-[#d1d5db] cursor-not-allowed'
                             }`}
                           >
                             <Download01Icon size={13} strokeWidth={1.5} />
