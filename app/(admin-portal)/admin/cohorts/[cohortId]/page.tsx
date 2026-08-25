@@ -1642,6 +1642,7 @@ interface AdminReviewForm {
   title?: string
   description?: string
   form_stage?: string;   formStage?: string
+  review_target?: string; reviewTarget?: string
   status?: string
   is_anonymous?: boolean
   allow_multiple_submissions?: boolean
@@ -1713,20 +1714,24 @@ function OptionEditor({ opts, onChange }: {
   )
 }
 
+const REVIEW_TARGETS = ['PROGRAM', 'COHORT', 'INSTRUCTOR', 'SESSION']
+
 // Question modal (create/edit)
-function QuestionModal({ formId, question, onClose, onSaved }: {
+function QuestionModal({ formId, question, defaultReviewTarget, onClose, onSaved }: {
   formId: number
   question: AdminReviewQuestion | null
+  defaultReviewTarget?: string
   onClose: () => void
   onSaved: () => void
 }) {
-  const [text,      setText]      = useState(question?.question_text ?? question?.questionText ?? '')
-  const [type,      setType]      = useState(question?.question_type ?? question?.questionType ?? 'RATING')
-  const [required,  setRequired]  = useState(question?.is_required  ?? question?.isRequired  ?? true)
-  const [order,     setOrder]     = useState(question?.display_order ?? question?.displayOrder ?? 1)
-  const [rMin,      setRMin]      = useState(question?.configuration?.minimum ?? 1)
-  const [rMax,      setRMax]      = useState(question?.configuration?.maximum ?? 5)
-  const [opts,      setOpts]      = useState<{ value: string; label?: string }[]>(
+  const [text,          setText]          = useState(question?.question_text ?? question?.questionText ?? '')
+  const [type,          setType]          = useState(question?.question_type ?? question?.questionType ?? 'RATING')
+  const [required,      setRequired]      = useState(question?.is_required  ?? question?.isRequired  ?? true)
+  const [order,         setOrder]         = useState(question?.display_order ?? question?.displayOrder ?? 1)
+  const [reviewTarget,  setReviewTarget]  = useState(defaultReviewTarget ?? 'PROGRAM')
+  const [rMin,          setRMin]          = useState(question?.configuration?.minimum ?? 1)
+  const [rMax,          setRMax]          = useState(question?.configuration?.maximum ?? 5)
+  const [opts,          setOpts]          = useState<{ value: string; label?: string }[]>(
     (question?.option_values ?? question?.optionValues)?.options ?? []
   )
   const [saving,    setSaving]    = useState(false)
@@ -1736,16 +1741,18 @@ function QuestionModal({ formId, question, onClose, onSaved }: {
 
   async function save() {
     if (!text.trim()) { setError('Question text is required.'); return }
+    if (!reviewTarget) { setError('Review target is required.'); return }
     setSaving(true); setError('')
     const payload: Record<string, unknown> = {
-      question_text: text.trim(),
-      question_type: type,
-      is_required: required,
-      display_order: order,
-      status: 'ACTIVE',
+      questionText:  text.trim(),
+      questionType:  type,
+      reviewTarget,
+      is_required:   required,
+      displayOrder:  order,
+      status:        'ACTIVE',
     }
     if (type === 'RATING') payload.configuration = { minimum: rMin, maximum: rMax }
-    if (isChoice) payload.option_values = { options: opts.filter(o => o.value.trim()) }
+    if (isChoice) payload.optionValues = { options: opts.filter(o => o.value.trim()) }
 
     try {
       if (question) {
@@ -1774,7 +1781,7 @@ function QuestionModal({ formId, question, onClose, onSaved }: {
               placeholder="e.g. How clear were the facilitator's explanations?"
               className="w-full border border-[#e5e7eb] rounded-[6px] px-3 py-2 text-[13px] font-body resize-none focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520]" />
           </div>
-          {/* Type + order row */}
+          {/* Type + Review Target row */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-[12px] font-semibold text-[#374151] font-display block mb-1.5">Question type</label>
@@ -1784,10 +1791,18 @@ function QuestionModal({ formId, question, onClose, onSaved }: {
               </select>
             </div>
             <div>
-              <label className="text-[12px] font-semibold text-[#374151] font-display block mb-1.5">Display order</label>
-              <input type="number" value={order} onChange={e => setOrder(Number(e.target.value))} min={1}
-                className="w-full h-9 px-2.5 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body focus:outline-none focus:border-[#d51520]" />
+              <label className="text-[12px] font-semibold text-[#374151] font-display block mb-1.5">Review target <span className="text-[#d51520]">*</span></label>
+              <select value={reviewTarget} onChange={e => setReviewTarget(e.target.value)}
+                className="w-full h-9 px-2.5 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body focus:outline-none focus:border-[#d51520] bg-white">
+                {REVIEW_TARGETS.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+              </select>
             </div>
+          </div>
+          {/* Display order */}
+          <div>
+            <label className="text-[12px] font-semibold text-[#374151] font-display block mb-1.5">Display order</label>
+            <input type="number" value={order} onChange={e => setOrder(Number(e.target.value))} min={1}
+              className="w-full h-9 px-2.5 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body focus:outline-none focus:border-[#d51520]" />
           </div>
           {/* Rating config */}
           {type === 'RATING' && (
@@ -2437,7 +2452,10 @@ function ReviewsTab({ cohortId, programId }: { cohortId: string; programId: numb
       )}
 
       {showQModal && (
-        <QuestionModal formId={selectedForm.id} question={editingQ}
+        <QuestionModal
+          formId={selectedForm.id}
+          question={editingQ}
+          defaultReviewTarget={selectedForm.reviewTarget ?? selectedForm.review_target ?? 'PROGRAM'}
           onClose={() => setShowQModal(false)}
           onSaved={() => { setShowQModal(false); loadFormDetail(selectedForm) }}
         />
