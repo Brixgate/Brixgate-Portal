@@ -929,6 +929,7 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
                 title={previewResource.title}
               />
             ) : previewResource.contentType.startsWith('image/') ? (
+              // eslint-disable-next-line @next/next/no-img-element
               <img src={previewResource.s3Url} alt={previewResource.title} className="max-w-full max-h-full object-contain p-8" />
             ) : (
               <div className="text-center text-white px-6">

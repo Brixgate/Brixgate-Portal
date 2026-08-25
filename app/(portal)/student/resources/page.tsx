@@ -220,6 +220,7 @@ function ResourceRow({ resource }: { resource: Resource }) {
               <iframe src={`https://docs.google.com/viewer?url=${encodeURIComponent(preview.s3Url)}&embedded=true`}
                 className="w-full h-full border-0" title={resource.title} />
             ) : preview.contentType.startsWith('image/') ? (
+              // eslint-disable-next-line @next/next/no-img-element
               <img src={preview.s3Url} alt={resource.title} className="max-w-full max-h-full object-contain p-8" />
             ) : (
               <div className="text-center text-white px-6">
