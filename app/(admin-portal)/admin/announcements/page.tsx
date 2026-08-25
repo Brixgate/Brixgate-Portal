@@ -6,6 +6,15 @@ import {
   Notification01Icon, Add01Icon, Loading01Icon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import { Skeleton } from '@/components/ui/skeleton'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Announcement {
@@ -194,25 +203,19 @@ function DateField({ label, value, onChange }: { label: string; value: string; o
   )
 }
 
-// ── Delete confirm dialog ─────────────────────────────────────────────────────
-function DeleteDialog({ onConfirm, onCancel, loading }: { onConfirm: () => void; onCancel: () => void; loading: boolean }) {
+// ── Table skeleton rows ───────────────────────────────────────────────────────
+function SkeletonRows({ cols }: { cols: number[] }) {
   return (
     <>
-      <div className="fixed inset-0 z-[60] bg-black/30" onClick={onCancel} />
-      <div className="fixed z-[70] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-[12px] shadow-xl p-6 w-[380px]">
-        <h3 className="text-[16px] font-bold text-[#111827] font-display mb-2">Delete Announcement</h3>
-        <p className="text-[13px] text-[#4b5563] font-body mb-6">This action cannot be undone. The announcement will be permanently removed.</p>
-        <div className="flex items-center gap-3 justify-end">
-          <button onClick={onCancel} className="h-9 px-4 border border-[#e5e7eb] rounded-[8px] text-[13px] font-medium font-body text-[#374151] hover:bg-[#f9fafb]">
-            Cancel
-          </button>
-          <button onClick={onConfirm} disabled={loading}
-            className="h-9 px-4 bg-[#d51520] text-white rounded-[8px] text-[13px] font-medium font-body hover:bg-[#b91c1c] disabled:opacity-60 flex items-center gap-2">
-            {loading && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
-            Delete
-          </button>
-        </div>
-      </div>
+      {Array.from({ length: 6 }).map((_, i) => (
+        <TableRow key={i}>
+          {cols.map((w, j) => (
+            <TableCell key={j}>
+              <Skeleton className="h-4 rounded" style={{ width: w }} />
+            </TableCell>
+          ))}
+        </TableRow>
+      ))}
     </>
   )
 }
@@ -227,18 +230,18 @@ interface AnnouncementFormProps {
 }
 
 function AnnouncementForm({ mode, initial, programs, onClose, onSaved }: AnnouncementFormProps) {
-  const [title, setTitle]         = useState(initial?.title ?? '')
-  const [content, setContent]     = useState(initial?.content ?? '')
+  const [title, setTitle]           = useState(initial?.title ?? '')
+  const [content, setContent]       = useState(initial?.content ?? '')
   const [visibility, setVisibility] = useState<string>(initial?.visibility ?? 'PLATFORM')
-  const [programId, setProgramId] = useState(initial?.program_id ? String(initial.program_id) : '')
-  const [cohortId, setCohortId]   = useState(initial?.cohort_id ? String(initial.cohort_id) : '')
-  const [publishAt, setPublishAt] = useState('')
-  const [expiresAt, setExpiresAt] = useState('')
-  const [status, setStatus]       = useState<string>(initial?.status ?? 'DRAFT')
-  const [cohorts, setCohorts]     = useState<CohortOption[]>([])
+  const [programId, setProgramId]   = useState(initial?.program_id ? String(initial.program_id) : '')
+  const [cohortId, setCohortId]     = useState(initial?.cohort_id ? String(initial.cohort_id) : '')
+  const [publishAt, setPublishAt]   = useState('')
+  const [expiresAt, setExpiresAt]   = useState('')
+  const [status, setStatus]         = useState<string>(initial?.status ?? 'DRAFT')
+  const [cohorts, setCohorts]       = useState<CohortOption[]>([])
   const [cohortsLoading, setCohortsLoading] = useState(false)
-  const [saving, setSaving]       = useState(false)
-  const [error, setError]         = useState('')
+  const [saving, setSaving]         = useState(false)
+  const [error, setError]           = useState('')
 
   useEffect(() => {
     if (!programId) { setCohorts([]); setCohortId(''); return }
@@ -289,7 +292,6 @@ function AnnouncementForm({ mode, initial, programs, onClose, onSaved }: Announc
     <>
       <div className="fixed inset-0 z-40 bg-black/20" onClick={onClose} />
       <div className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-[12px] shadow-xl w-[540px] max-h-[90vh] flex flex-col overflow-hidden">
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-[#f3f4f6] flex-shrink-0">
           <h2 className="text-[16px] font-bold text-[#111827] font-display">
             {mode === 'create' ? 'New Announcement' : 'Edit Announcement'}
@@ -299,7 +301,6 @@ function AnnouncementForm({ mode, initial, programs, onClose, onSaved }: Announc
           </button>
         </div>
 
-        {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
           <TextField label="Title" value={title} onChange={setTitle} placeholder="e.g. Important Update for Cohort 3" required />
           <TextareaField label="Content" value={content} onChange={setContent} placeholder="Write your announcement here…" required rows={5} />
@@ -347,7 +348,6 @@ function AnnouncementForm({ mode, initial, programs, onClose, onSaved }: Announc
           {error && <p className="text-[12px] text-[#d51520] font-body">{error}</p>}
         </div>
 
-        {/* Footer */}
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[#f3f4f6] flex-shrink-0">
           <button onClick={onClose} className="h-9 px-4 border border-[#e5e7eb] rounded-[8px] text-[13px] font-medium font-body text-[#374151] hover:bg-[#f9fafb]">
             Cancel
@@ -372,8 +372,6 @@ function AnnouncementPanel({ announcement, programs, onClose, onEdit, onDeleted 
   onDeleted: (id: number) => void
 }) {
   const [deleting, setDeleting] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
-
   const progName = programs.find(p => p.id === announcement.program_id)?.title
 
   async function handleDelete() {
@@ -381,7 +379,7 @@ function AnnouncementPanel({ announcement, programs, onClose, onEdit, onDeleted 
     try {
       await apiClient.delete(`/admin/announcements/${announcement.id}`)
       onDeleted(announcement.id)
-    } catch { /* keep panel open */ } finally { setDeleting(false); setConfirmDelete(false) }
+    } catch { /* keep panel open */ } finally { setDeleting(false) }
   }
 
   return (
@@ -397,9 +395,31 @@ function AnnouncementPanel({ announcement, programs, onClose, onEdit, onDeleted 
             <button onClick={onEdit} className="h-8 px-3 border border-[#e5e7eb] rounded-[8px] text-[12px] font-medium font-body text-[#374151] hover:bg-[#f9fafb] flex items-center gap-1.5">
               <PencilEdit01Icon size={13} strokeWidth={1.5} /> Edit
             </button>
-            <button onClick={() => setConfirmDelete(true)} className="w-8 h-8 flex items-center justify-center rounded-[8px] border border-[#fee2e2] text-[#d51520] hover:bg-[#fef2f2]">
-              <Delete02Icon size={14} strokeWidth={1.5} />
-            </button>
+
+            {/* shadcn AlertDialog for delete confirm */}
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <button className="w-8 h-8 flex items-center justify-center rounded-[8px] border border-[#fee2e2] text-[#d51520] hover:bg-[#fef2f2]">
+                  <Delete02Icon size={14} strokeWidth={1.5} />
+                </button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Announcement</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action cannot be undone. The announcement will be permanently removed.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter className="gap-2">
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDelete} disabled={deleting} className="flex items-center gap-2">
+                    {deleting && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
             <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f3f4f6]">
               <Cancel01Icon size={16} color="#4b5563" strokeWidth={1.5} />
             </button>
@@ -444,10 +464,6 @@ function AnnouncementPanel({ announcement, programs, onClose, onEdit, onDeleted 
           </div>
         </div>
       </div>
-
-      {confirmDelete && (
-        <DeleteDialog onConfirm={handleDelete} onCancel={() => setConfirmDelete(false)} loading={deleting} />
-      )}
     </>
   )
 }
@@ -534,7 +550,7 @@ function AnnouncementsTab() {
       )}
 
       {/* Toolbar */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-3">
           <select value={filterVisibility} onChange={e => { setFilterVisibility(e.target.value); setPage(1) }}
             className="h-9 pl-3 pr-8 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body outline-none focus:border-[#d51520] bg-white">
@@ -554,56 +570,54 @@ function AnnouncementsTab() {
         </button>
       </div>
 
-      {/* Table */}
+      {/* shadcn Table */}
       <div className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
-                {['Title', 'Visibility', 'Target', 'Status', 'Created'].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? Array.from({ length: 6 }).map((_, i) => (
-                <tr key={i} className="border-b border-[#f3f4f6]">
-                  {[200, 90, 140, 80, 100].map((w, j) => (
-                    <td key={j} className="px-4 py-3.5"><div className="h-4 bg-[#f3f4f6] rounded animate-pulse" style={{ width: w }} /></td>
-                  ))}
-                </tr>
-              )) : announcements.length === 0 ? (
-                <tr><td colSpan={5} className="px-4 py-16 text-center">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Title</TableHead>
+              <TableHead>Visibility</TableHead>
+              <TableHead>Target</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Created</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              <SkeletonRows cols={[200, 90, 140, 80, 100]} />
+            ) : announcements.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="py-16 text-center">
                   <div className="w-16 h-16 bg-[#f3f4f6] rounded-[12px] flex items-center justify-center mx-auto mb-4">
                     <Notification01Icon size={28} color="#9ca3af" strokeWidth={1.5} />
                   </div>
                   <p className="text-[14px] font-semibold text-[#111827] font-display">No announcements yet</p>
                   <p className="text-[13px] text-[#4b5563] font-body mt-1">Create your first announcement to notify students</p>
-                </td></tr>
-              ) : announcements.map(a => {
-                const prog = programs.find(p => p.id === a.program_id)
-                const target = a.visibility === 'PLATFORM'
-                  ? 'All users'
-                  : a.visibility === 'PROGRAM'
-                  ? prog?.title ?? `Programme #${a.program_id}`
-                  : prog ? `${prog.title} / Cohort #${a.cohort_id}` : `Cohort #${a.cohort_id}`
-                return (
-                  <tr key={a.id} onClick={() => setSelected(a)}
-                    className="border-b border-[#f3f4f6] hover:bg-[#fafafa] cursor-pointer transition-colors">
-                    <td className="px-4 py-3.5">
-                      <p className="text-[13px] font-medium text-[#111827] font-body max-w-[240px] truncate">{a.title}</p>
-                      <p className="text-[11px] text-[#4b5563] font-body mt-0.5 max-w-[240px] truncate">{a.content}</p>
-                    </td>
-                    <td className="px-4 py-3.5"><VisibilityBadge visibility={a.visibility} /></td>
-                    <td className="px-4 py-3.5"><span className="text-[12px] text-[#4b5563] font-body">{target}</span></td>
-                    <td className="px-4 py-3.5"><StatusBadge status={a.status} /></td>
-                    <td className="px-4 py-3.5"><p className="text-[12px] text-[#4b5563] font-body">{formatDate(a.created_at)}</p></td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+                </TableCell>
+              </TableRow>
+            ) : announcements.map(a => {
+              const prog = programs.find(p => p.id === a.program_id)
+              const target = a.visibility === 'PLATFORM'
+                ? 'All users'
+                : a.visibility === 'PROGRAM'
+                ? prog?.title ?? `Programme #${a.program_id}`
+                : prog ? `${prog.title} / Cohort #${a.cohort_id}` : `Cohort #${a.cohort_id}`
+              return (
+                <TableRow key={a.id} onClick={() => setSelected(a)} className="cursor-pointer">
+                  <TableCell>
+                    <p className="font-medium text-[#111827] max-w-[240px] truncate">{a.title}</p>
+                    <p className="text-[11px] text-[#4b5563] mt-0.5 max-w-[240px] truncate">{a.content}</p>
+                  </TableCell>
+                  <TableCell><VisibilityBadge visibility={a.visibility} /></TableCell>
+                  <TableCell><span className="text-[12px] text-[#4b5563]">{target}</span></TableCell>
+                  <TableCell><StatusBadge status={a.status} /></TableCell>
+                  <TableCell><span className="text-[12px] text-[#4b5563]">{formatDate(a.created_at)}</span></TableCell>
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        </Table>
+
         {pagination && pagination.total_pages > 1 && (
           <div className="px-4 py-3 flex items-center justify-between border-t border-[#f3f4f6]">
             <p className="text-[12px] text-[#4b5563] font-body">
@@ -622,14 +636,14 @@ function AnnouncementsTab() {
 
 // ── Notification form modal ───────────────────────────────────────────────────
 function NotificationForm({ onClose, onSaved }: { onClose: () => void; onSaved: (n: Notification) => void }) {
-  const [userId, setUserId]       = useState('')
-  const [title, setTitle]         = useState('')
-  const [message, setMessage]     = useState('')
-  const [type, setType]           = useState('ANNOUNCEMENT')
-  const [refType, setRefType]     = useState('')
-  const [refId, setRefId]         = useState('')
-  const [saving, setSaving]       = useState(false)
-  const [error, setError]         = useState('')
+  const [userId, setUserId]   = useState('')
+  const [title, setTitle]     = useState('')
+  const [message, setMessage] = useState('')
+  const [type, setType]       = useState('ANNOUNCEMENT')
+  const [refType, setRefType] = useState('')
+  const [refId, setRefId]     = useState('')
+  const [saving, setSaving]   = useState(false)
+  const [error, setError]     = useState('')
 
   async function handleSave() {
     if (!userId || isNaN(Number(userId))) { setError('A valid user ID is required.'); return }
@@ -801,7 +815,7 @@ function NotificationsTab() {
       {selected && !showForm && <NotificationPanel notification={selected} onClose={() => setSelected(null)} />}
 
       {/* Toolbar */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-3">
           <select value={filterType} onChange={e => { setFilterType(e.target.value); setPage(1) }}
             className="h-9 pl-3 pr-8 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body outline-none focus:border-[#d51520] bg-white">
@@ -822,53 +836,51 @@ function NotificationsTab() {
         </button>
       </div>
 
-      {/* Table */}
+      {/* shadcn Table */}
       <div className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
-                {['User ID', 'Title', 'Type', 'Read', 'Date'].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? Array.from({ length: 6 }).map((_, i) => (
-                <tr key={i} className="border-b border-[#f3f4f6]">
-                  {[60, 200, 100, 60, 100].map((w, j) => (
-                    <td key={j} className="px-4 py-3.5"><div className="h-4 bg-[#f3f4f6] rounded animate-pulse" style={{ width: w }} /></td>
-                  ))}
-                </tr>
-              )) : notifications.length === 0 ? (
-                <tr><td colSpan={5} className="px-4 py-16 text-center">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>User ID</TableHead>
+              <TableHead>Title</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Read</TableHead>
+              <TableHead>Date</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              <SkeletonRows cols={[60, 200, 100, 60, 100]} />
+            ) : notifications.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="py-16 text-center">
                   <div className="w-16 h-16 bg-[#f3f4f6] rounded-[12px] flex items-center justify-center mx-auto mb-4">
                     <Notification01Icon size={28} color="#9ca3af" strokeWidth={1.5} />
                   </div>
                   <p className="text-[14px] font-semibold text-[#111827] font-display">No notifications sent</p>
                   <p className="text-[13px] text-[#4b5563] font-body mt-1">Send a notification to a specific user</p>
-                </td></tr>
-              ) : notifications.map(n => (
-                <tr key={n.id} onClick={() => setSelected(n)}
-                  className="border-b border-[#f3f4f6] hover:bg-[#fafafa] cursor-pointer transition-colors">
-                  <td className="px-4 py-3.5"><span className="text-[13px] font-mono text-[#4b5563] font-body">#{n.user_id}</span></td>
-                  <td className="px-4 py-3.5">
-                    <p className="text-[13px] font-medium text-[#111827] font-body max-w-[220px] truncate">{n.title}</p>
-                    <p className="text-[11px] text-[#4b5563] font-body mt-0.5 max-w-[220px] truncate">{n.message}</p>
-                  </td>
-                  <td className="px-4 py-3.5"><TypeBadge type={n.type} /></td>
-                  <td className="px-4 py-3.5">
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold font-display ${n.is_read ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#f3f4f6] text-[#6b7280]'}`}>
-                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: n.is_read ? '#027a48' : '#9ca3af' }} />
-                      {n.is_read ? 'Read' : 'Unread'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3.5"><p className="text-[12px] text-[#4b5563] font-body">{formatDate(n.created_at)}</p></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                </TableCell>
+              </TableRow>
+            ) : notifications.map(n => (
+              <TableRow key={n.id} onClick={() => setSelected(n)} className="cursor-pointer">
+                <TableCell><span className="font-mono text-[#4b5563]">#{n.user_id}</span></TableCell>
+                <TableCell>
+                  <p className="font-medium text-[#111827] max-w-[220px] truncate">{n.title}</p>
+                  <p className="text-[11px] text-[#4b5563] mt-0.5 max-w-[220px] truncate">{n.message}</p>
+                </TableCell>
+                <TableCell><TypeBadge type={n.type} /></TableCell>
+                <TableCell>
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold font-display ${n.is_read ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#f3f4f6] text-[#6b7280]'}`}>
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: n.is_read ? '#027a48' : '#9ca3af' }} />
+                    {n.is_read ? 'Read' : 'Unread'}
+                  </span>
+                </TableCell>
+                <TableCell><span className="text-[12px] text-[#4b5563]">{formatDate(n.created_at)}</span></TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+
         {pagination && pagination.total_pages > 1 && (
           <div className="px-4 py-3 flex items-center justify-between border-t border-[#f3f4f6]">
             <p className="text-[12px] text-[#4b5563] font-body">
@@ -896,12 +908,13 @@ export default function AdminAnnouncementsPage() {
 
   return (
     <div className="p-8">
-
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-[24px] font-bold text-[#111827] font-display">Announcements</h1>
           <p className="text-[14px] text-[#4b5563] font-body mt-0.5">
-            {activeTab === 'announcements' ? 'Broadcast messages to students by cohort, programme, or platform' : 'One-off notifications sent to individual users'}
+            {activeTab === 'announcements'
+              ? 'Broadcast messages to students by cohort, programme, or platform'
+              : 'One-off notifications sent to individual users'}
           </p>
         </div>
       </div>
