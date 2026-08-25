@@ -12,6 +12,14 @@ import {
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 import { useToast, ToastContainer } from '@/components/shared/Toast'
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Resource { id: number; title: string; type: string; link: string; status?: string }
@@ -1385,33 +1393,33 @@ function PaymentOptionsModal({ planId, breakdown, planTitle, onClose }: {
                             <div>
                               <p className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-display mb-2">Instalment Schedule</p>
                               <div className="rounded-[6px] border border-[#f3f4f6] overflow-hidden">
-                                <table className="w-full">
-                                  <thead>
-                                    <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow>
                                       {['#', 'Type', 'Amount', 'Due (days after enrol)'].map(h => (
-                                        <th key={h} className="text-left px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-[#6b7280] font-display">{h}</th>
+                                        <TableHead key={h} className="py-2 text-[10px]">{h}</TableHead>
                                       ))}
-                                    </tr>
-                                  </thead>
-                                  <tbody>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
                                     {insts.map((inst, i) => {
-                                      const num   = inst.installment_number ?? inst.installmentNumber ?? (i + 1)
-                                      const type  = inst.amount_type ?? inst.amountType ?? '—'
-                                      const val   = inst.amount_value ?? inst.amountValue
-                                      const due   = inst.due_offset_days ?? inst.dueOffsetDays
+                                      const num  = inst.installment_number ?? inst.installmentNumber ?? (i + 1)
+                                      const type = inst.amount_type ?? inst.amountType ?? '—'
+                                      const val  = inst.amount_value ?? inst.amountValue
+                                      const due  = inst.due_offset_days ?? inst.dueOffsetDays
                                       return (
-                                        <tr key={i} className="border-b border-[#f3f4f6] last:border-0">
-                                          <td className="px-3 py-2 text-[12px] text-[#374151] font-body">{num}</td>
-                                          <td className="px-3 py-2 text-[12px] text-[#374151] font-body">{type === 'FIXED_AMOUNT' ? '₦ Fixed' : '%'}</td>
-                                          <td className="px-3 py-2 text-[12px] font-semibold text-[#111827] font-body">
+                                        <TableRow key={i}>
+                                          <TableCell className="py-2 text-[12px]">{num}</TableCell>
+                                          <TableCell className="py-2 text-[12px] text-[#4b5563]">{type === 'FIXED_AMOUNT' ? '₦ Fixed' : '%'}</TableCell>
+                                          <TableCell className="py-2 text-[12px] font-semibold">
                                             {val != null ? (type === 'FIXED_AMOUNT' ? `₦${Number(val).toLocaleString('en-NG')}` : `${val}%`) : '—'}
-                                          </td>
-                                          <td className="px-3 py-2 text-[12px] text-[#374151] font-body">{due != null ? `Day ${due}` : '—'}</td>
-                                        </tr>
+                                          </TableCell>
+                                          <TableCell className="py-2 text-[12px] text-[#4b5563]">{due != null ? `Day ${due}` : '—'}</TableCell>
+                                        </TableRow>
                                       )
                                     })}
-                                  </tbody>
-                                </table>
+                                  </TableBody>
+                                </Table>
                               </div>
                             </div>
                           )}
@@ -2275,37 +2283,38 @@ function CohortsTab({ programId }: { programId: string }) {
         </div>
       ) : (
         <div className="rounded-[10px] border border-[#eaecf0] overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-[#f9fafb] border-b border-[#eaecf0]">
+          <Table>
+            <TableHeader>
+              <TableRow>
                 {['Cohort', 'Status', 'Start Date', 'End Date', 'Students', ''].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6b7280] font-display bg-[#f9fafb]">{h}</th>
+                  <TableHead key={h}>{h}</TableHead>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {cohorts.map(c => (
-                <tr key={c.id}
+                <TableRow
+                  key={c.id}
                   onClick={() => router.push(`/admin/cohorts/${c.id}`)}
-                  className="border-b border-[#f3f4f6] hover:bg-[#fafafa] cursor-pointer transition-colors">
-                  <td className="px-4 py-3.5">
-                    <p className="text-[13px] font-semibold text-[#111827] font-display">{c.title}</p>
-                  </td>
-                  <td className="px-4 py-3.5">
+                  className="cursor-pointer"
+                >
+                  <TableCell>
+                    <p className="font-semibold text-[#111827] font-display">{c.title}</p>
+                  </TableCell>
+                  <TableCell>
                     {c.status
                       ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold font-display ${COHORT_STATUS_STYLE[c.status] ?? 'bg-[#f3f4f6] text-[#374151]'}`}>
                           {c.status.charAt(0) + c.status.slice(1).toLowerCase()}
                         </span>
                       : '—'
                     }
-                  </td>
-                  <td className="px-4 py-3.5 text-[13px] text-[#4b5563] font-body">{formatDate(c.start_date)}</td>
-                  <td className="px-4 py-3.5 text-[13px] text-[#4b5563] font-body">{formatDate(c.end_date)}</td>
-                  <td className="px-4 py-3.5 text-[13px] font-medium text-[#111827] font-body">
+                  </TableCell>
+                  <TableCell className="text-[#4b5563]">{formatDate(c.start_date)}</TableCell>
+                  <TableCell className="text-[#4b5563]">{formatDate(c.end_date)}</TableCell>
+                  <TableCell className="font-medium">
                     {c.total_students ?? c.enrolled_count ?? 0} / {c.max_students ?? '—'}
-                  </td>
-                  {/* Inline actions */}
-                  <td className="px-4 py-3.5" onClick={e => e.stopPropagation()}>
+                  </TableCell>
+                  <TableCell onClick={e => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1">
                       <button
                         onClick={() => openEdit(c)}
@@ -2314,55 +2323,43 @@ function CohortsTab({ programId }: { programId: string }) {
                       >
                         <PencilEdit01Icon size={13} color="#4b5563" strokeWidth={1.5} />
                       </button>
-                      <button
-                        onClick={() => setDeleteCohort(c)}
-                        className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#fef2f2] transition-colors"
-                        title="Delete cohort"
-                      >
-                        <Delete01Icon size={13} color="#d51520" strokeWidth={1.5} />
-                      </button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <button
+                            onClick={e => e.stopPropagation()}
+                            className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#fef2f2] transition-colors"
+                            title="Delete cohort"
+                          >
+                            <Delete01Icon size={13} color="#d51520" strokeWidth={1.5} />
+                          </button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Cohort?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              <span className="font-semibold text-[#374151]">{c.title}</span> will be permanently deleted. This cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter className="gap-2">
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => { setDeleteCohort(c); doDeleteCohort() }}>
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
 
       {showCreate && cohortFormModal(false)}
       {editCohort  && cohortFormModal(true)}
 
-      {/* Delete cohort confirm */}
-      {deleteCohort && (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/40 px-4" onClick={() => setDeleteCohort(null)}>
-          <div className="bg-white rounded-[14px] shadow-xl w-full max-w-[400px] p-6" onClick={e => e.stopPropagation()}>
-            <div className="w-10 h-10 rounded-full bg-[#fef2f2] flex items-center justify-center mb-4">
-              <Delete01Icon size={18} color="#d51520" strokeWidth={1.5} />
-            </div>
-            <h2 className="text-[15px] font-bold text-[#111827] font-display mb-1">Delete Cohort?</h2>
-            <p className="text-[13px] text-[#4b5563] font-body mb-5">
-              <span className="font-semibold text-[#374151]">{deleteCohort.title}</span> will be permanently deleted. This cannot be undone.
-            </p>
-            {formError && (
-              <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body mb-3">
-                <AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} /> {formError}
-              </p>
-            )}
-            <div className="flex gap-2">
-              <button onClick={() => setDeleteCohort(null)}
-                className="flex-1 h-10 rounded-[8px] border border-[#e5e7eb] text-[13px] font-medium font-body hover:bg-[#f9fafb] transition-colors">
-                Cancel
-              </button>
-              <button onClick={doDeleteCohort} disabled={deleting}
-                className="flex-1 h-10 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-60 flex items-center justify-center gap-2">
-                {deleting && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
