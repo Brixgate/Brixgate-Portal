@@ -2037,7 +2037,6 @@ function CohortsTab({ programId }: { programId: string }) {
   const [deleteCohort, setDeleteCohort] = useState<ApiCohort | null>(null)
   const [form, setForm]               = useState<ApiCohortCreate>({ program_id: programId, title: '', start_date: '', end_date: '', status: 'UPCOMING', max_students: '30', learning_format: '', frequency: '', description: '', admission_start: '', admission_end: '' })
   const [saving, setSaving]           = useState(false)
-  const [deleting, setDeleting]       = useState(false)
   const [formError, setFormError]     = useState('')
 
   const clsInput = 'w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 bg-white'
@@ -2128,12 +2127,11 @@ function CohortsTab({ programId }: { programId: string }) {
 
   async function doDeleteCohort() {
     if (!deleteCohort) return
-    setDeleting(true)
     try {
       await apiClient.delete(`/admin/cohorts/${deleteCohort.id}`)
       setCohorts(prev => prev.filter(c => c.id !== deleteCohort.id))
       setDeleteCohort(null)
-    } catch (err) { setFormError(getApiError(err)) } finally { setDeleting(false) }
+    } catch (err) { setFormError(getApiError(err)) }
   }
 
   function openEdit(c: ApiCohort) {
