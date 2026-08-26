@@ -15,16 +15,6 @@ import { apiClient, unwrap } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
 
 // ── API shapes ────────────────────────────────────────────────────────────────
-interface ApiNotification {
-  id: number | string
-  title?: string
-  body?: string
-  message?: string
-  type?: string
-  is_read?: boolean; isRead?: boolean
-  created_at?: string; createdAt?: string
-}
-
 interface ApiAnnouncement {
   id: number | string
   title?: string
@@ -50,16 +40,6 @@ interface Announcement {
   title: string
   content: string
   createdAt: string
-}
-
-function mapNotif(n: ApiNotification): Notif {
-  return {
-    id:        String(n.id),
-    title:     n.title ?? n.message ?? 'Notification',
-    type:      n.type ?? 'announcement',
-    isRead:    n.is_read ?? n.isRead ?? false,
-    createdAt: n.created_at ?? n.createdAt ?? new Date().toISOString(),
-  }
 }
 
 function mapAnnouncement(a: ApiAnnouncement): Announcement {
@@ -157,21 +137,8 @@ export default function NotificationsPanel() {
   const [loadingNotifs,     setLoadingNotifs]     = useState(true)
   const [loadingAnnounce,   setLoadingAnnounce]   = useState(true)
 
-  // Fetch notifications
-  useEffect(() => {
-    apiClient.get('/users/me/notifications')
-      .then(res => {
-        const data = unwrap<ApiNotification[]>(res.data)
-        const list = Array.isArray(data) ? data : (Array.isArray((data as Record<string,unknown>)?.notifications) ? (data as Record<string,unknown>).notifications as ApiNotification[] : [])
-        setNotifications(
-          list.map(mapNotif)
-              .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-              .slice(0, 10)
-        )
-      })
-      .catch(() => setNotifications([]))
-      .finally(() => setLoadingNotifs(false))
-  }, [])
+  // Notifications endpoint pending from backend — skip fetch until confirmed
+  useEffect(() => { setLoadingNotifs(false) }, [])
 
   // Fetch announcements
   useEffect(() => {
