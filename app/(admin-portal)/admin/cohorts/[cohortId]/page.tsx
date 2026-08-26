@@ -1744,15 +1744,15 @@ function QuestionModal({ formId, question, defaultReviewTarget, onClose, onSaved
     if (!reviewTarget) { setError('Review target is required.'); return }
     setSaving(true); setError('')
     const payload: Record<string, unknown> = {
-      questionText:  text.trim(),
-      questionType:  type,
-      reviewTarget,
-      is_required:   required,
-      displayOrder:  order,
-      status:        'ACTIVE',
+      question_text:  text.trim(),
+      question_type:  type,
+      review_target:  reviewTarget,
+      is_required:    required,
+      display_order:  order,
+      status:         'ACTIVE',
     }
     if (type === 'RATING') payload.configuration = { minimum: rMin, maximum: rMax }
-    if (isChoice) payload.optionValues = { options: opts.filter(o => o.value.trim()) }
+    if (isChoice) payload.option_values = { options: opts.filter(o => o.value.trim()) }
 
     try {
       if (question) {
