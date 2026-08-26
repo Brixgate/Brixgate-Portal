@@ -24,10 +24,6 @@ interface ApiCohortSummary {
   cohortTitle?: string
   role?: string
   membershipStatus?: string
-  // Cohort's own status set by admin (ACTIVE, CLOSED, UPCOMING, COMPLETED, etc.)
-  status?: string
-  cohortStatus?: string
-  cohort_status?: string
 }
 
 interface ApiProgram {
@@ -60,6 +56,7 @@ function readEnrollment(c: any) {
   return {
     id:               e.id as number,
     enrollmentType:   (e.enrollmentType ?? e.enrollment_type ?? 'INDIVIDUAL') as string,
+    completionStatus: (e.completionStatus ?? e.completion_status ?? 'NOT_STARTED') as string,
     seatsPurchased:   (e.seatsPurchased  ?? e.seats_purchased  ?? 1)  as number,
     seatsUsed:        (e.seatsUsed       ?? e.seats_used        ?? 1)  as number,
     buyerIsParticipant: (e.buyerIsParticipant ?? e.buyer_is_participant ?? true) as boolean,
@@ -88,7 +85,7 @@ interface ProgramRow {
   cohortName: string
   cohortLabel: string
   enrolled: number
-  cohortStatus: string          // Admin-set cohort status: ACTIVE, CLOSED, UPCOMING, COMPLETED
+  completionStatus: string       // From cohort_enrollment: NOT_STARTED, IN_PROGRESS, COMPLETED
   membershipStatus: string      // Student's enrollment membership status
   role: string
   modulesCount: number
@@ -115,7 +112,7 @@ function normalise(raw: ApiProgram): ProgramRow {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const c = cohort as any
-  const cohortStatus = c?.cohortStatus ?? c?.cohort_status ?? c?.status ?? ''
+  const completionStatus = enrollment?.completionStatus ?? 'NOT_STARTED'
 
   return {
     programId: raw.id,
@@ -128,7 +125,7 @@ function normalise(raw: ApiProgram): ProgramRow {
     cohortName,
     cohortLabel,
     enrolled:         raw.enrolledStudentsCount ?? 0,
-    cohortStatus,
+    completionStatus,
     membershipStatus: c?.membershipStatus ?? c?.membership_status ?? '',
     role:             c?.role ?? '',
     modulesCount:     raw.modulesCount ?? 0,
@@ -143,25 +140,20 @@ function normalise(raw: ApiProgram): ProgramRow {
 }
 
 // ── Status / role badge helpers ───────────────────────────────────────────────
-function statusStyle(status: string): string {
+function completionStatusStyle(status: string): string {
   switch (status.toUpperCase()) {
-    case 'ACTIVE':    return 'bg-[#ECFDF3] text-[#027A48] border border-[#A6F4C5]'
-    case 'OPEN':      return 'bg-[#ECFDF3] text-[#027A48] border border-[#A6F4C5]'
-    case 'UPCOMING':  return 'bg-[#EFF8FF] text-[#175CD3] border border-[#B2DDFF]'
-    case 'PENDING':   return 'bg-[#FFFAEB] text-[#B54708] border border-[#FEDF89]'
-    case 'CLOSED':    return 'bg-[#F2F4F7] text-[#344054] border border-[#EAECF0]'
-    case 'COMPLETED': return 'bg-[#F2F4F7] text-[#344054] border border-[#EAECF0]'
-    case 'INACTIVE':  return 'bg-[#F2F4F7] text-[#344054] border border-[#EAECF0]'
-    case 'CANCELLED': return 'bg-[#FEF3F2] text-[#B42318] border border-[#FECDCA]'
-    default:          return 'bg-[#F2F4F7] text-[#344054] border border-[#EAECF0]'
+    case 'IN_PROGRESS': return 'bg-[#EFF8FF] text-[#175CD3] border border-[#B2DDFF]'
+    case 'COMPLETED':   return 'bg-[#ECFDF3] text-[#027A48] border border-[#A6F4C5]'
+    case 'NOT_STARTED': return 'bg-[#FFFAEB] text-[#B54708] border border-[#FEDF89]'
+    default:            return 'bg-[#F2F4F7] text-[#344054] border border-[#EAECF0]'
   }
 }
 
-function statusLabel(status: string): string {
+function completionStatusLabel(status: string): string {
   const map: Record<string, string> = {
-    ACTIVE: 'Active', OPEN: 'Open', UPCOMING: 'Upcoming',
-    PENDING: 'Pending', CLOSED: 'Closed', COMPLETED: 'Completed',
-    INACTIVE: 'Inactive', CANCELLED: 'Cancelled',
+    NOT_STARTED: 'Not Started',
+    IN_PROGRESS: 'In Progress',
+    COMPLETED:   'Completed',
   }
   return map[status.toUpperCase()] ?? status
 }
@@ -299,16 +291,14 @@ export default function ProgramsPage() {
                   {/* Card body */}
                   <div className="flex flex-col flex-1 p-5">
 
-                    {/* Title + cohort status (admin-set) */}
+                    {/* Title + completion status badge */}
                     <div className="flex items-start justify-between gap-2 mb-1">
                       <p className="text-[15px] font-semibold text-[#111827] font-display leading-snug flex-1">
                         {p.title}
                       </p>
-                      {(p.cohortStatus || p.membershipStatus) && (
-                        <span className={`text-[10px] font-semibold font-display px-2 py-0.5 rounded-full flex-shrink-0 mt-0.5 ${statusStyle(p.cohortStatus || p.membershipStatus)}`}>
-                          {statusLabel(p.cohortStatus || p.membershipStatus)}
-                        </span>
-                      )}
+                      <span className={`text-[10px] font-semibold font-display px-2 py-0.5 rounded-full flex-shrink-0 mt-0.5 ${completionStatusStyle(p.completionStatus)}`}>
+                        {completionStatusLabel(p.completionStatus)}
+                      </span>
                     </div>
 
                     {/* Subtitle / description */}
