@@ -3,7 +3,7 @@
 import TopNav from '@/components/layout/TopNav'
 import PromoBanner from '@/components/student/PromoBanner'
 import MyLearning from '@/components/student/MyLearning'
-// FEATURE_OFF: notifications — import NotificationsPanel from '@/components/student/NotificationsPanel'
+import NotificationsPanel from '@/components/student/NotificationsPanel'
 import NewUserDashboard from '@/components/student/NewUserDashboard'
 import PaymentAlertBanner from '@/components/student/PaymentAlertBanner'
 import { MOCK_ENROLLMENTS } from '@/lib/mock-data'
@@ -54,10 +54,10 @@ export default function DashboardPage() {
               <MyLearning />
             </div>
 
-            {/* FEATURE_OFF: notifications — right panel hidden; re-enable by uncommenting below */}
-            {/* <div className="hidden lg:flex lg:w-[280px] xl:w-[320px] lg:flex-shrink-0 flex-col gap-4">
+            {/* Right panel — Announcements + Notifications */}
+            <div className="hidden lg:flex lg:w-[300px] xl:w-[320px] lg:flex-shrink-0 flex-col">
               <NotificationsPanel />
-            </div> */}
+            </div>
           </div>
         )}
       </div>
