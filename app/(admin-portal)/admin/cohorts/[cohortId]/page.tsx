@@ -2485,6 +2485,381 @@ function ReviewsTab({ cohortId, programId }: { cohortId: string; programId: numb
   )
 }
 
+// ── Tab: Schedule ─────────────────────────────────────────────────────────────
+interface CohortSchedule {
+  id: number
+  title: string
+  session_type?: string
+  start_datetime?: string
+  end_datetime?: string
+  timezone?: string
+  meeting_link?: string
+  meeting_provider?: string
+  host_user_id?: number
+  visibility_status?: string
+  status?: string
+  recording_url?: string
+  recording_status?: string
+  attendance_enabled?: boolean
+  description?: string
+}
+
+const SESSION_TYPES  = ['LIVE_CLASS', 'WORKSHOP', 'LECTURE', 'Q_AND_A', 'OFFICE_HOURS']
+const SCHED_STATUSES = ['SCHEDULED', 'LIVE', 'COMPLETED', 'CANCELLED']
+const VISIBILITY     = ['PUBLISHED', 'HIDDEN']
+
+function schedStatusStyle(s: string) {
+  switch (s?.toUpperCase()) {
+    case 'SCHEDULED': return 'bg-[#eff6ff] text-[#1d4ed8]'
+    case 'LIVE':      return 'bg-[#ecfdf3] text-[#15803d]'
+    case 'COMPLETED': return 'bg-[#f3f4f6] text-[#4b5563]'
+    case 'CANCELLED': return 'bg-[#fef2f2] text-[#b91c1c]'
+    default:          return 'bg-[#f3f4f6] text-[#4b5563]'
+  }
+}
+
+function formatScheduleDateTime(iso?: string, tz?: string) {
+  if (!iso) return '—'
+  try {
+    return new Date(iso).toLocaleString('en-NG', {
+      day: 'numeric', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+      timeZone: tz === 'WAT' || tz === 'Africa/Lagos' ? 'Africa/Lagos' : 'UTC',
+    }) + (tz ? ` (${tz})` : ' UTC')
+  } catch { return iso }
+}
+
+function ScheduleModal({ cohortId, schedule, onClose, onSaved }: {
+  cohortId: string
+  schedule: CohortSchedule | null
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [title,       setTitle]       = useState(schedule?.title ?? '')
+  const [desc,        setDesc]        = useState(schedule?.description ?? '')
+  const [sessType,    setSessType]    = useState(schedule?.session_type ?? 'LIVE_CLASS')
+  const [startDt,     setStartDt]     = useState(schedule?.start_datetime?.slice(0, 16) ?? '')
+  const [endDt,       setEndDt]       = useState(schedule?.end_datetime?.slice(0, 16) ?? '')
+  const [timezone,    setTimezone]    = useState(schedule?.timezone ?? 'WAT')
+  const [meetLink,    setMeetLink]    = useState(schedule?.meeting_link ?? '')
+  const [meetProv,    setMeetProv]    = useState(schedule?.meeting_provider ?? '')
+  const [visibility,  setVisibility]  = useState(schedule?.visibility_status ?? 'PUBLISHED')
+  const [status,      setStatus]      = useState(schedule?.status ?? 'SCHEDULED')
+  const [attendance,  setAttendance]  = useState(schedule?.attendance_enabled ?? false)
+  const [saving, setSaving] = useState(false)
+  const [error,  setError]  = useState('')
+
+  async function save() {
+    if (!title.trim())   { setError('Title is required.'); return }
+    if (!startDt)        { setError('Start date/time is required.'); return }
+    if (!endDt)          { setError('End date/time is required.'); return }
+    setSaving(true); setError('')
+    const payload: Record<string, unknown> = {
+      title:              title.trim(),
+      description:        desc.trim() || undefined,
+      session_type:       sessType,
+      start_datetime:     new Date(startDt).toISOString(),
+      end_datetime:       new Date(endDt).toISOString(),
+      timezone,
+      meeting_link:       meetLink.trim() || undefined,
+      meeting_provider:   meetProv.trim() || undefined,
+      visibility_status:  visibility,
+      status,
+      attendance_enabled: attendance,
+    }
+    try {
+      if (schedule) {
+        await apiClient.put(`/admin/cohort-schedules/${schedule.id}`, payload)
+      } else {
+        await apiClient.post(`/admin/cohorts/${cohortId}/schedules`, payload)
+      }
+      onSaved()
+    } catch (e) { setError(getApiError(e)) } finally { setSaving(false) }
+  }
+
+  const fieldClass = 'w-full h-9 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520] bg-white'
+  const labelClass = 'text-[11px] font-semibold text-[#374151] font-display block mb-1'
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="bg-white rounded-[12px] shadow-lg w-full max-w-[560px] max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#f3f4f6]">
+          <h3 className="text-[15px] font-bold text-[#111827] font-display">{schedule ? 'Edit Session' : 'New Session'}</h3>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#f3f4f6]">
+            <Cancel01Icon size={15} color="#6b7280" strokeWidth={1.5} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-4">
+          {/* Title */}
+          <div>
+            <label className={labelClass}>Session title <span className="text-[#d51520]">*</span></label>
+            <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Introduction to Prompt Engineering"
+              className={fieldClass} />
+          </div>
+
+          {/* Type + Status */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Session type</label>
+              <select value={sessType} onChange={e => setSessType(e.target.value)} className={fieldClass}>
+                {SESSION_TYPES.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Status</label>
+              <select value={status} onChange={e => setStatus(e.target.value)} className={fieldClass}>
+                {SCHED_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Start + End datetime */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Start date & time <span className="text-[#d51520]">*</span></label>
+              <input type="datetime-local" value={startDt} onChange={e => setStartDt(e.target.value)} className={fieldClass} />
+            </div>
+            <div>
+              <label className={labelClass}>End date & time <span className="text-[#d51520]">*</span></label>
+              <input type="datetime-local" value={endDt} onChange={e => setEndDt(e.target.value)} className={fieldClass} />
+            </div>
+          </div>
+
+          {/* Timezone + Visibility */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Timezone</label>
+              <input value={timezone} onChange={e => setTimezone(e.target.value)} placeholder="WAT" className={fieldClass} />
+            </div>
+            <div>
+              <label className={labelClass}>Visibility</label>
+              <select value={visibility} onChange={e => setVisibility(e.target.value)} className={fieldClass}>
+                {VISIBILITY.map(v => <option key={v} value={v}>{v}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Meeting link + provider */}
+          <div>
+            <label className={labelClass}>Meeting link</label>
+            <input value={meetLink} onChange={e => setMeetLink(e.target.value)} placeholder="https://zoom.us/j/..."
+              className={fieldClass} />
+          </div>
+          <div>
+            <label className={labelClass}>Meeting provider</label>
+            <input value={meetProv} onChange={e => setMeetProv(e.target.value)} placeholder="Zoom / Google Meet / Teams"
+              className={fieldClass} />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className={labelClass}>Description (optional)</label>
+            <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={2} placeholder="What will be covered in this session?"
+              className="w-full border border-[#e5e7eb] rounded-[6px] px-3 py-2 text-[13px] font-body resize-none focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520]" />
+          </div>
+
+          {/* Attendance toggle */}
+          <label className="flex items-center gap-2.5 cursor-pointer">
+            <div onClick={() => setAttendance(v => !v)}
+              className={`w-9 h-5 rounded-full transition-colors flex-shrink-0 ${attendance ? 'bg-[#d51520]' : 'bg-[#e5e7eb]'}`}>
+              <div className={`w-4 h-4 bg-white rounded-full shadow mt-0.5 transition-transform ${attendance ? 'translate-x-4' : 'translate-x-0.5'}`} />
+            </div>
+            <span className="text-[13px] text-[#374151] font-body">Enable attendance tracking</span>
+          </label>
+
+          {error && <p className="text-[12px] text-[#d51520] font-body">{error}</p>}
+        </div>
+
+        <div className="px-6 py-4 border-t border-[#f3f4f6] flex justify-end gap-2">
+          <button onClick={onClose} className="h-9 px-4 border border-[#e5e7eb] text-[#374151] text-[13px] font-semibold font-display rounded-[8px] hover:bg-[#f9fafb]">Cancel</button>
+          <button onClick={save} disabled={saving}
+            className="flex items-center gap-2 h-9 px-5 bg-[#d51520] hover:bg-[#b81119] text-white text-[13px] font-semibold font-display rounded-[8px] disabled:opacity-50 transition-colors">
+            {saving && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
+            {schedule ? 'Save changes' : 'Create session'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ScheduleTab({ cohortId }: { cohortId: string }) {
+  const [schedules, setSchedules]   = useState<CohortSchedule[]>([])
+  const [loading,   setLoading]     = useState(true)
+  const [showModal, setShowModal]   = useState(false)
+  const [editing,   setEditing]     = useState<CohortSchedule | null>(null)
+  const [deleteId,  setDeleteId]    = useState<number | null>(null)
+  const [deleting,  setDeleting]    = useState(false)
+
+  function load() {
+    setLoading(true)
+    apiClient.get(`/admin/cohort-schedules?cohortId=${cohortId}&size=100`)
+      .then(res => {
+        const raw = unwrap<{ schedules?: CohortSchedule[] }>(res.data)
+        const list = Array.isArray(raw?.schedules) ? raw.schedules
+          : Array.isArray(raw) ? raw as unknown as CohortSchedule[]
+          : []
+        setSchedules([...list].sort((a, b) =>
+          new Date(a.start_datetime ?? 0).getTime() - new Date(b.start_datetime ?? 0).getTime()
+        ))
+      })
+      .catch(() => setSchedules([]))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => { load() }, [cohortId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function doDelete() {
+    if (!deleteId) return
+    setDeleting(true)
+    try {
+      await apiClient.delete(`/admin/cohort-schedules/${deleteId}`)
+      setDeleteId(null)
+      load()
+    } catch { /* ignore */ } finally { setDeleting(false) }
+  }
+
+  return (
+    <div className="p-6">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h3 className="text-[16px] font-bold text-[#111827] font-display">Schedule</h3>
+          <p className="text-[12px] text-[#4b5563] font-body mt-0.5">All sessions for this cohort — past and upcoming.</p>
+        </div>
+        <button onClick={() => { setEditing(null); setShowModal(true) }}
+          className="flex items-center gap-2 h-9 px-4 bg-[#d51520] hover:bg-[#b81119] text-white text-[13px] font-semibold font-display rounded-[8px] transition-colors">
+          <Add01Icon size={14} strokeWidth={2} color="white" />
+          Add session
+        </button>
+      </div>
+
+      {/* Loading */}
+      {loading && (
+        <div className="flex items-center justify-center py-16 gap-2 text-[#4b5563]">
+          <Loading01Icon size={16} className="animate-spin" strokeWidth={1.5} />
+          <span className="text-[13px] font-body">Loading schedule…</span>
+        </div>
+      )}
+
+      {/* Empty */}
+      {!loading && schedules.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="w-12 h-12 rounded-[12px] bg-[#f3f4f6] flex items-center justify-center mb-3">
+            <VideoReplayIcon size={22} color="#9ca3af" strokeWidth={1.5} />
+          </div>
+          <p className="text-[14px] font-bold text-[#374151] font-display">No sessions yet</p>
+          <p className="text-[13px] text-[#4b5563] font-body mt-1 max-w-[280px]">Add your first session to give students a schedule.</p>
+          <button onClick={() => { setEditing(null); setShowModal(true) }}
+            className="mt-4 flex items-center gap-2 h-9 px-4 bg-[#d51520] hover:bg-[#b81119] text-white text-[13px] font-semibold font-display rounded-[8px]">
+            <Add01Icon size={14} strokeWidth={2} color="white" />
+            Add session
+          </button>
+        </div>
+      )}
+
+      {/* Schedule table */}
+      {!loading && schedules.length > 0 && (
+        <div className="overflow-x-auto rounded-[10px] border border-[#f3f4f6]">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display">#</th>
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display">Session</th>
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display">Type</th>
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display">Start</th>
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display">End</th>
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display">Status</th>
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display">Meeting link</th>
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display">Attendance</th>
+                <th className="px-4 py-3" />
+              </tr>
+            </thead>
+            <tbody>
+              {schedules.map((s, i) => (
+                <tr key={s.id} className="border-b border-[#f7f8fa] last:border-0 hover:bg-[#fafafa]">
+                  <td className="px-4 py-3.5 text-[12px] text-[#9ca3af] font-body">{i + 1}</td>
+                  <td className="px-4 py-3.5 max-w-[220px]">
+                    <p className="text-[13px] font-semibold text-[#111827] font-display truncate">{s.title}</p>
+                    {s.description && <p className="text-[11px] text-[#4b5563] font-body truncate mt-0.5">{s.description}</p>}
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <span className="text-[11px] font-medium text-[#4b5563] font-body bg-[#f3f4f6] px-2 py-0.5 rounded-full">
+                      {(s.session_type ?? '').replace(/_/g, ' ')}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3.5 text-[12px] text-[#374151] font-body whitespace-nowrap">{formatScheduleDateTime(s.start_datetime, s.timezone)}</td>
+                  <td className="px-4 py-3.5 text-[12px] text-[#374151] font-body whitespace-nowrap">{formatScheduleDateTime(s.end_datetime, s.timezone)}</td>
+                  <td className="px-4 py-3.5">
+                    <span className={`text-[11px] font-semibold font-display px-2 py-0.5 rounded-full ${schedStatusStyle(s.status ?? '')}`}>
+                      {s.status ?? '—'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    {s.meeting_link
+                      ? <a href={s.meeting_link} target="_blank" rel="noopener noreferrer"
+                          className="text-[12px] text-[#d51520] font-body hover:underline truncate block max-w-[160px]">
+                          {s.meeting_provider || 'Join link'}
+                        </a>
+                      : <span className="text-[12px] text-[#9ca3af] font-body">—</span>
+                    }
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <span className={`text-[11px] font-semibold font-display px-2 py-0.5 rounded-full ${s.attendance_enabled ? 'bg-[#ecfdf3] text-[#15803d]' : 'bg-[#f3f4f6] text-[#4b5563]'}`}>
+                      {s.attendance_enabled ? 'On' : 'Off'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <div className="flex items-center gap-1.5 justify-end">
+                      <button onClick={() => { setEditing(s); setShowModal(true) }}
+                        className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#f3f4f6]">
+                        <PencilEdit01Icon size={13} color="#4b5563" strokeWidth={1.5} />
+                      </button>
+                      <button onClick={() => setDeleteId(s.id)}
+                        className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#fef2f2]">
+                        <Delete01Icon size={13} color="#d51520" strokeWidth={1.5} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Create / edit modal */}
+      {showModal && (
+        <ScheduleModal
+          cohortId={cohortId}
+          schedule={editing}
+          onClose={() => setShowModal(false)}
+          onSaved={() => { setShowModal(false); load() }}
+        />
+      )}
+
+      {/* Delete confirm */}
+      {deleteId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-[12px] shadow-lg w-full max-w-[360px] p-6">
+            <h4 className="text-[15px] font-bold text-[#111827] font-display mb-2">Delete session?</h4>
+            <p className="text-[13px] text-[#4b5563] font-body mb-5">This will permanently remove the session from the schedule.</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setDeleteId(null)} className="h-9 px-4 border border-[#e5e7eb] text-[#374151] text-[13px] font-semibold font-display rounded-[8px] hover:bg-[#f9fafb]">Cancel</button>
+              <button onClick={doDelete} disabled={deleting}
+                className="flex items-center gap-2 h-9 px-4 bg-[#d51520] hover:bg-[#b81119] text-white text-[13px] font-semibold font-display rounded-[8px] disabled:opacity-50">
+                {deleting && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Tab: Payments ─────────────────────────────────────────────────────────────
 interface PaymentOverviewStudent {
   user_id?: number; userId?: number
@@ -2648,7 +3023,7 @@ function PaymentsTab({ cohortId }: { cohortId: string }) {
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
-const TABS = ['Curriculum', 'People', 'Reviews', 'Payments', 'Certificates'] as const
+const TABS = ['Curriculum', 'Schedule', 'People', 'Reviews', 'Payments', 'Certificates'] as const
 type Tab = typeof TABS[number]
 
 const STATUS_STYLE: Record<string, string> = {
@@ -2757,11 +3132,12 @@ export default function CohortDetailPage() {
             className={`flex items-center gap-1.5 px-4 py-3 text-[13px] font-semibold font-display border-b-2 transition-colors ${
               activeTab === tab ? 'border-[#d51520] text-[#d51520]' : 'border-transparent text-[#4b5563] hover:text-[#374151]'
             }`}>
-            {tab === 'Curriculum' && <BookOpen01Icon  size={14} strokeWidth={1.5} />}
-            {tab === 'People'     && <UserGroup02Icon size={14} strokeWidth={1.5} />}
-            {tab === 'Reviews'    && <StarIcon        size={14} strokeWidth={1.5} />}
-            {tab === 'Payments'      && <Payment01Icon    size={14} strokeWidth={1.5} />}
-            {tab === 'Certificates'  && <Certificate01Icon size={14} strokeWidth={1.5} />}
+            {tab === 'Curriculum'   && <BookOpen01Icon    size={14} strokeWidth={1.5} />}
+            {tab === 'Schedule'     && <VideoReplayIcon   size={14} strokeWidth={1.5} />}
+            {tab === 'People'       && <UserGroup02Icon   size={14} strokeWidth={1.5} />}
+            {tab === 'Reviews'      && <StarIcon          size={14} strokeWidth={1.5} />}
+            {tab === 'Payments'     && <Payment01Icon     size={14} strokeWidth={1.5} />}
+            {tab === 'Certificates' && <Certificate01Icon size={14} strokeWidth={1.5} />}
             {tab}
           </button>
         ))}
@@ -2775,6 +3151,9 @@ export default function CohortDetailPage() {
       >
         <div style={activeTab === 'Curriculum' ? { display: 'contents' } : { display: 'none' }}>
           <CurriculumTab cohortId={cohortId} programId={programId} parentLoading={loading} onProgramIdResolved={id => setCohort(prev => prev ? { ...prev, program_id: id } : prev)} />
+        </div>
+        <div style={activeTab === 'Schedule' ? { display: 'contents' } : { display: 'none' }}>
+          <ScheduleTab cohortId={cohortId} />
         </div>
         <div style={activeTab === 'People' ? { display: 'contents' } : { display: 'none' }}>
           <PeopleTab cohortId={cohortId} />
