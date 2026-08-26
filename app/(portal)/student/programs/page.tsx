@@ -24,6 +24,10 @@ interface ApiCohortSummary {
   cohortTitle?: string
   role?: string
   membershipStatus?: string
+  // Cohort's own status set by admin (ACTIVE, CLOSED, UPCOMING, COMPLETED, etc.)
+  status?: string
+  cohortStatus?: string
+  cohort_status?: string
 }
 
 interface ApiProgram {
@@ -84,7 +88,8 @@ interface ProgramRow {
   cohortName: string
   cohortLabel: string
   enrolled: number
-  membershipStatus: string
+  cohortStatus: string          // Admin-set cohort status: ACTIVE, CLOSED, UPCOMING, COMPLETED
+  membershipStatus: string      // Student's enrollment membership status
   role: string
   modulesCount: number
   lessonsCount: number
@@ -108,6 +113,10 @@ function normalise(raw: ApiProgram): ProgramRow {
     || cohortName
   const enrollment = readEnrollment(cohort)
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const c = cohort as any
+  const cohortStatus = c?.cohortStatus ?? c?.cohort_status ?? c?.status ?? ''
+
   return {
     programId: raw.id,
     cohortId:  readCohortId(cohort),
@@ -119,8 +128,9 @@ function normalise(raw: ApiProgram): ProgramRow {
     cohortName,
     cohortLabel,
     enrolled:         raw.enrolledStudentsCount ?? 0,
-    membershipStatus: (cohort as Record<string, unknown>)?.['membershipStatus'] as string ?? (cohort as Record<string, unknown>)?.['membership_status'] as string ?? '',
-    role:             (cohort as Record<string, unknown>)?.['role'] as string ?? '',
+    cohortStatus,
+    membershipStatus: c?.membershipStatus ?? c?.membership_status ?? '',
+    role:             c?.role ?? '',
     modulesCount:     raw.modulesCount ?? 0,
     lessonsCount:     raw.lessonsCount ?? 0,
     enrollmentId:        enrollment?.id ?? null,
@@ -135,16 +145,23 @@ function normalise(raw: ApiProgram): ProgramRow {
 // ── Status / role badge helpers ───────────────────────────────────────────────
 function statusStyle(status: string): string {
   switch (status.toUpperCase()) {
-    case 'ACTIVE':   return 'bg-[#ECFDF3] text-[#027A48] border border-[#A6F4C5]'
-    case 'PENDING':  return 'bg-[#FFFAEB] text-[#B54708] border border-[#FEDF89]'
-    case 'INACTIVE': return 'bg-[#F2F4F7] text-[#344054] border border-[#EAECF0]'
-    default:         return 'bg-[#F2F4F7] text-[#344054] border border-[#EAECF0]'
+    case 'ACTIVE':    return 'bg-[#ECFDF3] text-[#027A48] border border-[#A6F4C5]'
+    case 'OPEN':      return 'bg-[#ECFDF3] text-[#027A48] border border-[#A6F4C5]'
+    case 'UPCOMING':  return 'bg-[#EFF8FF] text-[#175CD3] border border-[#B2DDFF]'
+    case 'PENDING':   return 'bg-[#FFFAEB] text-[#B54708] border border-[#FEDF89]'
+    case 'CLOSED':    return 'bg-[#F2F4F7] text-[#344054] border border-[#EAECF0]'
+    case 'COMPLETED': return 'bg-[#F2F4F7] text-[#344054] border border-[#EAECF0]'
+    case 'INACTIVE':  return 'bg-[#F2F4F7] text-[#344054] border border-[#EAECF0]'
+    case 'CANCELLED': return 'bg-[#FEF3F2] text-[#B42318] border border-[#FECDCA]'
+    default:          return 'bg-[#F2F4F7] text-[#344054] border border-[#EAECF0]'
   }
 }
 
 function statusLabel(status: string): string {
   const map: Record<string, string> = {
-    ACTIVE: 'Active', PENDING: 'Pending', INACTIVE: 'Inactive',
+    ACTIVE: 'Active', OPEN: 'Open', UPCOMING: 'Upcoming',
+    PENDING: 'Pending', CLOSED: 'Closed', COMPLETED: 'Completed',
+    INACTIVE: 'Inactive', CANCELLED: 'Cancelled',
   }
   return map[status.toUpperCase()] ?? status
 }
@@ -282,14 +299,14 @@ export default function ProgramsPage() {
                   {/* Card body */}
                   <div className="flex flex-col flex-1 p-5">
 
-                    {/* Title + enrollment status */}
+                    {/* Title + cohort status (admin-set) */}
                     <div className="flex items-start justify-between gap-2 mb-1">
                       <p className="text-[15px] font-semibold text-[#111827] font-display leading-snug flex-1">
                         {p.title}
                       </p>
-                      {p.membershipStatus && (
-                        <span className={`text-[10px] font-semibold font-display px-2 py-0.5 rounded-full flex-shrink-0 mt-0.5 ${statusStyle(p.membershipStatus)}`}>
-                          {statusLabel(p.membershipStatus)}
+                      {(p.cohortStatus || p.membershipStatus) && (
+                        <span className={`text-[10px] font-semibold font-display px-2 py-0.5 rounded-full flex-shrink-0 mt-0.5 ${statusStyle(p.cohortStatus || p.membershipStatus)}`}>
+                          {statusLabel(p.cohortStatus || p.membershipStatus)}
                         </span>
                       )}
                     </div>
