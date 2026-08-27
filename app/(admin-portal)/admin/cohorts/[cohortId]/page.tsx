@@ -2529,6 +2529,9 @@ function formatScheduleDateTime(iso?: string, tz?: string) {
   } catch { return iso }
 }
 
+interface CohortModule { id: number; title?: string; program_module_id?: number }
+interface CohortLesson { id: number; title?: string; order_index?: number }
+
 function ScheduleModal({ cohortId, schedule, onClose, onSaved }: {
   cohortId: string
   schedule: CohortSchedule | null
@@ -2546,8 +2549,44 @@ function ScheduleModal({ cohortId, schedule, onClose, onSaved }: {
   const [visibility,  setVisibility]  = useState(schedule?.visibility_status ?? 'PUBLISHED')
   const [status,      setStatus]      = useState(schedule?.status ?? 'SCHEDULED')
   const [attendance,  setAttendance]  = useState(schedule?.attendance_enabled ?? false)
+
+  // Module → Lesson selector (optional)
+  const [modules,       setModules]       = useState<CohortModule[]>([])
+  const [selectedMod,   setSelectedMod]   = useState<number | ''>('')
+  const [lessons,       setLessons]       = useState<CohortLesson[]>([])
+  const [selectedLesson,setSelectedLesson] = useState<number | ''>('')
+  const [loadingMods,   setLoadingMods]   = useState(false)
+  const [loadingLessons,setLoadingLessons] = useState(false)
+
   const [saving, setSaving] = useState(false)
   const [error,  setError]  = useState('')
+
+  // Fetch modules on mount
+  useEffect(() => {
+    setLoadingMods(true)
+    apiClient.get(`/cohorts/${cohortId}/modules`)
+      .then(res => {
+        const raw = unwrap<{ modules?: CohortModule[] } | CohortModule[]>(res.data)
+        const list = Array.isArray(raw) ? raw : (raw as Record<string, unknown>)?.modules as CohortModule[] ?? []
+        setModules(list)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingMods(false))
+  }, [cohortId])
+
+  // Fetch lessons when a module is selected
+  useEffect(() => {
+    if (!selectedMod) { setLessons([]); setSelectedLesson(''); return }
+    setLoadingLessons(true); setSelectedLesson('')
+    apiClient.get(`/cohorts/${cohortId}/program-modules/${selectedMod}/lessons`)
+      .then(res => {
+        const raw = unwrap<{ lessons?: CohortLesson[] } | CohortLesson[]>(res.data)
+        const list = Array.isArray(raw) ? raw : (raw as Record<string, unknown>)?.lessons as CohortLesson[] ?? []
+        setLessons(list)
+      })
+      .catch(() => setLessons([]))
+      .finally(() => setLoadingLessons(false))
+  }, [selectedMod, cohortId])
 
   async function save() {
     if (!title.trim())   { setError('Title is required.'); return }
@@ -2568,10 +2607,22 @@ function ScheduleModal({ cohortId, schedule, onClose, onSaved }: {
       attendance_enabled: attendance,
     }
     try {
+      let scheduleId: number
       if (schedule) {
-        await apiClient.put(`/admin/cohort-schedules/${schedule.id}`, payload)
+        await apiClient.patch(`/admin/cohort-schedules/${schedule.id}`, payload)
+        scheduleId = schedule.id
       } else {
-        await apiClient.post(`/admin/cohorts/${cohortId}/schedules`, payload)
+        const res = await apiClient.post(`/admin/cohorts/${cohortId}/schedules`, payload)
+        const created = unwrap<Record<string, unknown>>(res.data)
+        scheduleId = (created?.id as number)
+          ?? (created?.schedule as { id?: number })?.id
+          ?? 0
+      }
+      // Attach lesson if selected (optional)
+      if (selectedLesson && scheduleId) {
+        await apiClient.post(`/admin/cohort-schedules/${scheduleId}/lessons`, {
+          cohort_lesson_id: selectedLesson,
+        }).catch(() => {/* lesson attachment is best-effort */})
       }
       onSaved()
     } catch (e) { setError(getApiError(e)) } finally { setSaving(false) }
@@ -2650,6 +2701,45 @@ function ScheduleModal({ cohortId, schedule, onClose, onSaved }: {
             <label className={labelClass}>Meeting provider</label>
             <input value={meetProv} onChange={e => setMeetProv(e.target.value)} placeholder="Zoom / Google Meet / Teams"
               className={fieldClass} />
+          </div>
+
+          {/* Module → Lesson (optional) */}
+          <div className="border border-[#f3f4f6] rounded-[8px] p-3 bg-[#fafafa] flex flex-col gap-3">
+            <p className="text-[11px] font-semibold text-[#6b7280] font-display uppercase tracking-wide">
+              Attach lesson (optional)
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelClass}>Module</label>
+                <select
+                  value={selectedMod}
+                  onChange={e => setSelectedMod(e.target.value ? Number(e.target.value) : '')}
+                  className={fieldClass}
+                  disabled={loadingMods}
+                >
+                  <option value="">{loadingMods ? 'Loading…' : '— Select module —'}</option>
+                  {modules.map(m => (
+                    <option key={m.id} value={m.id}>{m.title ?? `Module ${m.id}`}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Lesson</label>
+                <select
+                  value={selectedLesson}
+                  onChange={e => setSelectedLesson(e.target.value ? Number(e.target.value) : '')}
+                  className={fieldClass}
+                  disabled={!selectedMod || loadingLessons}
+                >
+                  <option value="">
+                    {!selectedMod ? '— Pick a module first —' : loadingLessons ? 'Loading…' : '— Select lesson —'}
+                  </option>
+                  {lessons.map(l => (
+                    <option key={l.id} value={l.id}>{l.title ?? `Lesson ${l.id}`}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
 
           {/* Description */}
