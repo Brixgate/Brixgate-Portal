@@ -620,24 +620,135 @@ function AnnouncementsTab() {
   )
 }
 
+// ── User picker (client-side search — improve when /admin/users gets a search param) ──
+interface AdminUser { id: number; firstName?: string; first_name?: string; lastName?: string; last_name?: string; email?: string }
+
+function UserPicker({ selectedId, onSelect }: { selectedId: number | null; onSelect: (u: AdminUser | null) => void }) {
+  const [query,    setQuery]    = useState('')
+  const [users,    setUsers]    = useState<AdminUser[]>([])
+  const [loading,  setLoading]  = useState(true)
+  const [open,     setOpen]     = useState(false)
+  const [selected, setSelected] = useState<AdminUser | null>(null)
+
+  useEffect(() => {
+    // Load up to 100 users once — client-side filter from there
+    apiClient.get('/admin/users?size=100')
+      .then(res => {
+        const data = unwrap<unknown>(res.data)
+        const list: AdminUser[] = Array.isArray(data)
+          ? data as AdminUser[]
+          : (data as Record<string,unknown>)?.users as AdminUser[]
+            ?? (data as Record<string,unknown>)?.data as AdminUser[]
+            ?? []
+        setUsers(list)
+      })
+      .catch(() => setUsers([]))
+      .finally(() => setLoading(false))
+  }, [])
+
+  function fullName(u: AdminUser) {
+    const first = u.firstName ?? u.first_name ?? ''
+    const last  = u.lastName  ?? u.last_name  ?? ''
+    return `${first} ${last}`.trim() || u.email || `User #${u.id}`
+  }
+
+  const filtered = query.trim()
+    ? users.filter(u => {
+        const name  = fullName(u).toLowerCase()
+        const email = (u.email ?? '').toLowerCase()
+        const q     = query.toLowerCase()
+        return name.includes(q) || email.includes(q)
+      })
+    : users
+
+  function pick(u: AdminUser) {
+    setSelected(u)
+    setQuery(fullName(u))
+    setOpen(false)
+    onSelect(u)
+  }
+
+  function clear() {
+    setSelected(null)
+    setQuery('')
+    onSelect(null)
+  }
+
+  return (
+    <div className="relative">
+      <label className="block text-[13px] font-medium text-[#111827] font-body mb-1.5">
+        Send to <span className="text-[#d51520]">*</span>
+      </label>
+      <div className="relative">
+        <input
+          type="text"
+          value={query}
+          onChange={e => { setQuery(e.target.value); setOpen(true); if (selected) { setSelected(null); onSelect(null) } }}
+          onFocus={() => setOpen(true)}
+          placeholder={loading ? 'Loading users…' : 'Search by name or email…'}
+          disabled={loading}
+          className="w-full h-10 px-3 pr-8 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body outline-none focus:border-[#d51520] bg-white disabled:opacity-50"
+        />
+        {selected && (
+          <button onClick={clear} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#9ca3af] hover:text-[#374151]">
+            <Cancel01Icon size={14} strokeWidth={2} />
+          </button>
+        )}
+      </div>
+      {/* Selected pill */}
+      {selected && (
+        <div className="mt-1.5 inline-flex items-center gap-2 bg-[#fef2f2] border border-[#fecaca] rounded-full px-3 py-1">
+          <span className="text-[12px] font-medium text-[#d51520] font-body">{fullName(selected)}</span>
+          <span className="text-[11px] text-[#9ca3af] font-body">#{selected.id}</span>
+        </div>
+      )}
+      {/* Dropdown */}
+      {open && !selected && (
+        <>
+          <div className="fixed inset-0 z-[55]" onClick={() => setOpen(false)} />
+          <div className="absolute z-[60] top-full mt-1 w-full bg-white border border-[#e5e7eb] rounded-[8px] shadow-lg max-h-[220px] overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="px-4 py-3 text-[13px] text-[#9ca3af] font-body">
+                {query ? 'No users match your search.' : 'No users found.'}
+              </p>
+            ) : filtered.slice(0, 50).map(u => (
+              <button
+                key={u.id}
+                onClick={() => pick(u)}
+                className="w-full text-left px-4 py-2.5 hover:bg-[#fafafa] flex items-center justify-between gap-3 border-b border-[#f3f4f6] last:border-0"
+              >
+                <div>
+                  <p className="text-[13px] font-medium text-[#111827] font-body">{fullName(u)}</p>
+                  {u.email && <p className="text-[11px] text-[#4b5563] font-body">{u.email}</p>}
+                </div>
+                <span className="text-[11px] text-[#9ca3af] font-body flex-shrink-0">#{u.id}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // ── Notification form modal ───────────────────────────────────────────────────
 function NotificationForm({ onClose, onSaved }: { onClose: () => void; onSaved: (n: Notification) => void }) {
-  const [userId, setUserId]       = useState('')
-  const [title, setTitle]         = useState('')
-  const [message, setMessage]     = useState('')
-  const [type, setType]           = useState('ANNOUNCEMENT')
-  const [refType, setRefType]     = useState('')
-  const [refId, setRefId]         = useState('')
-  const [saving, setSaving]       = useState(false)
-  const [error, setError]         = useState('')
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null)
+  const [title,   setTitle]   = useState('')
+  const [message, setMessage] = useState('')
+  const [type,    setType]    = useState('ANNOUNCEMENT')
+  const [refType, setRefType] = useState('')
+  const [refId,   setRefId]   = useState('')
+  const [saving,  setSaving]  = useState(false)
+  const [error,   setError]   = useState('')
 
   async function handleSave() {
-    if (!userId || isNaN(Number(userId))) { setError('A valid user ID is required.'); return }
+    if (!selectedUser) { setError('Please select a user to send this notification to.'); return }
     if (!title.trim()) { setError('Title is required.'); return }
     if (!message.trim()) { setError('Message is required.'); return }
     setError(''); setSaving(true)
     try {
-      const body: Record<string, unknown> = { user_id: Number(userId), title, message, type }
+      const body: Record<string, unknown> = { user_id: selectedUser.id, title, message, type }
       if (refType) body.reference_type = refType
       if (refId)   body.reference_id   = Number(refId)
       const res  = await apiClient.post('/admin/notifications', body)
@@ -659,7 +770,7 @@ function NotificationForm({ onClose, onSaved }: { onClose: () => void; onSaved: 
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-          <TextField label="User ID" value={userId} onChange={setUserId} placeholder="e.g. 98" required />
+          <UserPicker selectedId={selectedUser?.id ?? null} onSelect={setSelectedUser} />
           <TextField label="Title" value={title} onChange={setTitle} placeholder="Notification title" required />
           <TextareaField label="Message" value={message} onChange={setMessage} placeholder="Write the notification message…" required rows={4} />
           <SelectField
