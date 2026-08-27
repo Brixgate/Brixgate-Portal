@@ -2625,6 +2625,32 @@ function ScheduleModal({ cohortId, schedule, onClose, onSaved }: {
         }).catch(() => {/* lesson attachment is best-effort */})
       }
       onSaved()
+
+      // Fire SCHEDULE notifications to all cohort members (best-effort, non-blocking)
+      if (!schedule) {
+        apiClient.get(`/admin/cohorts/${cohortId}/members?size=200`)
+          .then(res => {
+            const raw = unwrap<Record<string, unknown>>(res.data)
+            const members: { userId?: number; user_id?: number; id?: number }[] =
+              Array.isArray(raw) ? raw
+              : Array.isArray(raw?.members) ? raw.members as []
+              : Array.isArray(raw?.data)    ? raw.data as []
+              : []
+            members.forEach(m => {
+              const uid = m.userId ?? m.user_id ?? m.id
+              if (!uid) return
+              apiClient.post('/admin/notifications', {
+                user_id:        uid,
+                title:          `New Session: ${title.trim()}`,
+                message:        `A new session has been scheduled. Check your calendar for details.`,
+                type:           'SCHEDULE',
+                reference_type: 'COHORT_SCHEDULE',
+                reference_id:   scheduleId,
+              }).catch(() => {})
+            })
+          })
+          .catch(() => {})
+      }
     } catch (e) { setError(getApiError(e)) } finally { setSaving(false) }
   }
 

@@ -875,7 +875,7 @@ function NotificationPanel({ notification, onClose }: { notification: Notificati
   )
 }
 
-// ── Notifications tab ─────────────────────────────────────────────────────────
+// ── Notifications tab (read-only audit log) ───────────────────────────────────
 function NotificationsTab() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [pagination, setPagination]       = useState<Pagination | null>(null)
@@ -883,7 +883,6 @@ function NotificationsTab() {
   const [filterType, setFilterType]       = useState('')
   const [filterRead, setFilterRead]       = useState('')
   const [loading, setLoading]             = useState(true)
-  const [showForm, setShowForm]           = useState(false)
   const [selected, setSelected]           = useState<Notification | null>(null)
 
   const fetchNotifications = useCallback(async () => {
@@ -901,36 +900,23 @@ function NotificationsTab() {
 
   useEffect(() => { fetchNotifications() }, [fetchNotifications])
 
-  function handleSaved(n: Notification) {
-    setNotifications(prev => [n, ...prev])
-    setShowForm(false)
-  }
-
   return (
     <>
-      {showForm && <NotificationForm onClose={() => setShowForm(false)} onSaved={handleSaved} />}
-      {selected && !showForm && <NotificationPanel notification={selected} onClose={() => setSelected(null)} />}
+      {selected && <NotificationPanel notification={selected} onClose={() => setSelected(null)} />}
 
-      {/* Toolbar */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <select value={filterType} onChange={e => { setFilterType(e.target.value); setPage(1) }}
-            className="h-9 pl-3 pr-8 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body outline-none focus:border-[#d51520] bg-white">
-            <option value="">All Types</option>
-            {NOTIF_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
-          <select value={filterRead} onChange={e => { setFilterRead(e.target.value); setPage(1) }}
-            className="h-9 pl-3 pr-8 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body outline-none focus:border-[#d51520] bg-white">
-            <option value="">All</option>
-            <option value="true">Read</option>
-            <option value="false">Unread</option>
-          </select>
-        </div>
-        <button onClick={() => setShowForm(true)}
-          className="h-9 px-4 bg-[#d51520] text-white rounded-[8px] text-[13px] font-medium font-body hover:bg-[#b91c1c] flex items-center gap-2">
-          <Add01Icon size={15} strokeWidth={2} />
-          Send Notification
-        </button>
+      {/* Toolbar — filters only, no create button */}
+      <div className="flex items-center gap-3 mb-6">
+        <select value={filterType} onChange={e => { setFilterType(e.target.value); setPage(1) }}
+          className="h-9 pl-3 pr-8 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body outline-none focus:border-[#d51520] bg-white">
+          <option value="">All Types</option>
+          {NOTIF_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
+        <select value={filterRead} onChange={e => { setFilterRead(e.target.value); setPage(1) }}
+          className="h-9 pl-3 pr-8 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body outline-none focus:border-[#d51520] bg-white">
+          <option value="">All</option>
+          <option value="true">Read</option>
+          <option value="false">Unread</option>
+        </select>
       </div>
 
       {/* Table */}
@@ -956,8 +942,8 @@ function NotificationsTab() {
                   <div className="w-16 h-16 bg-[#f3f4f6] rounded-[12px] flex items-center justify-center mx-auto mb-4">
                     <Notification01Icon size={28} color="#9ca3af" strokeWidth={1.5} />
                   </div>
-                  <p className="text-[14px] font-semibold text-[#111827] font-display">No notifications sent</p>
-                  <p className="text-[13px] text-[#4b5563] font-body mt-1">Send a notification to a specific user</p>
+                  <p className="text-[14px] font-semibold text-[#111827] font-display">No notifications yet</p>
+                  <p className="text-[13px] text-[#4b5563] font-body mt-1">Notifications are triggered automatically by system events</p>
                 </td></tr>
               ) : notifications.map(n => (
                 <tr key={n.id} onClick={() => setSelected(n)}
@@ -1012,7 +998,7 @@ export default function AdminAnnouncementsPage() {
         <div>
           <h1 className="text-[24px] font-bold text-[#111827] font-display">Announcements</h1>
           <p className="text-[14px] text-[#4b5563] font-body mt-0.5">
-            {activeTab === 'announcements' ? 'Broadcast messages to students by cohort, programme, or platform' : 'One-off notifications sent to individual users'}
+            {activeTab === 'announcements' ? 'Broadcast messages to students by cohort, programme, or platform' : 'Event-triggered notifications sent automatically by the system'}
           </p>
         </div>
       </div>
