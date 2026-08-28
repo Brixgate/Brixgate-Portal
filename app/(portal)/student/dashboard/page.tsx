@@ -4,6 +4,7 @@ import TopNav from '@/components/layout/TopNav'
 import PromoBanner from '@/components/student/PromoBanner'
 import MyLearning from '@/components/student/MyLearning'
 import NotificationsPanel from '@/components/student/NotificationsPanel'
+import MiniCalendar from '@/components/student/MiniCalendar'
 import NewUserDashboard from '@/components/student/NewUserDashboard'
 import PaymentAlertBanner from '@/components/student/PaymentAlertBanner'
 import { MOCK_ENROLLMENTS } from '@/lib/mock-data'
@@ -54,8 +55,9 @@ export default function DashboardPage() {
               <MyLearning />
             </div>
 
-            {/* Right panel — Announcements + Notifications */}
-            <div className="hidden lg:flex lg:w-[300px] xl:w-[320px] lg:flex-shrink-0 flex-col">
+            {/* Right panel — Mini Calendar + Announcements + Notifications */}
+            <div className="hidden lg:flex lg:w-[300px] xl:w-[320px] lg:flex-shrink-0 flex-col gap-4">
+              <MiniCalendar />
               <NotificationsPanel />
             </div>
           </div>
