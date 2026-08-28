@@ -263,7 +263,7 @@ export default function ProgramsPage() {
 
           {/* Grid */}
           {!loading && !error && programs.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 max-w-[1200px]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-[900px]">
               {programs.map((p) => (
                 <div
                   key={p.programId}
