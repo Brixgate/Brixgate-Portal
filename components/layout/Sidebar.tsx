@@ -14,7 +14,6 @@ import {
   ArrowLeft01Icon,
   Wallet01Icon,
   Calendar01Icon,
-  FileEditIcon,
 } from 'hugeicons-react'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -30,7 +29,6 @@ const NAV_ITEMS = [
   { label: 'My Programs',      href: '/student/programs',     icon: BookOpen01Icon     },
   { label: 'My Certificate',   href: '/student/certificate',  icon: Award01Icon        },
   { label: 'My Calendar',      href: '/student/calendar',     icon: Calendar01Icon     },
-  { label: 'Reviews',          href: '/student/reviews',      icon: FileEditIcon     },
   // FEATURE_OFF: notifications — { label: 'Notifications', href: '/student/notifications', icon: Notification01Icon },
   { label: 'Resources',        href: '/student/resources',    icon: Folder01Icon       },
   { label: 'Finance',          href: '/student/finance',      icon: Wallet01Icon       },

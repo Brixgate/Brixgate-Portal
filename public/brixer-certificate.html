@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Brixer Certificate</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 28px;
+      padding: 48px 24px;
+      background: #E8EBF0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    /* ── Certificate card ── */
+    .cert-card {
+      position: relative;
+      width: 860px;
+      max-width: 100%;
+      background: #0B1224;
+      border: 1.5px solid #FF294E;
+      border-radius: 18px;
+      padding: 52px 64px 48px;
+      overflow: hidden;
+      box-shadow:
+        0 0 0 1px rgba(255, 41, 78, 0.12),
+        0 0 40px rgba(255, 41, 78, 0.1),
+        0 32px 80px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Watermark */
+    .cert-watermark {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      user-select: none;
+      z-index: 0;
+    }
+    .cert-watermark span {
+      font-size: 140px;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      color: rgba(255, 255, 255, 0.03);
+      white-space: nowrap;
+    }
+
+    /* Corner brackets */
+    .corner {
+      position: absolute;
+      width: 22px;
+      height: 22px;
+      z-index: 1;
+    }
+    .corner svg { display: block; }
+    .corner-tl { top: 18px;  left: 18px;  }
+    .corner-tr { top: 18px;  right: 18px; transform: scaleX(-1); }
+    .corner-bl { bottom: 18px; left: 18px;  transform: scaleY(-1); }
+    .corner-br { bottom: 18px; right: 18px; transform: scale(-1); }
+
+    /* Content */
+    .cert-body {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    .cert-logo-row {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      margin-bottom: 32px;
+    }
+    .cert-logo-row img {
+      height: 28px;
+      width: auto;
+    }
+
+    .cert-eyebrow {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.5);
+      margin-bottom: 14px;
+    }
+
+    .cert-divider {
+      width: 56px;
+      height: 2px;
+      background: #FF294E;
+      border-radius: 2px;
+      margin-bottom: 36px;
+    }
+
+    .cert-certifies {
+      font-size: 14px;
+      font-style: italic;
+      color: rgba(255, 255, 255, 0.4);
+      margin-bottom: 12px;
+    }
+
+    .cert-name {
+      font-size: 38px;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: -0.01em;
+      line-height: 1.15;
+      margin-bottom: 12px;
+    }
+
+    .cert-completed {
+      font-size: 14px;
+      font-style: italic;
+      color: rgba(255, 255, 255, 0.4);
+      margin-bottom: 10px;
+    }
+
+    .cert-field {
+      font-size: 22px;
+      font-weight: 800;
+      color: #FF294E;
+      margin-bottom: 8px;
+    }
+
+    .cert-programme {
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.3);
+      margin-bottom: 36px;
+    }
+
+    .cert-qr-wrap {
+      background: #ffffff;
+      border-radius: 10px;
+      padding: 10px;
+      margin-bottom: 14px;
+      display: inline-flex;
+    }
+    #cert-qr canvas,
+    #cert-qr img { display: block; }
+
+    .cert-id {
+      font-size: 11px;
+      font-family: 'SF Mono', 'Fira Code', 'Courier New', monospace;
+      color: rgba(255, 255, 255, 0.35);
+      letter-spacing: 0.1em;
+    }
+
+    /* Below card */
+    .cert-caption {
+      font-size: 13.5px;
+      color: #5A6A80;
+    }
+    .cert-caption a {
+      color: #FF294E;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .cert-caption a:hover { text-decoration: underline; }
+
+    @media (max-width: 600px) {
+      .cert-card { padding: 36px 28px 32px; }
+      .cert-name  { font-size: 26px; }
+      .cert-field { font-size: 17px; }
+      .cert-watermark span { font-size: 80px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="cert-card">
+
+    <!-- Watermark -->
+    <div class="cert-watermark"><span>BRIXGATE</span></div>
+
+    <!-- Corner brackets -->
+    <div class="corner corner-tl">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <path d="M1 11 V1 H11" stroke="#FF294E" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="corner corner-tr">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <path d="M1 11 V1 H11" stroke="#FF294E" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="corner corner-bl">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <path d="M1 11 V1 H11" stroke="#FF294E" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="corner corner-br">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <path d="M1 11 V1 H11" stroke="#FF294E" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </div>
+
+    <!-- Body -->
+    <div class="cert-body">
+
+      <div class="cert-logo-row">
+        <img id="cert-logo" src="assets/logo-color-nobg.svg" alt="Brixgate">
+      </div>
+
+      <div class="cert-eyebrow">Expert Practitioner Certificate</div>
+      <div class="cert-divider"></div>
+
+      <div class="cert-certifies">This certifies that</div>
+      <div class="cert-name" id="cert-name">—</div>
+      <div class="cert-completed">has successfully completed the</div>
+      <div class="cert-field" id="cert-field">—</div>
+      <div class="cert-programme">Expert Practitioner Programme &middot; AI in My Field</div>
+
+      <div class="cert-qr-wrap">
+        <div id="cert-qr"></div>
+      </div>
+      <div class="cert-id" id="cert-id">—</div>
+
+    </div>
+  </div>
+
+  <p class="cert-caption">
+    Sample certificate &mdash; <a id="cert-verify-link" href="#">view the full Brixer verification page &rarr;</a>
+  </p>
+
+  <script>
+    /* ═══════════════════════════════════════════════
+       EDITABLE PARAMETERS — change these values only
+       ═══════════════════════════════════════════════ */
+    var CERT = {
+      name:      'Chioma Okonkwo',
+      field:     'Software Engineering',
+      certId:    'BX-2026-SE-00142',
+      verifyUrl: 'https://brixgate.com/verify/BX-2026-SE-00142',
+      logoSrc:   'assets/logo-color-nobg.svg',
+    };
+    /* ═══════════════════════════════════════════════ */
+
+    document.getElementById('cert-name').textContent  = CERT.name;
+    document.getElementById('cert-field').textContent = CERT.field;
+    document.getElementById('cert-id').textContent    = CERT.certId;
+    document.getElementById('cert-logo').src          = CERT.logoSrc;
+
+    var verifyLink = document.getElementById('cert-verify-link');
+    verifyLink.href = CERT.verifyUrl;
+
+    new QRCode(document.getElementById('cert-qr'), {
+      text:         CERT.verifyUrl,
+      width:        120,
+      height:       120,
+      colorDark:    '#000000',
+      colorLight:   '#ffffff',
+      correctLevel: QRCode.CorrectLevel.H
+    });
+  </script>
+
+</body>
+</html>

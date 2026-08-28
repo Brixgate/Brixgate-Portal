@@ -1676,7 +1676,7 @@ interface QuestionAnalytics {
   distribution?: Record<string, number>
 }
 
-const FORM_STAGES = ['PRE_PROGRAM', 'MID_PROGRAM', 'END_OF_PROGRAM', 'MODULE_REVIEW', 'CUSTOM']
+const FORM_STAGES = ['START_PROGRAM', 'MID_PROGRAM', 'END_OF_PROGRAM', 'AFTER_SESSION', 'CUSTOM']
 const QUESTION_TYPES = ['RATING', 'RADIO', 'SINGLE_SELECT', 'CHECKBOX', 'MULTI_SELECT']
 
 // Question option editor (for choice-type questions)
