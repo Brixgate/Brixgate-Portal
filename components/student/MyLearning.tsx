@@ -375,7 +375,7 @@ export default function MyLearning() {
               <p className="text-[13px] text-[#4b5563] font-body mt-1">Your enrolled programmes will appear here.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 max-w-[1200px]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-[900px]">
               {programs.map((p) => <CourseCard key={p.id} program={p} />)}
             </div>
           )
