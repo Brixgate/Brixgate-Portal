@@ -1202,8 +1202,9 @@ export default function CourseDetailPage() {
           const raw  = formsRes.data?.data ?? formsRes.data
           const inner = raw?.data ?? raw
           const forms: ReviewForm[] = Array.isArray(inner) ? inner
-            : Array.isArray(inner?.forms)    ? inner.forms
-            : Array.isArray(inner?.content)  ? inner.content
+            : Array.isArray(inner?.review_forms) ? inner.review_forms
+            : Array.isArray(inner?.forms)        ? inner.forms
+            : Array.isArray(inner?.content)      ? inner.content
             : []
           setReviewForms(forms.filter(f => (f.status ?? '').toUpperCase() !== 'INACTIVE'))
         } catch {
