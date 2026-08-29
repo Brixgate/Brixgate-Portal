@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
+import { useState, useEffect } from 'react'
 import {
   Home01Icon,
   BookOpen01Icon,
@@ -14,6 +15,7 @@ import {
   ArrowLeft01Icon,
   Wallet01Icon,
   Calendar01Icon,
+  UserGroup03Icon,
 } from 'hugeicons-react'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -21,6 +23,7 @@ import { useSidebar } from '@/lib/sidebar-context'
 import { useAvatar } from '@/lib/use-avatar'
 import { useAuth } from '@/lib/auth-context'
 import { useRouter } from 'next/navigation'
+import { apiClient, unwrap } from '@/lib/api-client'
 
 const LOGO_URL = '/images/Logo red.png'
 
@@ -89,6 +92,14 @@ export default function Sidebar() {
   const { mobileOpen, closeMobile } = useSidebar()
   const { avatar } = useAvatar()
   const { user, logout } = useAuth()
+  const [isAlumnus, setIsAlumnus] = useState(false)
+
+  useEffect(() => {
+    apiClient.get('/forum/groups').then(res => {
+      const raw = unwrap<{ is_alumnus?: boolean }>(res.data)
+      setIsAlumnus(raw?.is_alumnus ?? false)
+    }).catch(() => { /* silently ignore — forum link stays hidden */ })
+  }, [])
 
   const displayName = user ? `${user.firstName} ${user.lastName}`.trim() : ''
   const initials    = user
@@ -179,6 +190,16 @@ export default function Sidebar() {
               forceCollapsed={forceCollapsed}
             />
           ))}
+          {isAlumnus && (
+            <NavItem
+              href="/student/forum"
+              icon={UserGroup03Icon}
+              label="Alumni Forum"
+              isActive={pathname === '/student/forum' || pathname.startsWith('/student/forum/')}
+              onNavigate={closeMobile}
+              forceCollapsed={forceCollapsed}
+            />
+          )}
 
           {/* Back to website — external link at bottom of nav */}
           <div className="mt-auto pt-3 border-t border-[#f3f4f6]">
