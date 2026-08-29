@@ -15,6 +15,7 @@ import {
   Award01Icon,
   BarChartIcon,
   Logout01Icon,
+  UserGroup03Icon,
   ArrowLeft01Icon,
   ArrowRight01Icon,
   TeacherIcon,
@@ -59,6 +60,7 @@ const NAV_GROUPS = [
     label: 'CONTENT',
     items: [
       { label: 'Certificates',   href: '/admin/certificates',   icon: Award01Icon          },
+      { label: 'Forum Groups',   href: '/admin/forums',         icon: UserGroup03Icon      },
       { label: 'Polls',          href: '/admin/polls',          icon: BarChartIcon         },
       { label: 'Announcements',  href: '/admin/announcements',  icon: Notification01Icon   },
     ],

@@ -10,7 +10,7 @@ import {
   PencilEdit01Icon, Cancel01Icon, Building01Icon, UserAdd01Icon,
   Certificate01Icon, Payment01Icon, Invoice01Icon,
   MessageQuestionIcon, Add01Icon, Delete01Icon,
-  BarChartIcon,
+  BarChartIcon, Mortarboard01Icon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 import { useSidebar } from '@/lib/sidebar-context'
@@ -3138,8 +3138,384 @@ function PaymentsTab({ cohortId }: { cohortId: string }) {
   )
 }
 
+// ── Tab: Closure ──────────────────────────────────────────────────────────────
+interface ClosurePreviewParticipant {
+  user_id: number
+  user_name: string
+  user_email: string
+  completion_percent: number
+  completion_status: string
+  proposed_outcome: string
+  already_graduated: boolean
+}
+interface IssuableCertificate { id: number; title: string; is_required: boolean }
+interface ScheduleGate { passed: boolean; unresolved_count: number }
+interface ClosurePreview {
+  cohort_id: number
+  cohort_status: string
+  completion_pass_percent: number
+  schedule_gate: ScheduleGate
+  participant_count: number
+  proposed_graduate_count: number
+  participants: ClosurePreviewParticipant[]
+  issuable_certificates: IssuableCertificate[]
+}
+interface ForumGroupOption { id: number; name: string; status?: string }
+interface ClosureResult {
+  cohort_status: string
+  graduated_count: number
+  incomplete_count: number
+}
+
+function ClosureTab({ cohortId, cohortStatus, onCohortClosed }: { cohortId: string; cohortStatus?: string; onCohortClosed?: () => void }) {
+  const [preview,         setPreview]         = useState<ClosurePreview | null>(null)
+  const [previewLoading,  setPreviewLoading]  = useState(false)
+  const [previewError,    setPreviewError]    = useState('')
+  const [forumGroups,     setForumGroups]     = useState<ForumGroupOption[]>([])
+  const [selectedForums,  setSelectedForums]  = useState<Set<number>>(new Set())
+  const [selectedCerts,   setSelectedCerts]   = useState<Set<number>>(new Set())
+  const [graduateByThreshold, setGraduateByThreshold] = useState(true)
+  const [manualIncludes,  setManualIncludes]  = useState<Set<number>>(new Set())
+  const [manualExcludes,  setManualExcludes]  = useState<Set<number>>(new Set())
+  const [completionDate,  setCompletionDate]  = useState(new Date().toISOString().split('T')[0])
+  const [closing,         setClosing]         = useState(false)
+  const [closeError,      setCloseError]      = useState('')
+  const [result,          setResult]          = useState<ClosureResult | null>(null)
+
+  const alreadyClosed = cohortStatus === 'CLOSED'
+
+  useEffect(() => {
+    async function loadForumGroups() {
+      try {
+        const res = await apiClient.get('/admin/forum-groups?status=ACTIVE&size=100')
+        const raw = unwrap<{ forum_groups?: ForumGroupOption[]; groups?: ForumGroupOption[]; content?: ForumGroupOption[] } | ForumGroupOption[]>(res.data)
+        const list: ForumGroupOption[] = Array.isArray(raw)
+          ? raw
+          : raw?.forum_groups ?? raw?.groups ?? (raw as { content?: ForumGroupOption[] })?.content ?? []
+        setForumGroups(list.filter(g => (g.status ?? 'ACTIVE') === 'ACTIVE'))
+      } catch { /* ignore */ }
+    }
+    loadForumGroups()
+  }, [])
+
+  async function loadPreview() {
+    setPreviewLoading(true); setPreviewError('')
+    try {
+      const res = await apiClient.get(`/admin/cohorts/${cohortId}/closure-preview`)
+      const data = unwrap<ClosurePreview>(res.data)
+      setPreview(data)
+      // Pre-select certificates marked as required
+      const requiredIds = new Set(data.issuable_certificates.filter(c => c.is_required).map(c => c.id))
+      setSelectedCerts(requiredIds)
+    } catch (e) {
+      setPreviewError(getApiError(e))
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
+
+  async function handleClose() {
+    if (!preview) return
+    if (!confirm('Close this cohort? This will graduate the selected students and notify them. This action cannot be undone.')) return
+    setClosing(true); setCloseError('')
+    try {
+      const body: Record<string, unknown> = {
+        graduate_by_threshold: graduateByThreshold,
+        completion_date: completionDate,
+        cancel_pending_invites: true,
+      }
+      if (manualIncludes.size > 0) body.graduate_user_ids = Array.from(manualIncludes)
+      if (manualExcludes.size > 0) body.exclude_user_ids  = Array.from(manualExcludes)
+      if (selectedForums.size > 0) body.forum_group_ids   = Array.from(selectedForums)
+      if (selectedCerts.size  > 0) body.certificate_ids   = Array.from(selectedCerts)
+
+      const res = await apiClient.post(`/admin/cohorts/${cohortId}/close`, body)
+      const data = unwrap<ClosureResult>(res.data)
+      setResult(data)
+      onCohortClosed?.()
+    } catch (e) {
+      setCloseError(getApiError(e))
+    } finally {
+      setClosing(false)
+    }
+  }
+
+  function toggleForum(id: number) {
+    setSelectedForums(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
+  }
+  function toggleCert(id: number) {
+    setSelectedCerts(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
+  }
+  function toggleManualInclude(uid: number) {
+    setManualIncludes(prev => { const s = new Set(prev); s.has(uid) ? s.delete(uid) : s.add(uid); return s })
+    setManualExcludes(prev => { const s = new Set(prev); s.delete(uid); return s })
+  }
+  function toggleManualExclude(uid: number) {
+    setManualExcludes(prev => { const s = new Set(prev); s.has(uid) ? s.delete(uid) : s.add(uid); return s })
+    setManualIncludes(prev => { const s = new Set(prev); s.delete(uid); return s })
+  }
+
+  // Success state
+  if (result) {
+    return (
+      <div className="p-8 max-w-[640px]">
+        <div className="bg-[#ecfdf3] border border-[#bbf7d0] rounded-[12px] p-6">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 rounded-full bg-[#16a34a] flex items-center justify-center flex-shrink-0">
+              <CheckmarkCircle01Icon size={20} color="white" strokeWidth={2} />
+            </div>
+            <div>
+              <h3 className="text-[16px] font-bold text-[#111827] font-display mb-1">Cohort Closed Successfully</h3>
+              <p className="text-[13px] text-[#374151] font-body">
+                <strong>{result.graduated_count}</strong> student{result.graduated_count !== 1 ? 's' : ''} graduated.{' '}
+                <strong>{result.incomplete_count}</strong> marked incomplete.
+              </p>
+              <p className="text-[12px] text-[#6b7280] font-body mt-1">
+                Graduates have been notified and added to the selected forum group(s).
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Already-closed state (no result yet loaded, but cohort status is CLOSED)
+  if (alreadyClosed && !result) {
+    return (
+      <div className="p-8 max-w-[640px]">
+        <div className="bg-[#f3f4f6] border border-[#e5e7eb] rounded-[12px] p-6 flex items-start gap-4">
+          <div className="w-10 h-10 rounded-full bg-[#374151] flex items-center justify-center flex-shrink-0">
+            <CheckmarkCircle01Icon size={20} color="white" strokeWidth={2} />
+          </div>
+          <div>
+            <h3 className="text-[15px] font-bold text-[#111827] font-display mb-1">This cohort is closed</h3>
+            <p className="text-[13px] text-[#4b5563] font-body">
+              The cohort has already been closed and students have been graduated. View the Certificates tab to see issued certificates.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="p-8 max-w-[780px] flex flex-col gap-6">
+      {/* Intro */}
+      <div>
+        <h2 className="text-[16px] font-bold text-[#111827] font-display mb-1">Close Cohort</h2>
+        <p className="text-[13px] text-[#6b7280] font-body">
+          Closing a cohort graduates the selected students, issues certificates, adds them to forum groups, and sets the cohort status to CLOSED. This action is irreversible.
+        </p>
+      </div>
+
+      {/* Step 1 — Load preview */}
+      {!preview && (
+        <div className="bg-white border border-[#eaecf0] rounded-[10px] p-6">
+          <h3 className="text-[14px] font-semibold text-[#111827] font-display mb-1">Step 1 — Load Closure Preview</h3>
+          <p className="text-[13px] text-[#6b7280] font-body mb-4">
+            The preview checks the schedule gate, lists all students, and proposes outcomes based on the cohort's completion threshold.
+          </p>
+          {previewError && (
+            <div className="flex items-start gap-2 px-3 py-2 rounded-[8px] bg-[#fef2f2] text-[#d51520] text-[13px] mb-3">
+              <AlertCircleIcon size={14} strokeWidth={1.5} className="mt-0.5 flex-shrink-0" />
+              {previewError}
+            </div>
+          )}
+          <button
+            onClick={loadPreview}
+            disabled={previewLoading}
+            className="flex items-center gap-2 h-9 px-4 rounded-[8px] bg-[#d51520] text-white text-[13px] font-semibold font-display hover:bg-[#b91219] transition-colors disabled:opacity-50"
+          >
+            {previewLoading && <Loading01Icon size={14} className="animate-spin" />}
+            {previewLoading ? 'Loading Preview…' : 'Load Closure Preview'}
+          </button>
+        </div>
+      )}
+
+      {/* Preview loaded */}
+      {preview && (
+        <>
+          {/* Schedule gate */}
+          <div className={`border rounded-[10px] p-4 flex items-start gap-3 ${preview.schedule_gate.passed ? 'bg-[#ecfdf3] border-[#bbf7d0]' : 'bg-[#fef2f2] border-[#fecdca]'}`}>
+            {preview.schedule_gate.passed
+              ? <CheckmarkCircle01Icon size={18} color="#16a34a" strokeWidth={2} className="flex-shrink-0 mt-0.5" />
+              : <AlertCircleIcon size={18} color="#d51520" strokeWidth={1.5} className="flex-shrink-0 mt-0.5" />}
+            <div>
+              <p className="text-[13px] font-semibold font-display" style={{ color: preview.schedule_gate.passed ? '#15803d' : '#b91219' }}>
+                {preview.schedule_gate.passed ? 'Schedule gate passed — all sessions completed or cancelled' : `Schedule gate failed — ${preview.schedule_gate.unresolved_count} session(s) still unresolved`}
+              </p>
+              {!preview.schedule_gate.passed && (
+                <p className="text-[12px] text-[#6b7280] font-body mt-0.5">
+                  Mark all remaining sessions as Completed or Cancelled before closing.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Summary stats */}
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { label: 'Total Students', value: preview.participant_count },
+              { label: 'Proposed Graduates', value: preview.proposed_graduate_count },
+              { label: 'Completion Threshold', value: `${preview.completion_pass_percent}%` },
+            ].map(s => (
+              <div key={s.label} className="bg-white border border-[#eaecf0] rounded-[10px] p-4">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-[#9ca3af] font-display mb-1">{s.label}</p>
+                <p className="text-[24px] font-bold text-[#111827] font-display">{s.value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Graduate by threshold toggle */}
+          <div className="bg-white border border-[#eaecf0] rounded-[10px] p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-[14px] font-semibold text-[#111827] font-display">Graduate by threshold</p>
+                <p className="text-[12px] text-[#6b7280] font-body mt-0.5">
+                  Auto-include all students at or above {preview.completion_pass_percent}% completion.
+                </p>
+              </div>
+              <button
+                onClick={() => setGraduateByThreshold(prev => !prev)}
+                className={`relative w-10 h-6 rounded-full transition-colors ${graduateByThreshold ? 'bg-[#d51520]' : 'bg-[#d1d5db]'}`}
+              >
+                <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all ${graduateByThreshold ? 'left-5' : 'left-1'}`} />
+              </button>
+            </div>
+
+            {/* Student table */}
+            <div className="border border-[#f3f4f6] rounded-[8px] overflow-hidden">
+              <div className="grid grid-cols-[1fr_80px_120px_88px_88px] items-center px-3 py-2 bg-[#f9fafb] border-b border-[#f3f4f6]">
+                {['Student', 'Score', 'Proposed', 'Include', 'Exclude'].map(h => (
+                  <span key={h} className="text-[10px] font-bold uppercase tracking-wider text-[#6b7280] font-display">{h}</span>
+                ))}
+              </div>
+              {preview.participants.map(p => {
+                const isIncluded = manualIncludes.has(p.user_id)
+                const isExcluded = manualExcludes.has(p.user_id)
+                const effectiveOutcome = isIncluded ? 'GRADUATED' : isExcluded ? 'INCOMPLETE' : p.proposed_outcome
+                return (
+                  <div key={p.user_id} className="grid grid-cols-[1fr_80px_120px_88px_88px] items-center px-3 py-2.5 border-b border-[#f3f4f6] last:border-b-0 hover:bg-[#f9fafb]">
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-semibold text-[#111827] font-display truncate">{p.user_name}</p>
+                      <p className="text-[11px] text-[#6b7280] font-body truncate">{p.user_email}</p>
+                    </div>
+                    <p className="text-[13px] text-[#374151] font-body">{p.completion_percent}%</p>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold font-display w-fit ${effectiveOutcome === 'GRADUATED' ? 'bg-[#ecfdf3] text-[#15803d]' : 'bg-[#f3f4f6] text-[#4b5563]'}`}>
+                      {effectiveOutcome}
+                    </span>
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={isIncluded}
+                        onChange={() => toggleManualInclude(p.user_id)}
+                        className="w-4 h-4 rounded accent-[#d51520] cursor-pointer"
+                      />
+                    </div>
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={isExcluded}
+                        onChange={() => toggleManualExclude(p.user_id)}
+                        className="w-4 h-4 rounded accent-[#374151] cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Forum groups */}
+          <div className="bg-white border border-[#eaecf0] rounded-[10px] p-5">
+            <p className="text-[14px] font-semibold text-[#111827] font-display mb-1">Add graduates to forum groups</p>
+            <p className="text-[12px] text-[#6b7280] font-body mb-3">Select which alumni communities graduates will join.</p>
+            {forumGroups.length === 0 ? (
+              <p className="text-[13px] text-[#9ca3af] font-body">No active forum groups found. Create one in Forum Groups first.</p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {forumGroups.map(fg => (
+                  <label key={fg.id} className="flex items-center gap-3 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={selectedForums.has(fg.id)}
+                      onChange={() => toggleForum(fg.id)}
+                      className="w-4 h-4 rounded accent-[#d51520]"
+                    />
+                    <span className="text-[13px] font-medium text-[#374151] font-body group-hover:text-[#111827]">{fg.name}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Certificates */}
+          {preview.issuable_certificates.length > 0 && (
+            <div className="bg-white border border-[#eaecf0] rounded-[10px] p-5">
+              <p className="text-[14px] font-semibold text-[#111827] font-display mb-1">Issue certificates</p>
+              <p className="text-[12px] text-[#6b7280] font-body mb-3">Select certificates to issue to graduating students.</p>
+              <div className="flex flex-col gap-2">
+                {preview.issuable_certificates.map(c => (
+                  <label key={c.id} className="flex items-center gap-3 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={selectedCerts.has(c.id)}
+                      onChange={() => toggleCert(c.id)}
+                      className="w-4 h-4 rounded accent-[#d51520]"
+                    />
+                    <span className="text-[13px] font-medium text-[#374151] font-body group-hover:text-[#111827]">
+                      {c.title}
+                      {c.is_required && <span className="ml-1.5 text-[10px] font-bold text-[#d51520] font-display">REQUIRED</span>}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Completion date */}
+          <div className="bg-white border border-[#eaecf0] rounded-[10px] p-5">
+            <label className="block text-[14px] font-semibold text-[#111827] font-display mb-1">Completion date</label>
+            <p className="text-[12px] text-[#6b7280] font-body mb-3">The official completion date recorded in graduation records.</p>
+            <input
+              type="date"
+              value={completionDate}
+              onChange={e => setCompletionDate(e.target.value)}
+              className="h-10 px-3 rounded-[6px] border border-[#e5e7eb] text-[13px] text-[#111827] font-body focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520]"
+            />
+          </div>
+
+          {/* Close button */}
+          <div className="flex flex-col gap-3">
+            {closeError && (
+              <div className="flex items-start gap-2 px-3 py-2 rounded-[8px] bg-[#fef2f2] text-[#d51520] text-[13px]">
+                <AlertCircleIcon size={14} strokeWidth={1.5} className="mt-0.5 flex-shrink-0" />
+                {closeError}
+              </div>
+            )}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleClose}
+                disabled={closing || !preview.schedule_gate.passed}
+                className="flex items-center gap-2 h-10 px-5 rounded-[8px] bg-[#d51520] text-white text-[14px] font-semibold font-display hover:bg-[#b91219] transition-colors disabled:opacity-50"
+              >
+                {closing && <Loading01Icon size={15} className="animate-spin" />}
+                {closing ? 'Closing Cohort…' : 'Close Cohort & Graduate Students'}
+              </button>
+              {!preview.schedule_gate.passed && (
+                <p className="text-[12px] text-[#d51520] font-body">Resolve all sessions first.</p>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
-const TABS = ['Curriculum', 'Schedule', 'People', 'Reviews', 'Payments', 'Certificates'] as const
+const TABS = ['Curriculum', 'Schedule', 'People', 'Reviews', 'Payments', 'Certificates', 'Closure'] as const
 type Tab = typeof TABS[number]
 
 const STATUS_STYLE: Record<string, string> = {
@@ -3254,6 +3630,7 @@ export default function CohortDetailPage() {
             {tab === 'Reviews'      && <StarIcon          size={14} strokeWidth={1.5} />}
             {tab === 'Payments'     && <Payment01Icon     size={14} strokeWidth={1.5} />}
             {tab === 'Certificates' && <Certificate01Icon size={14} strokeWidth={1.5} />}
+            {tab === 'Closure'      && <Mortarboard01Icon size={14} strokeWidth={1.5} />}
             {tab}
           </button>
         ))}
@@ -3282,6 +3659,13 @@ export default function CohortDetailPage() {
         </div>
         <div style={activeTab === 'Certificates' ? { display: 'contents' } : { display: 'none' }}>
           <CertificatesTab cohortId={cohortId} programId={programId} />
+        </div>
+        <div style={activeTab === 'Closure' ? { display: 'contents' } : { display: 'none' }}>
+          <ClosureTab
+            cohortId={cohortId}
+            cohortStatus={cohort?.status}
+            onCohortClosed={() => setCohort(prev => prev ? { ...prev, status: 'CLOSED' } : prev)}
+          />
         </div>
       </div>
     </div>
