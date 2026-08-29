@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   UserGroup02Icon, Add01Icon, PencilEdit01Icon, Delete01Icon,
-  Search01Icon, Cancel01Icon, CheckmarkCircle01Icon, AlertCircleIcon,
+  Search01Icon, Cancel01Icon, AlertCircleIcon,
   Loading01Icon, UserAdd01Icon, ArrowRight01Icon, BubbleChatAddIcon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'

@@ -3241,17 +3241,17 @@ function ClosureTab({ cohortId, cohortStatus, onCohortClosed }: { cohortId: stri
   }
 
   function toggleForum(id: number) {
-    setSelectedForums(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
+    setSelectedForums(prev => { const s = new Set(prev); if (s.has(id)) { s.delete(id) } else { s.add(id) }; return s })
   }
   function toggleCert(id: number) {
-    setSelectedCerts(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
+    setSelectedCerts(prev => { const s = new Set(prev); if (s.has(id)) { s.delete(id) } else { s.add(id) }; return s })
   }
   function toggleManualInclude(uid: number) {
-    setManualIncludes(prev => { const s = new Set(prev); s.has(uid) ? s.delete(uid) : s.add(uid); return s })
+    setManualIncludes(prev => { const s = new Set(prev); if (s.has(uid)) { s.delete(uid) } else { s.add(uid) }; return s })
     setManualExcludes(prev => { const s = new Set(prev); s.delete(uid); return s })
   }
   function toggleManualExclude(uid: number) {
-    setManualExcludes(prev => { const s = new Set(prev); s.has(uid) ? s.delete(uid) : s.add(uid); return s })
+    setManualExcludes(prev => { const s = new Set(prev); if (s.has(uid)) { s.delete(uid) } else { s.add(uid) }; return s })
     setManualIncludes(prev => { const s = new Set(prev); s.delete(uid); return s })
   }
 
@@ -3314,7 +3314,7 @@ function ClosureTab({ cohortId, cohortStatus, onCohortClosed }: { cohortId: stri
         <div className="bg-white border border-[#eaecf0] rounded-[10px] p-6">
           <h3 className="text-[14px] font-semibold text-[#111827] font-display mb-1">Step 1 — Load Closure Preview</h3>
           <p className="text-[13px] text-[#6b7280] font-body mb-4">
-            The preview checks the schedule gate, lists all students, and proposes outcomes based on the cohort's completion threshold.
+            The preview checks the schedule gate, lists all students, and proposes outcomes based on the cohort&apos;s completion threshold.
           </p>
           {previewError && (
             <div className="flex items-start gap-2 px-3 py-2 rounded-[8px] bg-[#fef2f2] text-[#d51520] text-[13px] mb-3">
