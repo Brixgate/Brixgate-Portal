@@ -378,6 +378,7 @@ export default function ForumGroupsPage() {
   const [editTarget,   setEditTarget]  = useState<ForumGroup | null>(null)
   const [panelGroup,   setPanelGroup]  = useState<ForumGroup | null>(null)
   const [archivingId,  setArchivingId] = useState<number | null>(null)
+  const [archiveTarget, setArchiveTarget] = useState<ForumGroup | null>(null)
   const [error,        setError]       = useState('')
 
   const loadGroups = useCallback(async () => {
@@ -394,11 +395,12 @@ export default function ForumGroupsPage() {
 
   useEffect(() => { loadGroups() }, [loadGroups])
 
-  async function archiveGroup(g: ForumGroup) {
-    if (!confirm(`Archive "${g.name}"? Members will retain their records.`)) return
-    setArchivingId(g.id); setError('')
+  async function confirmArchiveGroup() {
+    if (!archiveTarget) return
+    setArchivingId(archiveTarget.id); setError('')
+    setArchiveTarget(null)
     try {
-      await apiClient.delete(`/admin/forum-groups/${g.id}`)
+      await apiClient.delete(`/admin/forum-groups/${archiveTarget.id}`)
       await loadGroups()
     } catch (e) { setError(getApiError(e)) } finally { setArchivingId(null) }
   }
@@ -512,7 +514,7 @@ export default function ForumGroupsPage() {
                 </button>
                 {g.status !== 'ARCHIVED' && (
                   <button
-                    onClick={() => archiveGroup(g)}
+                    onClick={() => setArchiveTarget(g)}
                     disabled={archivingId === g.id}
                     title="Archive group"
                     className="w-7 h-7 flex items-center justify-center rounded-[6px] text-[#6b7280] hover:text-[#d51520] hover:bg-[#fef2f2] transition-colors"
@@ -539,6 +541,41 @@ export default function ForumGroupsPage() {
           group={panelGroup}
           onClose={() => setPanelGroup(null)}
         />
+      )}
+
+      {/* Archive confirmation modal */}
+      {archiveTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-[12px] shadow-xl w-[440px] max-w-[95vw]">
+            <div className="px-6 pt-6 pb-4">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-full bg-[#fef2f2] flex items-center justify-center flex-shrink-0">
+                  <AlertCircleIcon size={20} color="#d51520" strokeWidth={1.5} />
+                </div>
+                <div>
+                  <h3 className="text-[15px] font-bold text-[#111827] font-display mb-1">Archive &quot;{archiveTarget.name}&quot;?</h3>
+                  <p className="text-[13px] text-[#4b5563] font-body leading-relaxed">
+                    The group will be archived and no longer visible to students. Members will retain their records and graduation history.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[#f3f4f6]">
+              <button
+                onClick={() => setArchiveTarget(null)}
+                className="h-9 px-4 rounded-[8px] border border-[#e5e7eb] text-[13px] font-semibold text-[#374151] font-display hover:bg-[#f9fafb] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmArchiveGroup}
+                className="h-9 px-4 rounded-[8px] bg-[#d51520] text-white text-[13px] font-semibold font-display hover:bg-[#b91219] transition-colors"
+              >
+                Archive Group
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

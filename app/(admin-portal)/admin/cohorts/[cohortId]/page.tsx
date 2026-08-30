@@ -3181,6 +3181,7 @@ function ClosureTab({ cohortId, cohortStatus, onCohortClosed }: { cohortId: stri
   const [closing,         setClosing]         = useState(false)
   const [closeError,      setCloseError]      = useState('')
   const [result,          setResult]          = useState<ClosureResult | null>(null)
+  const [showConfirm,     setShowConfirm]     = useState(false)
 
   const alreadyClosed = cohortStatus === 'CLOSED'
 
@@ -3216,7 +3217,6 @@ function ClosureTab({ cohortId, cohortStatus, onCohortClosed }: { cohortId: stri
 
   async function handleClose() {
     if (!preview) return
-    if (!confirm('Close this cohort? This will graduate the selected students and notify them. This action cannot be undone.')) return
     setClosing(true); setCloseError('')
     try {
       const body: Record<string, unknown> = {
@@ -3496,7 +3496,7 @@ function ClosureTab({ cohortId, cohortStatus, onCohortClosed }: { cohortId: stri
             )}
             <div className="flex items-center gap-3">
               <button
-                onClick={handleClose}
+                onClick={() => setShowConfirm(true)}
                 disabled={closing || !preview.schedule_gate.passed}
                 className="flex items-center gap-2 h-10 px-5 rounded-[8px] bg-[#d51520] text-white text-[14px] font-semibold font-display hover:bg-[#b91219] transition-colors disabled:opacity-50"
               >
@@ -3509,6 +3509,43 @@ function ClosureTab({ cohortId, cohortStatus, onCohortClosed }: { cohortId: stri
             </div>
           </div>
         </>
+      )}
+
+      {/* Confirm close modal */}
+      {showConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-[12px] shadow-xl w-[460px] max-w-[95vw]">
+            <div className="px-6 pt-6 pb-4">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-full bg-[#fef2f2] flex items-center justify-center flex-shrink-0">
+                  <AlertCircleIcon size={20} color="#d51520" strokeWidth={1.5} />
+                </div>
+                <div>
+                  <h3 className="text-[15px] font-bold text-[#111827] font-display mb-1">Close this cohort?</h3>
+                  <p className="text-[13px] text-[#4b5563] font-body leading-relaxed">
+                    This will graduate the selected students, issue certificates, and add them to the chosen forum groups. Graduates will be notified. <strong>This action cannot be undone.</strong>
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[#f3f4f6]">
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="h-9 px-4 rounded-[8px] border border-[#e5e7eb] text-[13px] font-semibold text-[#374151] font-display hover:bg-[#f9fafb] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { setShowConfirm(false); handleClose() }}
+                disabled={closing}
+                className="flex items-center gap-2 h-9 px-4 rounded-[8px] bg-[#d51520] text-white text-[13px] font-semibold font-display hover:bg-[#b91219] transition-colors disabled:opacity-50"
+              >
+                {closing && <Loading01Icon size={14} className="animate-spin" />}
+                Yes, Close Cohort
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
