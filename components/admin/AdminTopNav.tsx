@@ -54,7 +54,7 @@ export default function AdminTopNav() {
   const { user, logout } = useAuth()
   useSidebar()
 
-  const { title, crumbs } = resolveRoute(pathname)
+  const { crumbs } = resolveRoute(pathname)
 
   const displayName = user ? `${user.firstName} ${user.lastName}`.trim() : ''
   const initials    = user
@@ -72,6 +72,10 @@ export default function AdminTopNav() {
     return () => document.removeEventListener('mousedown', handler)
   }, [showMenu])
 
+  // Only render on top-level admin pages (e.g. /admin/users), not detail pages (/admin/users/123)
+  const segments = pathname.split('/').filter(Boolean)
+  if (segments.length > 2) return null
+
   async function handleLogout() {
     setShowMenu(false)
     await logout()
@@ -82,15 +86,14 @@ export default function AdminTopNav() {
     <header className={cn(
       'h-[64px] bg-white border-b border-[#f3f4f6] flex items-center gap-4 px-6 sticky top-0 z-30 flex-shrink-0 transition-all duration-200',
     )}>
-      {/* Breadcrumb + title */}
-      <div className="flex items-center gap-[6px] text-[14px] font-body text-[#4b5563] min-w-0">
+      {/* Breadcrumbs only — no page title (title lives in the page body) */}
+      <div className="flex items-center gap-[6px] text-[13px] font-body text-[#4b5563] min-w-0">
         {crumbs.map((crumb, i) => (
           <span key={i} className="flex items-center gap-[6px] flex-shrink-0">
             <span className="text-[#4b5563]">{crumb}</span>
             <span className="text-[#d1d5db]">/</span>
           </span>
         ))}
-        <span className="font-semibold text-[#111827] font-display truncate">{title}</span>
       </div>
 
       <div className="flex-1" />
