@@ -52,7 +52,7 @@ export default function AdminTopNav() {
   const router   = useRouter()
   const { avatar } = useAvatar()
   const { user, logout } = useAuth()
-  const { collapsed } = useSidebar()
+  useSidebar()
 
   const { title, crumbs } = resolveRoute(pathname)
 
