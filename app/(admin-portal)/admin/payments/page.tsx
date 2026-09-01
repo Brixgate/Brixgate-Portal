@@ -9,8 +9,9 @@ import AdminPageLoader from '@/components/admin/AdminPageLoader'
 interface Payment {
   id: number
   user?: AnyUser & { id?: number }
+  amount_paid?: number
   payable_amount?: number; payableAmount?: number; amount?: number
-  currency?: string; payable_currency?: string; payableCurrency?: string
+  currency_paid?: string; currency?: string; payable_currency?: string; payableCurrency?: string
   payment_status?: string; paymentStatus?: string; status?: string
   payment_reference?: string; paymentReference?: string
   brixgate_reference?: string; brixgateReference?: string
@@ -68,9 +69,9 @@ function formatDateTime(d?: string) {
   return new Date(d).toLocaleString('en-NG', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })
 }
 function resolveAmount(p: Payment): string {
-  const amt = p.payable_amount ?? p.payableAmount ?? p.amount
+  const amt = p.amount_paid ?? p.payable_amount ?? p.payableAmount ?? p.amount
   if (amt == null) return '—'
-  const cur = p.payable_currency ?? p.payableCurrency ?? p.currency ?? 'NGN'
+  const cur = p.currency_paid ?? p.payable_currency ?? p.payableCurrency ?? p.currency ?? 'NGN'
   return `${cur === 'USD' ? '$' : '₦'}${amt.toLocaleString('en-NG')}`
 }
 function intentAmount(i: PaymentIntent): string {
