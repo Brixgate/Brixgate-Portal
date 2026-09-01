@@ -15,7 +15,7 @@ import {
   MessageQuestionIcon,
   Megaphone01Icon,
 } from 'hugeicons-react'
-import { apiClient, unwrap, getApiError } from '@/lib/api-client'
+import { apiClient, unwrap } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
 
 export interface Notification {
