@@ -63,7 +63,7 @@ async function fetchAllUsersForExport(role?: string): Promise<ApiUser[]> {
   const all: ApiUser[] = []
   let pg = 1
   while (true) {
-    const params = new URLSearchParams({ page: String(pg), size: '100' })
+    const params = new URLSearchParams({ page: String(pg), size: '20' })
     if (role) params.set('role', role)
     const res  = await apiClient.get(`/admin/users?${params}`)
     const data = unwrap<{ users?: ApiUser[]; content?: ApiUser[]; data?: ApiUser[]; pagination?: Pagination } | ApiUser[]>(res.data)
