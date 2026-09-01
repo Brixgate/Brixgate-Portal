@@ -131,15 +131,6 @@ export default function AdminEnrollmentsPage() {
 
   return (
     <div className="p-8">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-[24px] font-bold text-[#111827] font-display">Enrollments</h1>
-          <p className="text-[14px] text-[#4b5563] font-body mt-0.5">
-            {pagination ? `${total.toLocaleString()} total enrollments` : 'All cohort enrollments'}
-          </p>
-        </div>
-      </div>
-
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3 mb-6">
         {/* Program filter */}

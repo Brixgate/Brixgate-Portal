@@ -296,10 +296,7 @@ export default function AdminCouponsPage() {
   return (
     <div className="p-8">
       <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-[24px] font-bold text-[#111827] font-display">Coupons</h1>
-          <p className="text-[14px] text-[#4b5563] font-body mt-0.5">{pagination ? `${(pagination.totalElements ?? pagination.total_elements ?? pagination.total ?? 0)} coupons` : 'Discount codes'}</p>
-        </div>
+        <div />
         <div className="flex items-center gap-2">
           <button onClick={() => fetch()}
             className="flex items-center gap-1.5 h-10 px-3 border border-[#e5e7eb] text-[#374151] rounded-[8px] text-[13px] font-body hover:bg-[#f9fafb]"

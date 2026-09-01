@@ -639,17 +639,6 @@ export default function AdminPaymentsPage() {
         <PaymentDetailPanel payment={selectedPayment} onClose={() => setSelected(null)} onUpdated={handleUpdated} />
       )}
 
-      {/* Page header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-[24px] font-bold text-[#111827] font-display">Payments</h1>
-          <p className="text-[14px] text-[#4b5563] font-body mt-0.5">
-            {activeTab === 'transactions'
-              ? (pagination ? `${totalTx.toLocaleString()} total transactions` : 'All payment records')
-              : 'Checkout intent tracking'}
-          </p>
-        </div>
-      </div>
 
       {/* Tab switcher */}
       <div className="flex items-center gap-1 mb-6 border-b border-[#f3f4f6]">

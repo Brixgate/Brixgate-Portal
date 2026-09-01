@@ -168,10 +168,7 @@ export default function AdminCohortsPage() {
     <div className="p-8">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-[24px] font-bold text-[#111827] font-display">Cohorts</h1>
-          <p className="text-[14px] text-[#4b5563] font-body mt-0.5">Browse cohorts by programme</p>
-        </div>
+        <div />
         <button onClick={() => setShowCreate(true)}
           className="flex items-center gap-2 h-10 px-4 bg-[#d51520] text-white rounded-[8px] text-[13px] font-semibold font-display hover:bg-[#b81119] transition-colors">
           <Add01Icon size={15} strokeWidth={2} /> New Cohort

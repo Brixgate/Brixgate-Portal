@@ -318,16 +318,6 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="p-8 pb-12">
-      {/* Page header */}
-      <div className="mb-8">
-        <h1 className="text-[24px] font-bold text-[#111827] font-display leading-[32px]">
-          Dashboard
-        </h1>
-        <p className="text-[14px] text-[#4b5563] font-body mt-0.5">
-          Overview of Brixgate operations
-        </p>
-      </div>
-
       {/* Stat cards */}
       <div className="grid grid-cols-4 gap-6 mb-8">
         <StatCard label="Total Users"  value={metrics.users}       sub="all roles"           icon={UserGroup02Icon} accentColor="#7c3aed" accentBg="#f5f3ff" loading={loading} />

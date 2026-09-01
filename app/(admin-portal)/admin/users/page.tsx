@@ -243,12 +243,7 @@ export default function AdminUsersPage() {
 
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-[24px] font-bold text-[#111827] font-display">Users</h1>
-          <p className="text-[14px] text-[#4b5563] font-body mt-0.5">
-            {pagination ? `${(pagination.totalElements ?? pagination.total_elements ?? pagination.total ?? 0).toLocaleString()} total users` : 'Manage all users'}
-          </p>
-        </div>
+        <div />
         <div className="flex items-center gap-2">
           {/* Export button */}
           <div className="relative" ref={exportRef}>

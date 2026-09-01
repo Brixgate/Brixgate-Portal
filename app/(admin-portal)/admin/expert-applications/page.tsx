@@ -66,15 +66,6 @@ export default function AdminExpertApplicationsPage() {
 
   return (
     <div className="p-8">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-[24px] font-bold text-[#111827] font-display">Expert Applications</h1>
-          <p className="text-[14px] text-[#4b5563] font-body mt-0.5">
-            {pagination ? `${(pagination.totalElements ?? pagination.total_elements ?? pagination.total ?? 0).toLocaleString()} applications` : 'Practitioner applications'}
-          </p>
-        </div>
-      </div>
-
       {/* Status filter dropdown */}
       <div className="flex items-center gap-2 mb-6">
         <select value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}

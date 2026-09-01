@@ -179,17 +179,8 @@ export default function AdminWaitlistPage() {
 
   return (
     <div className="p-10">
-      {/* Page header */}
       <div className="flex items-start justify-between mb-8">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Queue01Icon size={20} color="#d51520" strokeWidth={1.5} />
-            <h1 className="text-[24px] font-bold text-[#111827] font-display leading-[32px]">Waitlist</h1>
-          </div>
-          <p className="text-[14px] text-[#6b7280] font-body">
-            People who signed up on the Brixgate website before enrolling
-          </p>
-        </div>
+        <div />
         <div className="flex items-center gap-2">
           <button
             onClick={() => load(page)}

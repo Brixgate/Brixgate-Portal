@@ -55,14 +55,6 @@ export default function AdminOrgRequestsPage() {
 
   return (
     <div className="p-8">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-[24px] font-bold text-[#111827] font-display">Organisation Requests</h1>
-          <p className="text-[14px] text-[#4b5563] font-body mt-0.5">
-            {pagination ? `${(pagination.totalElements ?? pagination.total_elements ?? pagination.total ?? 0).toLocaleString()} requests` : 'Enterprise enquiries'}
-          </p>
-        </div>
-      </div>
 
       <div className="flex items-center gap-2 mb-6 flex-wrap">
         {[{ v: '', l: 'All' }, ...STATUSES.filter(Boolean).map(s => ({ v: s, l: s.replace('_', ' ') }))].map(({ v, l }) => (

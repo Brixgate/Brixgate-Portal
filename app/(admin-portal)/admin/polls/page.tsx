@@ -242,10 +242,7 @@ export default function PollsPage() {
     <div className="p-8">
       {/* Header */}
       <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-[24px] font-bold text-[#111827] font-display leading-[32px]">AI Readiness Polls</h1>
-          <p className="text-[14px] text-[#4b5563] font-body mt-0.5">Results from the AI readiness quiz on brixgate.com</p>
-        </div>
+        <div />
         <div className="text-right">
           <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#98a2b3] font-display mb-0.5">Total Responses</p>
           <p className="text-[28px] font-bold text-[#111827] font-display leading-none">{allRows.length.toLocaleString()}</p>
