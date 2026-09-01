@@ -1744,15 +1744,15 @@ function QuestionModal({ formId, question, defaultReviewTarget, onClose, onSaved
     if (!reviewTarget) { setError('Review target is required.'); return }
     setSaving(true); setError('')
     const payload: Record<string, unknown> = {
-      question_text:  text.trim(),
-      question_type:  type,
-      review_target:  reviewTarget,
-      is_required:    required,
-      display_order:  order,
-      status:         'ACTIVE',
+      questionText:  text.trim(),
+      questionType:  type,
+      reviewTarget:  reviewTarget,
+      is_required:   required,
+      displayOrder:  order,
+      status:        'ACTIVE',
     }
     if (type === 'RATING') payload.configuration = { minimum: rMin, maximum: rMax }
-    if (isChoice) payload.option_values = { options: opts.filter(o => o.value.trim()) }
+    if (isChoice) payload.optionValues = { options: opts.filter(o => o.value.trim()) }
 
     try {
       if (question) {
@@ -1871,12 +1871,12 @@ function FormModal({ cohortId, programId, form, onClose, onSaved }: {
     setSaving(true); setError('')
     const payload: Record<string, unknown> = {
       title: title.trim(), description: desc.trim() || undefined,
-      form_stage: stage, status,
-      is_anonymous: anon, allow_multiple_submissions: multi,
-      cohort_id: Number(cohortId),
-      ...(programId ? { program_id: programId } : {}),
-      ...(from  ? { available_from:  new Date(from).toISOString()  } : {}),
-      ...(until ? { available_until: new Date(until).toISOString() } : {}),
+      formStage: stage, status,
+      is_anonymous: anon, allowMultipleSubmissions: multi,
+      cohortId: Number(cohortId),
+      ...(programId ? { programId } : {}),
+      ...(from  ? { availableFrom:  new Date(from).toISOString()  } : {}),
+      ...(until ? { availableUntil: new Date(until).toISOString() } : {}),
     }
     try {
       if (form) { await apiClient.put(`/admin/review-forms/${form.id}`, payload) }
@@ -2220,8 +2220,8 @@ function ReviewsTab({ cohortId, programId }: { cohortId: string; programId: numb
 
   function loadForms() {
     setLoading(true)
-    const params = new URLSearchParams({ cohort_id: cohortId, size: '50' })
-    if (programId) params.set('program_id', String(programId))
+    const params = new URLSearchParams({ cohortId, size: '50' })
+    if (programId) params.set('programId', String(programId))
     apiClient.get(`/admin/review-forms?${params}`)
       .then(res => {
         const raw = res.data?.data ?? res.data

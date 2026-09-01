@@ -483,12 +483,12 @@ function ReviewPanel({ form }: { form: ReviewForm }) {
     setSubmitting(true); setError('')
     try {
       const payload = {
-        submission_id: submissionId,
-        submission_status: 'SUBMITTED',
+        submissionId: submissionId,
+        submissionStatus: 'SUBMITTED',
         metadata: { device: 'web' },
         answers: Object.entries(answers).map(([qId, val]) => ({
-          question_id: Number(qId),
-          answer_value: val,
+          questionId: Number(qId),
+          answerValue: val,
         })),
       }
       const res = await apiClient.post(`/review-forms/${form.id}/submissions`, payload)
