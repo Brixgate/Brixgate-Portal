@@ -2980,18 +2980,35 @@ function ScheduleTab({ cohortId }: { cohortId: string }) {
 interface PaymentOverviewStudent {
   user_id?: number; userId?: number
   name?: string; email?: string
-  plan_status?: string; planStatus?: string
-  amount_paid?: number; amountPaid?: number
-  amount_outstanding?: number; amountOutstanding?: number
-  next_due_date?: string; nextDueDate?: string
+  enrollment_status?: string
   payment_mode?: string; paymentMode?: string
+  currency?: string
+  ought_to_pay?: number
+  amount_paid?: number; amountPaid?: number
+  outstanding_amount?: number               // actual field from API
+  amount_outstanding?: number; amountOutstanding?: number  // legacy fallbacks
+  status?: string                           // actual field from API
+  plan_status?: string; planStatus?: string // legacy fallbacks
+  next_due_date?: string; nextDueDate?: string
+}
+
+interface PaymentTotals {
+  students?: number
+  expected?: number
+  collected?: number
+  outstanding?: number
+  counts_by_status?: { PENDING?: number; PARTIAL?: number; PAID?: number }
 }
 
 interface PaymentOverview {
+  cohort_id?: number
+  cohort_title?: string
+  totals?: PaymentTotals
+  students?: PaymentOverviewStudent[]
+  // Legacy flat-field fallbacks
   total_enrolled?: number; totalEnrolled?: number
   total_revenue?: number; totalRevenue?: number
   total_outstanding?: number; totalOutstanding?: number
-  students?: PaymentOverviewStudent[]
   enrollments?: PaymentOverviewStudent[]
 }
 
@@ -3000,11 +3017,14 @@ function fmt(n: number) {
 }
 
 const PAY_STATUS: Record<string, string> = {
+  PAID:      'bg-[#ecfdf3] text-[#027a48]',
+  PARTIAL:   'bg-[#fffbeb] text-[#d97706]',
+  PENDING:   'bg-[#f0f9ff] text-[#0369a1]',
   ACTIVE:    'bg-[#ecfdf3] text-[#027a48]',
   COMPLETED: 'bg-[#f3f4f6] text-[#4b5563]',
   SUSPENDED: 'bg-amber-50 text-amber-700',
   DEFAULTED: 'bg-[#fef2f2] text-[#d51520]',
-  PAID:      'bg-[#ecfdf3] text-[#027a48]',
+  FAILED:    'bg-[#fef2f2] text-[#d51520]',
 }
 
 function PaymentsTab({ cohortId }: { cohortId: string }) {
@@ -3040,28 +3060,31 @@ function PaymentsTab({ cohortId }: { cohortId: string }) {
 
   if (!overview) return null
 
-  const students = overview.students ?? overview.enrollments ?? []
-  const totalEnrolled    = overview.total_enrolled    ?? overview.totalEnrolled    ?? students.length
-  const totalRevenue     = overview.total_revenue     ?? overview.totalRevenue     ?? 0
-  const totalOutstanding = overview.total_outstanding ?? overview.totalOutstanding ?? 0
+  const students         = overview.students ?? overview.enrollments ?? []
+  const totals           = overview.totals
+  const totalEnrolled    = totals?.students    ?? overview.total_enrolled    ?? overview.totalEnrolled    ?? students.length
+  const totalExpected    = totals?.expected    ?? 0
+  const totalRevenue     = totals?.collected   ?? overview.total_revenue     ?? overview.totalRevenue     ?? 0
+  const totalOutstanding = totals?.outstanding ?? overview.total_outstanding ?? overview.totalOutstanding ?? 0
 
   return (
     <div className="px-6 py-5">
       {/* Summary stat row */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-4 gap-4 mb-6">
         {[
-          { label: 'Total Enrolled',   value: String(totalEnrolled),     icon: <Invoice01Icon  size={18} color="#7c3aed" strokeWidth={1.5} />, tint: '#f5f3ff', accent: '#7c3aed' },
-          { label: 'Revenue Collected', value: fmt(totalRevenue),        icon: <Payment01Icon  size={18} color="#0d9488" strokeWidth={1.5} />, tint: '#f0fdfa', accent: '#0d9488' },
-          { label: 'Outstanding',       value: fmt(totalOutstanding),    icon: <AlertCircleIcon size={18} color="#d97706" strokeWidth={1.5} />, tint: '#fffbeb', accent: '#d97706' },
+          { label: 'Total Students',    value: String(totalEnrolled),    icon: <Invoice01Icon   size={18} color="#7c3aed" strokeWidth={1.5} />, tint: '#f5f3ff' },
+          { label: 'Expected',          value: fmt(totalExpected),       icon: <Payment01Icon   size={18} color="#0369a1" strokeWidth={1.5} />, tint: '#f0f9ff' },
+          { label: 'Collected',         value: fmt(totalRevenue),        icon: <Payment01Icon   size={18} color="#0d9488" strokeWidth={1.5} />, tint: '#f0fdfa' },
+          { label: 'Outstanding',       value: fmt(totalOutstanding),    icon: <AlertCircleIcon size={18} color="#d97706" strokeWidth={1.5} />, tint: '#fffbeb' },
         ].map(({ label, value, icon, tint }) => (
-          <div key={label} className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] p-5">
+          <div key={label} className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] p-4">
             <div className="flex items-start justify-between mb-3">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">{label}</p>
-              <div className="w-9 h-9 rounded-[8px] flex items-center justify-center flex-shrink-0" style={{ background: tint }}>
+              <div className="w-8 h-8 rounded-[8px] flex items-center justify-center flex-shrink-0" style={{ background: tint }}>
                 {icon}
               </div>
             </div>
-            <p className="text-[24px] font-bold text-[#111827] font-display leading-none">{value}</p>
+            <p className="text-[22px] font-bold text-[#111827] font-display leading-none">{value}</p>
           </div>
         ))}
       </div>
@@ -3093,7 +3116,8 @@ function PaymentsTab({ cohortId }: { cohortId: string }) {
             <tbody>
               {students.map((s, i) => {
                 const uid = s.user_id ?? s.userId
-                const status = s.plan_status ?? s.planStatus ?? '—'
+                const status = s.status ?? s.plan_status ?? s.planStatus ?? '—'
+                const outstanding = s.outstanding_amount ?? s.amount_outstanding ?? s.amountOutstanding ?? 0
                 return (
                   <tr
                     key={i}
@@ -3116,8 +3140,8 @@ function PaymentsTab({ cohortId }: { cohortId: string }) {
                       <span className="text-[13px] font-semibold text-[#111827] font-display">{fmt(s.amount_paid ?? s.amountPaid ?? 0)}</span>
                     </td>
                     <td className="px-4 py-3.5 text-right">
-                      <span className={`text-[13px] font-semibold font-display ${(s.amount_outstanding ?? s.amountOutstanding ?? 0) > 0 ? 'text-[#d51520]' : 'text-[#9ca3af]'}`}>
-                        {fmt(s.amount_outstanding ?? s.amountOutstanding ?? 0)}
+                      <span className={`text-[13px] font-semibold font-display ${outstanding > 0 ? 'text-[#d51520]' : 'text-[#9ca3af]'}`}>
+                        {fmt(outstanding)}
                       </span>
                     </td>
                     <td className="px-4 py-3.5">
