@@ -1869,7 +1869,8 @@ function FormModal({ cohortId, programId, form, onClose, onSaved }: {
   const [status,  setStatus]  = useState(form?.status ?? 'ACTIVE')
   const [anon,    setAnon]    = useState(form?.is_anonymous ?? false)
   const [multi,   setMulti]   = useState(form?.allow_multiple_submissions ?? false)
-  const [from,    setFrom]    = useState((form?.available_from ?? form?.availableFrom ?? '').slice(0, 16))
+  const nowLocal = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+  const [from,    setFrom]    = useState((form?.available_from ?? form?.availableFrom) ? (form?.available_from ?? form?.availableFrom ?? '').slice(0, 16) : (form ? '' : nowLocal))
   const [until,   setUntil]   = useState((form?.available_until ?? form?.availableUntil ?? '').slice(0, 16))
   const [saving,  setSaving]  = useState(false)
   const [error,   setError]   = useState('')
@@ -1942,6 +1943,7 @@ function FormModal({ cohortId, programId, form, onClose, onSaved }: {
               <label className="text-[12px] font-semibold text-[#374151] font-display block mb-1.5">Available from</label>
               <input type="datetime-local" value={from} onChange={e => setFrom(e.target.value)}
                 className="w-full h-9 px-2.5 border border-[#e5e7eb] rounded-[6px] text-[12px] font-body focus:outline-none focus:border-[#d51520]" />
+              <p className="text-[10px] text-[#9ca3af] font-body mt-1">Students only see this form after this date</p>
             </div>
             <div>
               <label className="text-[12px] font-semibold text-[#374151] font-display block mb-1.5">Available until</label>
