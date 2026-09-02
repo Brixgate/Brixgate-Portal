@@ -1679,7 +1679,7 @@ interface QuestionAnalytics {
 }
 
 const FORM_STAGES = ['START_PROGRAM', 'MID_PROGRAM', 'END_OF_PROGRAM', 'AFTER_SESSION', 'CUSTOM']
-const QUESTION_TYPES = ['RATING', 'RADIO', 'SINGLE_SELECT', 'CHECKBOX', 'MULTI_SELECT']
+const QUESTION_TYPES = ['RATING', 'TEXT', 'TEXTAREA', 'RADIO', 'SINGLE_SELECT', 'CHECKBOX', 'MULTI_SELECT', 'YES_NO', 'YES_NO_MAYBE']
 
 // Question option editor (for choice-type questions)
 function OptionEditor({ opts, onChange }: {
@@ -1716,7 +1716,7 @@ function OptionEditor({ opts, onChange }: {
   )
 }
 
-const REVIEW_TARGETS = ['PROGRAM', 'COHORT', 'INSTRUCTOR', 'SESSION']
+const REVIEW_TARGETS = ['PROGRAM', 'FACILITATOR']
 
 // Question modal (create/edit)
 function QuestionModal({ formId, question, defaultReviewTarget, onClose, onSaved }: {
@@ -1739,7 +1739,8 @@ function QuestionModal({ formId, question, defaultReviewTarget, onClose, onSaved
   const [saving,    setSaving]    = useState(false)
   const [error,     setError]     = useState('')
 
-  const isChoice = ['RADIO', 'SINGLE_SELECT', 'CHECKBOX', 'MULTI_SELECT'].includes(type)
+  const isChoice = ['RADIO', 'SINGLE_SELECT', 'CHECKBOX', 'MULTI_SELECT', 'YES_NO', 'YES_NO_MAYBE'].includes(type)
+  const needsOptions = ['RADIO', 'SINGLE_SELECT', 'CHECKBOX', 'MULTI_SELECT'].includes(type)
 
   async function save() {
     if (!text.trim()) { setError('Question text is required.'); return }
@@ -1755,7 +1756,12 @@ function QuestionModal({ formId, question, defaultReviewTarget, onClose, onSaved
       status:        'ACTIVE',
     }
     if (type === 'RATING') payload.configuration = { minimum: rMin, maximum: rMax }
-    if (isChoice) payload.optionValues = { options: opts.filter(o => o.value.trim()) }
+    if (needsOptions) {
+      const filteredOpts = opts.filter(o => o.value.trim()).map(o => ({ value: o.value.trim(), label: o.label?.trim() || o.value.trim() }))
+      if (filteredOpts.length === 0) { setError('Add at least one answer option.'); setSaving(false); return }
+      payload.optionValues  = { options: filteredOpts }
+      payload.option_values = { options: filteredOpts }
+    }
 
     try {
       if (question) {
@@ -1823,9 +1829,9 @@ function QuestionModal({ formId, question, defaultReviewTarget, onClose, onSaved
             </div>
           )}
           {/* Choice options */}
-          {isChoice && (
+          {needsOptions && (
             <div>
-              <label className="text-[12px] font-semibold text-[#374151] font-display block mb-0.5">Answer options</label>
+              <label className="text-[12px] font-semibold text-[#374151] font-display block mb-0.5">Answer options <span className="text-[#d51520]">*</span></label>
               <OptionEditor opts={opts} onChange={setOpts} />
             </div>
           )}
