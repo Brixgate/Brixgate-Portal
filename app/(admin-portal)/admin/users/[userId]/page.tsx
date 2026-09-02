@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft01Icon, Loading01Icon, AlertCircleIcon,
   CheckmarkCircle01Icon, Invoice01Icon, Wallet01Icon,
-  Money01Icon,
+  Money01Icon, UserBlock01Icon,
 } from 'hugeicons-react'
 import { apiClient, getApiError } from '@/lib/api-client'
 
@@ -16,9 +16,11 @@ interface ApiUser {
   first_name?: string; firstName?: string
   last_name?: string; lastName?: string
   email: string
-  role?: string; status?: string
+  role?: string
+  status?: number   // 1 = active, 0 = suspended
   phone?: string; phone_number?: string; phoneNumber?: string
   created_at?: string; createdAt?: string
+  last_login_at?: string; lastLoginAt?: string
 }
 
 interface ApiInstallment {
@@ -180,6 +182,63 @@ function AdjustWalletModal({ userId, onClose, onDone }: { userId: string; onClos
   )
 }
 
+// ── Suspend / Activate modal ──────────────────────────────────────────────────
+function SuspendModal({ user, onClose, onDone }: { user: ApiUser; onClose: () => void; onDone: (updated: ApiUser) => void }) {
+  const isSuspended = user.status === 0
+  const [saving,  setSaving]  = useState(false)
+  const [error,   setError]   = useState('')
+
+  async function handleSubmit() {
+    setSaving(true); setError('')
+    try {
+      const newStatus = isSuspended ? 1 : 0
+      await apiClient.patch(`/admin/users/${user.id}`, { status: newStatus })
+      onDone({ ...user, status: newStatus })
+    } catch (e) { setError(getApiError(e)) } finally { setSaving(false) }
+  }
+
+  const action = isSuspended ? 'Reactivate' : 'Suspend'
+  const actionColor = isSuspended
+    ? 'bg-[#d51520] hover:bg-[#b81119]'
+    : 'bg-[#374151] hover:bg-[#111827]'
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/30 z-[59]" onClick={onClose} />
+      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] bg-white rounded-[12px] shadow-[0px_12px_32px_rgba(16,24,40,0.16)] w-[420px] overflow-hidden">
+        <div className="px-6 pt-5 pb-4 border-b border-[#f3f4f6]">
+          <h3 className="text-[15px] font-bold text-[#111827] font-display">{action} Account</h3>
+          <p className="text-[12px] text-[#6b7280] font-body mt-0.5">
+            {isSuspended
+              ? 'This will restore access for this user.'
+              : 'This will immediately block login access for this user.'}
+          </p>
+        </div>
+        <div className="px-6 py-5">
+          <div className="flex items-center gap-3 bg-[#f9fafb] rounded-[8px] p-4">
+            <div className="w-9 h-9 rounded-full bg-[#fef2f2] flex items-center justify-center flex-shrink-0">
+              <UserBlock01Icon size={16} color="#d51520" strokeWidth={1.5} />
+            </div>
+            <div>
+              <p className="text-[13px] font-semibold text-[#111827] font-body">{uName(user)}</p>
+              <p className="text-[12px] text-[#6b7280] font-body">{user.email}</p>
+            </div>
+          </div>
+          {error && <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body mt-3"><AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} />{error}</p>}
+        </div>
+        <div className="px-6 pb-5 flex gap-2">
+          <button onClick={onClose} className="flex-1 h-10 rounded-[8px] border border-[#e5e7eb] text-[13px] font-medium text-[#374151] font-body hover:bg-[#f9fafb] transition-colors">Cancel</button>
+          <button onClick={handleSubmit} disabled={saving}
+            className={`flex-1 h-10 rounded-[8px] text-[13px] font-semibold text-white font-display disabled:opacity-50 flex items-center justify-center gap-2 transition-colors ${actionColor}`}>
+            {saving && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
+            {saving ? 'Saving…' : `${action} Account`}
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────────
 export default function AdminUserProfilePage() {
   const params  = useParams()
@@ -192,47 +251,59 @@ export default function AdminUserProfilePage() {
   const [loading,      setLoading]      = useState(true)
   const [error,        setError]        = useState<string | null>(null)
   const [adjustModal,  setAdjustModal]  = useState(false)
+  const [suspendModal, setSuspendModal] = useState(false)
   const [expandedPlan, setExpandedPlan] = useState<number | null>(null)
 
   const loadAll = useCallback(async () => {
     setLoading(true); setError(null)
-    const [userRes, plansRes, walletRes] = await Promise.allSettled([
-      apiClient.get(`/admin/users/${userId}`),
-      apiClient.get(`/admin/enrollment-payment-plans?user_id=${userId}&size=50`),
-      apiClient.get(`/admin/users/${userId}/wallet`),
-    ])
+    try {
+      const [userRes, plansRes, walletRes] = await Promise.allSettled([
+        apiClient.get(`/admin/users/${userId}`),
+        apiClient.get(`/admin/enrollment-payment-plans?user_id=${userId}`),
+        apiClient.get(`/admin/users/${userId}/wallet`),
+      ])
 
-    if (userRes.status === 'fulfilled') {
-      const raw = userRes.value.data
-      const u = (raw?.data ?? raw) as ApiUser
-      setUser(u)
+      if (userRes.status === 'fulfilled') {
+        const raw = userRes.value.data
+        setUser((raw?.data ?? raw) as ApiUser)
+      }
+
+      if (plansRes.status === 'fulfilled') {
+        const raw   = plansRes.value.data
+        const outer = raw?.data ?? raw
+        const list  = (
+          Array.isArray(outer)            ? outer
+          : Array.isArray(outer?.plans)   ? outer.plans
+          : Array.isArray(outer?.content) ? outer.content
+          : Array.isArray(outer?.items)   ? outer.items
+          : []
+        ) as ApiPlan[]
+
+        // Enrich each plan with its full installment schedule
+        const details = await Promise.allSettled(
+          list.map(p => apiClient.get(`/admin/enrollment-payment-plans/${p.id}`))
+        )
+        const enriched = details.map((d, i) => {
+          if (d.status === 'fulfilled') {
+            const r = d.value.data
+            return (r?.data ?? r) as ApiPlan
+          }
+          return list[i]
+        })
+        setPlans(enriched)
+      } else {
+        setError(getApiError(plansRes.reason))
+      }
+
+      if (walletRes.status === 'fulfilled') {
+        const raw = walletRes.value.data
+        setWallet((raw?.data ?? raw) as ApiWallet)
+      }
+    } catch (e) {
+      setError(getApiError(e))
+    } finally {
+      setLoading(false)
     }
-
-    if (plansRes.status === 'fulfilled') {
-      const raw  = plansRes.value.data
-      const list = (Array.isArray(raw) ? raw : (raw?.data ?? raw?.plans ?? raw?.content ?? [])) as ApiPlan[]
-
-      // Fetch detail for each plan (installments live on the detail endpoint)
-      const details = await Promise.allSettled(
-        list.map(p => apiClient.get(`/admin/enrollment-payment-plans/${p.id}`))
-      )
-      const enriched = details.map((d, i) => {
-        if (d.status === 'fulfilled') {
-          const r = d.value.data
-          return (r?.data ?? r) as ApiPlan
-        }
-        return list[i]
-      })
-      setPlans(enriched)
-    } else {
-      setError(getApiError(plansRes.reason))
-    }
-
-    if (walletRes.status === 'fulfilled') {
-      setWallet((walletRes.value.data?.data ?? walletRes.value.data) as ApiWallet)
-    }
-
-    setLoading(false)
   }, [userId])
 
   useEffect(() => { loadAll() }, [loadAll])
@@ -284,15 +355,30 @@ export default function AdminUserProfilePage() {
                   </p>
                 )}
               </div>
-              <div className="flex flex-col items-end gap-1">
-                {user?.status && (
+              <div className="flex flex-col items-end gap-2">
+                {user?.status != null && (
                   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display ${
-                    user.status === 'ACTIVE' ? 'bg-[#ecfdf3] text-[#16a34a]' : 'bg-[#f3f4f6] text-[#6b7280]'
-                  }`}>{user.status}</span>
+                    user.status === 1 ? 'bg-[#ecfdf3] text-[#16a34a]' : 'bg-[#fef2f2] text-[#d51520]'
+                  }`}>
+                    {user.status === 1 ? 'Active' : 'Suspended'}
+                  </span>
                 )}
                 <p className="text-[11px] text-[#9ca3af] font-body">
                   Joined {fmtDate(user?.created_at ?? user?.createdAt)}
                 </p>
+                {user && (
+                  <button
+                    onClick={() => setSuspendModal(true)}
+                    className={`flex items-center gap-1.5 h-8 px-3 rounded-[7px] border text-[11px] font-semibold font-display transition-colors ${
+                      user.status === 0
+                        ? 'border-[#bbf7d0] text-[#16a34a] hover:bg-[#ecfdf3]'
+                        : 'border-[#fecdca] text-[#d51520] hover:bg-[#fef2f2]'
+                    }`}
+                  >
+                    <UserBlock01Icon size={12} strokeWidth={1.5} />
+                    {user.status === 0 ? 'Reactivate' : 'Suspend'}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -520,6 +606,14 @@ export default function AdminUserProfilePage() {
           userId={userId}
           onClose={() => setAdjustModal(false)}
           onDone={() => { setAdjustModal(false); loadAll() }}
+        />
+      )}
+
+      {suspendModal && user && (
+        <SuspendModal
+          user={user}
+          onClose={() => setSuspendModal(false)}
+          onDone={updated => { setUser(updated); setSuspendModal(false) }}
         />
       )}
     </div>
