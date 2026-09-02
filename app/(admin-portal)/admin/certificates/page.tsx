@@ -478,7 +478,10 @@ export default function AdminCertificatesPage() {
     <div className="flex flex-col h-screen overflow-hidden">
       {/* Header */}
       <div className="px-8 pt-6 pb-0 bg-white border-b border-[#f3f4f6] flex-shrink-0">
-        <div className="mb-4" />
+        <div className="mb-4">
+          <h1 className="text-[22px] font-bold text-[#111827] font-display">Certificates</h1>
+          <p className="text-[13px] text-[#4b5563] font-body mt-0.5">Issue and manage student certificates</p>
+        </div>
         <div className="flex items-center gap-1">
           {tabs.map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}

@@ -633,6 +633,11 @@ export default function AdminPaymentsPage() {
 
   return (
     <div className="p-8">
+      {/* Page header */}
+      <div className="mb-6">
+        <h1 className="text-[22px] font-bold text-[#111827] font-display">Payments</h1>
+        <p className="text-[13px] text-[#4b5563] font-body mt-0.5">View transactions and payment history</p>
+      </div>
       {loading && payments.length === 0 && activeTab === 'transactions' && <AdminPageLoader />}
 
       {selectedPayment && (

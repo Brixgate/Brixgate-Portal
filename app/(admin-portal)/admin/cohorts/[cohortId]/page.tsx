@@ -1648,6 +1648,8 @@ interface AdminReviewForm {
   allow_multiple_submissions?: boolean
   available_from?: string; availableFrom?: string
   available_until?: string; availableUntil?: string
+  program_id?: number; programId?: number
+  cohort_id?: number;  cohortId?: number
   questions?: AdminReviewQuestion[]
   question_count?: number; questionCount?: number
 }
@@ -1743,12 +1745,13 @@ function QuestionModal({ formId, question, defaultReviewTarget, onClose, onSaved
     if (!text.trim()) { setError('Question text is required.'); return }
     if (!reviewTarget) { setError('Review target is required.'); return }
     setSaving(true); setError('')
+    // Send both camelCase and snake_case so backend accepts either mapping
     const payload: Record<string, unknown> = {
-      questionText:  text.trim(),
-      questionType:  type,
-      reviewTarget:  reviewTarget,
+      questionText:  text.trim(),   question_text:  text.trim(),
+      questionType:  type,          question_type:  type,
+      reviewTarget:  reviewTarget,  review_target:  reviewTarget,
       is_required:   required,
-      displayOrder:  order,
+      displayOrder:  order,         display_order:  order,
       status:        'ACTIVE',
     }
     if (type === 'RATING') payload.configuration = { minimum: rMin, maximum: rMax }
@@ -1869,12 +1872,15 @@ function FormModal({ cohortId, programId, form, onClose, onSaved }: {
   async function save() {
     if (!title.trim()) { setError('Title is required.'); return }
     setSaving(true); setError('')
+    // Resolve programId — editing form may have it even when parent state is null
+    const pid = programId ?? form?.program_id ?? form?.programId ?? null
+    if (!pid) { setError('Programme ID could not be resolved. Please try again.'); return }
     const payload: Record<string, unknown> = {
       title: title.trim(), description: desc.trim() || undefined,
       formStage: stage, status,
       is_anonymous: anon, allowMultipleSubmissions: multi,
       cohortId: Number(cohortId),
-      ...(programId ? { programId } : {}),
+      programId: pid,
       ...(from  ? { availableFrom:  new Date(from).toISOString()  } : {}),
       ...(until ? { availableUntil: new Date(until).toISOString() } : {}),
     }

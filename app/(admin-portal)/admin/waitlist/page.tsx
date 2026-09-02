@@ -180,7 +180,10 @@ export default function AdminWaitlistPage() {
   return (
     <div className="p-10">
       <div className="flex items-start justify-between mb-8">
-        <div />
+        <div>
+          <h1 className="text-[22px] font-bold text-[#111827] font-display">Waitlist</h1>
+          <p className="text-[13px] text-[#4b5563] font-body mt-0.5">Manage programme waitlist entries</p>
+        </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => load(page)}

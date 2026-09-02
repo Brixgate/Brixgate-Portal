@@ -83,23 +83,26 @@ async function fetchAllUsersForExport(role?: string): Promise<ApiUser[]> {
 }
 
 function downloadCSV(rows: ApiUser[], filename: string) {
-  const esc = (s: string) => `"${(s ?? '').replace(/"/g, '""')}"`
+  const esc = (s: string) => `"${(String(s ?? '')).replace(/"/g, '""')}"`
   const lines = [
     ['Name', 'Email', 'Role', 'Status', 'Date Joined'].join(','),
     ...rows.map(u => [
       esc(userName(u)),
-      esc(u.email),
+      esc(u.email ?? ''),
       esc(u.role ?? ''),
       esc(u.status ?? ''),
       esc(formatDate(u.createdAt ?? u.created_at)),
     ].join(',')),
   ]
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
-  const url  = URL.createObjectURL(blob)
-  const a    = document.createElement('a')
-  a.href = url; a.download = filename
-  document.body.appendChild(a); a.click(); document.body.removeChild(a)
-  URL.revokeObjectURL(url)
+  // Use data URI instead of blob URL to avoid CSP restrictions in production
+  const csv = '﻿' + lines.join('\n') // BOM prefix for Excel UTF-8 compatibility
+  const a   = document.createElement('a')
+  a.href    = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv)
+  a.download = filename
+  a.style.display = 'none'
+  document.body.appendChild(a)
+  a.click()
+  setTimeout(() => document.body.removeChild(a), 150)
 }
 
 // ── Create user modal ─────────────────────────────────────────────────────────
@@ -243,7 +246,10 @@ export default function AdminUsersPage() {
 
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
-        <div />
+        <div>
+          <h1 className="text-[22px] font-bold text-[#111827] font-display">Users</h1>
+          <p className="text-[13px] text-[#4b5563] font-body mt-0.5">Manage all users, roles and access</p>
+        </div>
         <div className="flex items-center gap-2">
           {/* Export button */}
           <div className="relative" ref={exportRef}>

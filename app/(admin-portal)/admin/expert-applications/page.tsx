@@ -66,6 +66,11 @@ export default function AdminExpertApplicationsPage() {
 
   return (
     <div className="p-8">
+      {/* Page header */}
+      <div className="mb-6">
+        <h1 className="text-[22px] font-bold text-[#111827] font-display">Expert Applications</h1>
+        <p className="text-[13px] text-[#4b5563] font-body mt-0.5">Review and manage expert applications</p>
+      </div>
       {/* Status filter dropdown */}
       <div className="flex items-center gap-2 mb-6">
         <select value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}

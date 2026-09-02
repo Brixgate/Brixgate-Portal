@@ -131,6 +131,11 @@ export default function AdminEnrollmentsPage() {
 
   return (
     <div className="p-8">
+      {/* Page header */}
+      <div className="mb-6">
+        <h1 className="text-[22px] font-bold text-[#111827] font-display">Enrollments</h1>
+        <p className="text-[13px] text-[#4b5563] font-body mt-0.5">Track student enrolments across cohorts</p>
+      </div>
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3 mb-6">
         {/* Program filter */}

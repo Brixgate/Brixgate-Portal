@@ -413,7 +413,10 @@ export default function ForumGroupsPage() {
     <div className="p-8 max-w-[1100px]">
       {/* Page header */}
       <div className="flex items-center justify-between mb-6">
-        <div />
+        <div>
+          <h1 className="text-[22px] font-bold text-[#111827] font-display">Forum Groups</h1>
+          <p className="text-[13px] text-[#4b5563] font-body mt-0.5">Manage community forum groups</p>
+        </div>
         <button
           onClick={() => { setEditTarget(null); setShowModal(true) }}
           className="flex items-center gap-2 h-9 px-4 rounded-[8px] bg-[#d51520] text-white text-[13px] font-semibold font-display hover:bg-[#b91219] transition-colors"

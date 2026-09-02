@@ -104,16 +104,6 @@ function isNew(uploadedAt: string): boolean {
   return (Date.now() - new Date(uploadedAt).getTime()) / (1000 * 60 * 60 * 24) <= 7
 }
 
-function groupByWeek(resources: Resource[]): Record<number, { title: string; items: Resource[] }> {
-  const out: Record<number, { title: string; items: Resource[] }> = {}
-  for (const r of resources) {
-    const week = r.weekNumber ?? 0
-    if (!out[week]) out[week] = { title: r.weekTitle ?? (week > 0 ? `Module ${week}` : 'General'), items: [] }
-    out[week].items.push(r)
-  }
-  return out
-}
-
 // ── Resource row ──────────────────────────────────────────────────────────────
 function ResourceRow({ resource }: { resource: Resource }) {
   const [downloading, setDownloading] = useState(false)
@@ -338,21 +328,8 @@ export default function ResourcesPage() {
     })()
   }, [cohorts, programFilter, fetchForCohort])
 
-  // Client-side file type filter + search
-  const displayed = useMemo(() => {
-    let list = resources
-    if (fileTypeFilter !== 'all') {
-      list = list.filter(r => inferFileTypeRaw(r.fileType.toUpperCase()) === inferFileTypeRaw(fileTypeFilter))
-    }
-    if (search.trim()) {
-      const q = search.toLowerCase()
-      list = list.filter(r => r.title.toLowerCase().includes(q))
-    }
-    return list
-  }, [resources, fileTypeFilter, search])
+  // (filtering now handled below after moduleFilter state is defined)
 
-  const byWeek      = groupByWeek(displayed)
-  const weekNumbers = Object.keys(byWeek).map(Number).sort((a, b) => a - b)
   const totalCount  = resources.length
 
   // Build programme dropdown options
@@ -363,6 +340,31 @@ export default function ResourcesPage() {
       value: String(c.cohortId),
     })),
   ], [cohorts])
+
+  // Build module dropdown from loaded resources
+  const moduleNumbers = useMemo(() => {
+    const seen = new Set<number>()
+    const nums = resources.map(r => r.weekNumber ?? 0).filter(n => { if (seen.has(n)) return false; seen.add(n); return true }).sort((a, b) => a - b)
+    return nums
+  }, [resources])
+
+  const [moduleFilter, setModuleFilter] = useState<number | 'all'>('all')
+
+  // Apply module filter on top of file-type + search filters
+  const displayed = useMemo(() => {
+    let list = resources
+    if (fileTypeFilter !== 'all') {
+      list = list.filter(r => inferFileTypeRaw(r.fileType.toUpperCase()) === inferFileTypeRaw(fileTypeFilter))
+    }
+    if (moduleFilter !== 'all') {
+      list = list.filter(r => (r.weekNumber ?? 0) === moduleFilter)
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      list = list.filter(r => r.title.toLowerCase().includes(q))
+    }
+    return list
+  }, [resources, fileTypeFilter, moduleFilter, search])
 
   return (
     <>
@@ -383,8 +385,17 @@ export default function ResourcesPage() {
           <FilterSelect
             label="Programme"
             value={programFilter}
-            onChange={v => { setProg(v); setFileType('all'); setSearch('') }}
+            onChange={v => { setProg(v); setFileType('all'); setSearch(''); setModuleFilter('all') }}
             options={programOptions}
+          />
+          <FilterSelect
+            label="Module"
+            value={moduleFilter === 'all' ? 'all' : String(moduleFilter)}
+            onChange={v => setModuleFilter(v === 'all' ? 'all' : Number(v))}
+            options={[
+              { label: 'All Modules', value: 'all' },
+              ...moduleNumbers.map(n => ({ label: n === 0 ? 'General' : `Module ${n}`, value: String(n) })),
+            ]}
           />
           <FilterSelect
             label="File type"
@@ -439,37 +450,19 @@ export default function ResourcesPage() {
         )}
 
         {/* Empty — filter/search has no matches */}
-        {!loading && !error && totalCount > 0 && weekNumbers.length === 0 && (
+        {!loading && !error && totalCount > 0 && displayed.length === 0 && (
           <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)]">
             <EmptyState icon={File01Icon} title="No matches"
               description="Try adjusting the filters or search to find what you're looking for." />
           </div>
         )}
 
-        {/* Content */}
-        {!loading && !error && weekNumbers.length > 0 && (
-          <div className="flex flex-col gap-6">
-            {weekNumbers.map(week => {
-              const { title, items } = byWeek[week]
-              return (
-                <div key={week} className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] overflow-hidden">
-                  <div className="px-5 py-4 flex items-center justify-between border-b border-[#f3f4f6]">
-                    <div>
-                      <p className="text-[15px] font-semibold text-[#111827] font-display">
-                        {week > 0 ? `Module ${week}` : 'General'}
-                      </p>
-                      {title && title !== `Module ${week}` && title !== 'General' && (
-                        <p className="text-[12px] text-[#4b5563] font-body mt-0.5">{title}</p>
-                      )}
-                    </div>
-                    <span className="text-[11px] text-[#4b5563] font-body">{items.length} file{items.length !== 1 ? 's' : ''}</span>
-                  </div>
-                  <div className="p-2">
-                    {items.map(resource => <ResourceRow key={resource.id} resource={resource} />)}
-                  </div>
-                </div>
-              )
-            })}
+        {/* Content — flat list */}
+        {!loading && !error && displayed.length > 0 && (
+          <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] overflow-hidden">
+            <div className="p-2">
+              {displayed.map(resource => <ResourceRow key={resource.id} resource={resource} />)}
+            </div>
           </div>
         )}
       </div>

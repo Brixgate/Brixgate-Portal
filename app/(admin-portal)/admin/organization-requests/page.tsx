@@ -55,6 +55,11 @@ export default function AdminOrgRequestsPage() {
 
   return (
     <div className="p-8">
+      {/* Page header */}
+      <div className="mb-6">
+        <h1 className="text-[22px] font-bold text-[#111827] font-display">Organisation Requests</h1>
+        <p className="text-[13px] text-[#4b5563] font-body mt-0.5">Review partnership and organisation requests</p>
+      </div>
 
       <div className="flex items-center gap-2 mb-6 flex-wrap">
         {[{ v: '', l: 'All' }, ...STATUSES.filter(Boolean).map(s => ({ v: s, l: s.replace('_', ' ') }))].map(({ v, l }) => (

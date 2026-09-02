@@ -12,6 +12,7 @@ import {
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 import { useToast, ToastContainer } from '@/components/shared/Toast'
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Resource { id: number; title: string; type: string; link: string; status?: string }
@@ -2274,59 +2275,54 @@ function CohortsTab({ programId }: { programId: string }) {
           <p className="text-[13px] text-[#4b5563] font-body mt-1">Create the first cohort for this programme</p>
         </div>
       ) : (
-        <div className="rounded-[10px] border border-[#eaecf0] overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-[#f9fafb] border-b border-[#eaecf0]">
+        <div className="rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] overflow-hidden bg-white">
+          <Table>
+            <TableHeader>
+              <TableRow>
                 {['Cohort', 'Status', 'Start Date', 'End Date', 'Students', ''].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#6b7280] font-display bg-[#f9fafb]">{h}</th>
+                  <TableHead key={h}>{h}</TableHead>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {cohorts.map(c => (
-                <tr key={c.id}
+                <TableRow key={c.id}
                   onClick={() => router.push(`/admin/cohorts/${c.id}`)}
-                  className="border-b border-[#f3f4f6] hover:bg-[#fafafa] cursor-pointer transition-colors">
-                  <td className="px-4 py-3.5">
+                  className="cursor-pointer">
+                  <TableCell>
                     <p className="text-[13px] font-semibold text-[#111827] font-display">{c.title}</p>
-                  </td>
-                  <td className="px-4 py-3.5">
+                  </TableCell>
+                  <TableCell>
                     {c.status
                       ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold font-display ${COHORT_STATUS_STYLE[c.status] ?? 'bg-[#f3f4f6] text-[#374151]'}`}>
                           {c.status.charAt(0) + c.status.slice(1).toLowerCase()}
                         </span>
                       : '—'
                     }
-                  </td>
-                  <td className="px-4 py-3.5 text-[13px] text-[#4b5563] font-body">{formatDate(c.start_date)}</td>
-                  <td className="px-4 py-3.5 text-[13px] text-[#4b5563] font-body">{formatDate(c.end_date)}</td>
-                  <td className="px-4 py-3.5 text-[13px] font-medium text-[#111827] font-body">
+                  </TableCell>
+                  <TableCell className="text-[13px] text-[#4b5563] font-body">{formatDate(c.start_date)}</TableCell>
+                  <TableCell className="text-[13px] text-[#4b5563] font-body">{formatDate(c.end_date)}</TableCell>
+                  <TableCell className="text-[13px] font-medium text-[#111827] font-body">
                     {c.total_students ?? c.enrolled_count ?? 0} / {c.max_students ?? '—'}
-                  </td>
-                  {/* Inline actions */}
-                  <td className="px-4 py-3.5" onClick={e => e.stopPropagation()}>
+                  </TableCell>
+                  <TableCell onClick={e => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1">
-                      <button
-                        onClick={() => openEdit(c)}
+                      <button onClick={() => openEdit(c)}
                         className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#f3f4f6] transition-colors"
-                        title="Edit cohort"
-                      >
+                        title="Edit cohort">
                         <PencilEdit01Icon size={13} color="#4b5563" strokeWidth={1.5} />
                       </button>
-                      <button
-                        onClick={() => setDeleteCohort(c)}
+                      <button onClick={() => setDeleteCohort(c)}
                         className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#fef2f2] transition-colors"
-                        title="Delete cohort"
-                      >
+                        title="Delete cohort">
                         <Delete01Icon size={13} color="#d51520" strokeWidth={1.5} />
                       </button>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
 

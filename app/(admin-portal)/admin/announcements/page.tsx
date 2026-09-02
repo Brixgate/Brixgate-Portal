@@ -813,6 +813,11 @@ export default function AdminAnnouncementsPage() {
 
   return (
     <div className="p-8">
+      {/* Page header */}
+      <div className="mb-6">
+        <h1 className="text-[22px] font-bold text-[#111827] font-display">Announcements</h1>
+        <p className="text-[13px] text-[#4b5563] font-body mt-0.5">Send announcements to students</p>
+      </div>
 
       {/* Tab switcher */}
       <div className="flex items-center gap-1 mb-6 border-b border-[#f3f4f6]">
