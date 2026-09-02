@@ -26,21 +26,28 @@ interface ApiUser {
 interface ApiInstallment {
   id: number
   installment_number?: number; installmentNumber?: number
-  amount: number
+  amount_due?: number; amount?: number   // API field is amount_due
+  amount_paid?: number
+  outstanding_amount?: number
   due_date?: string; dueDate?: string
-  status: 'PAID' | 'UPCOMING' | 'OVERDUE'
+  grace_due_date?: string
+  status: 'PAID' | 'PENDING' | 'UPCOMING' | 'OVERDUE'
   paid_at?: string; paidAt?: string
 }
 
 interface ApiPlan {
   id: number
   cohort_id?: number; cohortId?: number
+  program_id?: number
   cohort_title?: string; cohortTitle?: string
   program_title?: string; programTitle?: string
+  payment_mode?: string
+  next_due_date?: string
   status: string
+  access_status?: string
   total_amount?: number; totalAmount?: number
   amount_paid?: number; amountPaid?: number
-  amount_outstanding?: number; amountOutstanding?: number
+  outstanding_amount?: number; amount_outstanding?: number; amountOutstanding?: number
   installments?: ApiInstallment[]
   payment_schedule?: ApiInstallment[]
 }
@@ -91,6 +98,7 @@ const PLAN_STATUS: Record<string, { bg: string; text: string }> = {
 
 const INST_STATUS: Record<string, { bg: string; text: string; dot: string }> = {
   PAID:     { bg: 'bg-[#ecfdf3] border border-[#bbf7d0]', text: 'text-[#16a34a]', dot: 'bg-[#16a34a]' },
+  PENDING:  { bg: 'bg-blue-50 border border-blue-200',    text: 'text-blue-700',   dot: 'bg-blue-500'  },
   UPCOMING: { bg: 'bg-blue-50 border border-blue-200',    text: 'text-blue-700',   dot: 'bg-blue-500'  },
   OVERDUE:  { bg: 'bg-[#fef2f2] border border-[#fecdca]', text: 'text-[#d51520]', dot: 'bg-[#d51520]' },
 }
@@ -271,11 +279,13 @@ export default function AdminUserProfilePage() {
       if (plansRes.status === 'fulfilled') {
         const raw   = plansRes.value.data
         const outer = raw?.data ?? raw
+        // List endpoint returns enrollment_payment_plans (plural) or a plain array
         const list  = (
-          Array.isArray(outer)            ? outer
-          : Array.isArray(outer?.plans)   ? outer.plans
-          : Array.isArray(outer?.content) ? outer.content
-          : Array.isArray(outer?.items)   ? outer.items
+          Array.isArray(outer?.enrollment_payment_plans) ? outer.enrollment_payment_plans
+          : Array.isArray(outer)                          ? outer
+          : Array.isArray(outer?.plans)                   ? outer.plans
+          : Array.isArray(outer?.content)                 ? outer.content
+          : Array.isArray(outer?.items)                   ? outer.items
           : []
         ) as ApiPlan[]
 
@@ -286,7 +296,8 @@ export default function AdminUserProfilePage() {
         const enriched = details.map((d, i) => {
           if (d.status === 'fulfilled') {
             const r = d.value.data
-            return (r?.data ?? r) as ApiPlan
+            // Detail endpoint wraps result in enrollment_payment_plan (singular)
+            return (r?.data?.enrollment_payment_plan ?? r?.data ?? r) as ApiPlan
           }
           return list[i]
         })
@@ -476,6 +487,7 @@ export default function AdminUserProfilePage() {
                   const insts = plan.installments ?? plan.payment_schedule ?? []
                   const paidCount = insts.filter(i => i.status === 'PAID').length
                   const total = insts.length
+                  const outstanding = plan.outstanding_amount ?? plan.amount_outstanding ?? plan.amountOutstanding ?? 0
                   const prog  = plan.total_amount ?? plan.totalAmount ?? 0
                   const paid  = plan.amount_paid  ?? plan.amountPaid  ?? 0
                   const pct   = prog > 0 ? Math.round((paid / prog) * 100) : 0
@@ -499,7 +511,13 @@ export default function AdminUserProfilePage() {
                             <p className="text-[14px] font-semibold text-[#111827] font-display leading-snug">{label}</p>
                             <p className="text-[12px] text-[#6b7280] font-body mt-0.5">
                               {paidCount} of {total} installments paid
+                              {plan.payment_mode && ` · ${plan.payment_mode.replace(/_/g, ' ')}`}
                             </p>
+                            {plan.next_due_date && outstanding > 0 && (
+                              <p className="text-[11px] text-[#d97706] font-body mt-0.5">
+                                Next due: {fmtDate(plan.next_due_date)}
+                              </p>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
@@ -514,7 +532,7 @@ export default function AdminUserProfilePage() {
                         {[
                           { label: 'Total',       value: fmt(plan.total_amount ?? plan.totalAmount ?? 0) },
                           { label: 'Paid',        value: fmt(plan.amount_paid ?? plan.amountPaid ?? 0) },
-                          { label: 'Outstanding', value: fmt(plan.amount_outstanding ?? plan.amountOutstanding ?? 0) },
+                          { label: 'Outstanding', value: fmt(outstanding) },
                         ].map(({ label, value }) => (
                           <div key={label} className="flex flex-col items-center py-2.5 px-3">
                             <p className="text-[9px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">{label}</p>
@@ -562,7 +580,7 @@ export default function AdminUserProfilePage() {
                                       </div>
                                       <div>
                                         <p className="text-[13px] font-semibold text-[#111827] font-display">
-                                          {fmt(inst.amount)}
+                                          {fmt(inst.amount_due ?? inst.amount ?? 0)}
                                         </p>
                                         <p className="text-[11px] text-[#6b7280] font-body mt-0.5">
                                           Due {fmtDate(inst.due_date ?? inst.dueDate)}
