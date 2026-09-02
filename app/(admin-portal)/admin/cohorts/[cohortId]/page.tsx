@@ -1877,12 +1877,13 @@ function FormModal({ cohortId, programId, form, onClose, onSaved }: {
     if (!pid) { setError('Programme ID could not be resolved. Please try again.'); return }
     const payload: Record<string, unknown> = {
       title: title.trim(), description: desc.trim() || undefined,
-      formStage: stage, status,
-      is_anonymous: anon, allowMultipleSubmissions: multi,
-      cohortId: Number(cohortId),
-      programId: pid,
-      ...(from  ? { availableFrom:  new Date(from).toISOString()  } : {}),
-      ...(until ? { availableUntil: new Date(until).toISOString() } : {}),
+      formStage: stage, form_stage: stage, status,
+      is_anonymous: anon, isAnonymous: anon,
+      allowMultipleSubmissions: multi, allow_multiple_submissions: multi,
+      cohortId: Number(cohortId), cohort_id: Number(cohortId),
+      programId: pid, program_id: pid,
+      ...(from  ? { availableFrom: new Date(from).toISOString(), available_from: new Date(from).toISOString() } : {}),
+      ...(until ? { availableUntil: new Date(until).toISOString(), available_until: new Date(until).toISOString() } : {}),
     }
     try {
       if (form) { await apiClient.put(`/admin/review-forms/${form.id}`, payload) }
@@ -2255,8 +2256,13 @@ function ReviewsTab({ cohortId, programId }: { cohortId: string; programId: numb
           ? [...data.questions].sort((a, b) => (a.display_order ?? a.displayOrder ?? 0) - (b.display_order ?? b.displayOrder ?? 0))
           : []
         setFormQuestions(qs)
-        // also update form in list with latest data
-        setSelectedForm(data ?? form)
+        const enriched = data ?? form
+        setSelectedForm(enriched)
+        // sync question count back into the forms list
+        setForms(prev => prev.map(f => f.id === form.id
+          ? { ...f, question_count: qs.length, questionCount: qs.length }
+          : f
+        ))
       })
       .catch(() => {})
       .finally(() => setLoadingQs(false))

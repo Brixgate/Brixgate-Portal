@@ -281,36 +281,39 @@ function ModuleAccordion({
 
 // ── Review form sidebar entry ─────────────────────────────────────────────────
 function ReviewFormSidebarItem({
-  form, isSelected, onClick,
-}: { form: ReviewForm; isSelected: boolean; onClick: () => void }) {
+  form, isSelected, onClick, reviewIndex,
+}: { form: ReviewForm; isSelected: boolean; onClick: () => void; reviewIndex: number }) {
   const stage = (form.form_stage ?? form.formStage ?? '').replace(/_/g, ' ')
   return (
-    <button
-      onClick={onClick}
-      className={`w-full text-left px-5 py-4 flex items-start gap-3 border-b border-[#f3f4f6] last:border-b-0 transition-colors ${
-        isSelected ? 'bg-[#fef2f2]' : 'hover:bg-[#f9fafb]'
-      }`}
-    >
-      <div className={`w-7 h-7 rounded-[6px] flex items-center justify-center flex-shrink-0 mt-0.5 ${
-        isSelected ? 'bg-[#D51520]' : 'bg-[#fef2f2]'
-      }`}>
-        <MessageQuestionIcon size={13} color={isSelected ? '#fff' : '#D51520'} strokeWidth={1.5} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className={`text-[13px] font-semibold font-display leading-snug truncate ${
-          isSelected ? 'text-[#D51520]' : 'text-[#111827]'
+    <div className="border-b border-[#f3f4f6] last:border-b-0">
+      <button
+        onClick={onClick}
+        className={`w-full text-left px-5 py-4 flex items-start gap-3 transition-colors ${
+          isSelected ? 'bg-[#fef2f2]' : 'hover:bg-[#f9fafb]'
+        }`}
+      >
+        <div className={`w-7 h-7 rounded-[6px] flex items-center justify-center flex-shrink-0 mt-0.5 ${
+          isSelected ? 'bg-[#D51520]' : 'bg-[#eff6ff]'
         }`}>
-          {form.title ?? 'Review Module'}
-        </p>
-        {stage ? (
-          <p className="text-[11px] text-[#4b5563] font-body mt-0.5 capitalize">
-            Review · {stage.toLowerCase()}
+          <span className={`text-[10px] font-bold font-display ${isSelected ? 'text-white' : 'text-[#2563eb]'}`}>
+            R{String(reviewIndex).padStart(2, '0')}
+          </span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className={`text-[13px] font-semibold font-display leading-snug truncate ${
+            isSelected ? 'text-[#D51520]' : 'text-[#111827]'
+          }`}>
+            {form.title ?? 'Review Form'}
           </p>
-        ) : (
-          <p className="text-[11px] text-[#4b5563] font-body mt-0.5">Review module</p>
-        )}
-      </div>
-    </button>
+          <p className="text-[11px] text-[#4b5563] font-body mt-0.5 capitalize">
+            Review{stage ? ` · ${stage.toLowerCase()}` : ''}
+          </p>
+        </div>
+        <div className="flex-shrink-0 mt-1">
+          <MessageQuestionIcon size={14} color="#4b5563" strokeWidth={1.5} />
+        </div>
+      </button>
+    </div>
   )
 }
 
@@ -1352,12 +1355,17 @@ export default function CourseDetailPage() {
               </p>
             </div>
             <div className="flex-1 overflow-y-auto">
-              {sidebarEntries.map((entry) => {
+              {(() => {
+                let reviewCounter = 0
+                return sidebarEntries.map((entry) => {
                 if (entry.type === 'review') {
+                  reviewCounter++
+                  const ri = reviewCounter
                   return (
                     <ReviewFormSidebarItem
                       key={`review-${entry.data.id}`}
                       form={entry.data}
+                      reviewIndex={ri}
                       isSelected={selectedItem?.kind === 'review' && selectedItem.data.id === entry.data.id}
                       onClick={() => setSelectedItem({ kind: 'review', data: entry.data })}
                     />
@@ -1379,7 +1387,8 @@ export default function CourseDetailPage() {
                     }
                   />
                 )
-              })}
+              })
+              })()}
             </div>
           </div>
 
