@@ -305,14 +305,47 @@ function PaymentDetailPanel({ payment, onClose, onUpdated }: { payment: Payment;
 }
 
 // ── Intent detail panel ───────────────────────────────────────────────────────
-function IntentDetailPanel({ intent, onClose }: { intent: PaymentIntent; onClose: () => void }) {
-  const [copied, setCopied] = useState<string | null>(null)
+function IntentDetailPanel({ intent, onClose, onUpdated }: {
+  intent: PaymentIntent; onClose: () => void; onUpdated: (updated: PaymentIntent) => void
+}) {
+  const [copied, setCopied]       = useState<string | null>(null)
+  const [reqLoading, setReqLoad]  = useState(false)
+  const [toast, setToast]         = useState<{ msg: string; ok: boolean } | null>(null)
+
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 4000)
+    return () => clearTimeout(t)
+  }, [toast])
 
   function copy(val: string, key: string) {
     navigator.clipboard.writeText(val).then(() => { setCopied(key); setTimeout(() => setCopied(null), 1500) })
   }
 
+  async function requery() {
+    const ref = intent.brixgate_reference
+    if (!ref || reqLoading) return
+    setReqLoad(true)
+    try {
+      const res   = await apiClient.get(`/payments/requery/${ref}`)
+      const body  = res.data as Record<string, unknown>
+      const inner = (body?.data ?? body) as Record<string, unknown>
+      const nested = (inner?.payment ?? inner?.transaction ?? inner?.intent ?? {}) as Record<string, unknown>
+      const newStatus = (
+        (inner?.status ?? inner?.payment_status ?? inner?.paymentStatus ??
+         nested?.status ?? nested?.payment_status ?? nested?.paymentStatus ?? intent.status ?? '') as string
+      ).toUpperCase()
+      const changed = newStatus !== status
+      const updated: PaymentIntent = { ...intent, status: newStatus }
+      onUpdated(updated)
+      setToast({ msg: changed ? `Status updated to ${newStatus}` : 'Status unchanged — try again shortly', ok: changed })
+    } catch (err) {
+      setToast({ msg: getApiError(err), ok: false })
+    } finally { setReqLoad(false) }
+  }
+
   const status      = (intent.status ?? '').toUpperCase()
+  const isInitialized = status === 'INITIALIZED'
   const checkoutUrl = intent.authorization_url
   const cohortName  = intent.cohort?.title ?? intent.cohort?.name ?? '—'
   const progTitle   = intent.program?.title ?? '—'
@@ -333,6 +366,13 @@ function IntentDetailPanel({ intent, onClose }: { intent: PaymentIntent; onClose
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+          {/* Toast */}
+          {toast && (
+            <div className={`rounded-[8px] px-4 py-3 text-[13px] font-body flex items-center gap-2 ${
+              toast.ok ? 'bg-[#ecfdf3] text-[#15803d] border border-[#bbf7d0]' : 'bg-[#fef2f2] text-[#dc2626] border border-[#fecaca]'
+            }`}>{toast.msg}</div>
+          )}
+
           {/* Amount + status */}
           <div className="bg-[#f9fafb] rounded-[10px] p-5">
             <div className="flex items-center justify-between mb-3">
@@ -342,17 +382,31 @@ function IntentDetailPanel({ intent, onClose }: { intent: PaymentIntent; onClose
               </div>
               <IntentStatusBadge status={status} />
             </div>
-            {checkoutUrl && (
-              <a
-                href={checkoutUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-[12px] font-medium text-[#d51520] hover:underline font-body"
-              >
-                <LinkSquare01Icon size={13} strokeWidth={1.5} />
-                View Checkout Link
-              </a>
-            )}
+            <div className="flex items-center gap-3 flex-wrap">
+              {checkoutUrl && (
+                <a
+                  href={checkoutUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-[12px] font-medium text-[#d51520] hover:underline font-body"
+                >
+                  <LinkSquare01Icon size={13} strokeWidth={1.5} />
+                  View Checkout Link
+                </a>
+              )}
+              {isInitialized && (
+                <button
+                  onClick={requery}
+                  disabled={reqLoading}
+                  className="inline-flex items-center gap-1.5 text-[12px] font-medium text-[#6d28d9] bg-[#f5f3ff] border border-[#ddd6fe] rounded-[6px] px-3 py-1.5 hover:bg-[#ede9fe] transition-colors disabled:opacity-60 disabled:cursor-not-allowed font-body"
+                >
+                  {reqLoading
+                    ? <Loading01Icon size={12} className="animate-spin" strokeWidth={2} />
+                    : <RefreshIcon size={12} strokeWidth={2} />}
+                  {reqLoading ? 'Checking…' : 'Requery Status'}
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Student */}
@@ -484,7 +538,14 @@ function PaymentIntentsTab() {
   return (
     <>
       {selectedIntent && (
-        <IntentDetailPanel intent={selectedIntent} onClose={() => setSelectedIntent(null)} />
+        <IntentDetailPanel
+          intent={selectedIntent}
+          onClose={() => setSelectedIntent(null)}
+          onUpdated={updated => {
+            setIntents(prev => prev.map(i => i.id === updated.id ? updated : i))
+            setSelectedIntent(updated)
+          }}
+        />
       )}
 
       {/* Filters */}
@@ -625,7 +686,7 @@ export default function AdminPaymentsPage() {
   useEffect(() => { fetchPayments() }, [fetchPayments])
 
   const tabs = [
-    { id: 'transactions' as const, label: 'Transactions' },
+    { id: 'transactions' as const, label: 'Payments' },
     { id: 'intents' as const,      label: 'Payment Intents' },
   ]
 
