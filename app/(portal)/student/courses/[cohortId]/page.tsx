@@ -121,7 +121,7 @@ interface ReviewOption {
   numericScore?: number
 }
 interface ReviewQuestion {
-  id: number
+  id?: number; question_id?: number; questionId?: number
   question_text?: string; questionText?: string
   question_type?: string; questionType?: string
   is_required?: boolean;  isRequired?: boolean
@@ -130,6 +130,8 @@ interface ReviewQuestion {
   option_values?: { options?: ReviewOption[] }
   optionValues?:  { options?: ReviewOption[] }
 }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function rqId(q: any): number { return q?.id ?? q?.question_id ?? q?.questionId ?? 0 }
 interface ReviewForm {
   id: number
   title?: string
@@ -463,7 +465,7 @@ function ReviewPanel({ form }: { form: ReviewForm }) {
     if (!current) return true
     const required = current.is_required ?? current.isRequired ?? false
     if (!required) return true
-    const ans = answers[current.id]
+    const ans = answers[rqId(current)]
     if (ans === undefined || ans === null || ans === '') {
       setFieldError('This question is required.'); return false
     }
@@ -486,13 +488,12 @@ function ReviewPanel({ form }: { form: ReviewForm }) {
     setSubmitting(true); setError('')
     try {
       const payload = {
-        submissionId: submissionId,
+        ...(submissionId != null ? { submissionId } : {}),
         submissionStatus: 'SUBMITTED',
         metadata: { device: 'web' },
-        answers: Object.entries(answers).map(([qId, val]) => ({
-          questionId: Number(qId),
-          answerValue: val,
-        })),
+        answers: Object.entries(answers)
+          .map(([qId, val]) => ({ questionId: Number(qId), answerValue: val }))
+          .filter(a => !isNaN(a.questionId) && a.questionId > 0 && a.answerValue != null && a.answerValue !== ''),
       }
       const res = await apiClient.post(`/review-forms/${form.id}/submissions`, payload)
       const data = res.data?.data ?? res.data
@@ -597,8 +598,8 @@ function ReviewPanel({ form }: { form: ReviewForm }) {
 
         <QuestionInput
           question={current}
-          value={getAnswer(current.id)}
-          onChange={val => setAnswer(current.id, val)}
+          value={getAnswer(rqId(current))}
+          onChange={val => setAnswer(rqId(current), val)}
         />
 
         {fieldError && (
