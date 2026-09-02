@@ -1202,14 +1202,19 @@ export default function CourseDetailPage() {
           const params = new URLSearchParams({ cohortId, page: '1', size: '50' })
           if (resolvedProgramId) params.set('programId', String(resolvedProgramId))
           const formsRes = await apiClient.get(`/review-forms?${params}`)
-          const raw  = formsRes.data?.data ?? formsRes.data
-          const inner = raw?.data ?? raw
-          const forms: ReviewForm[] = Array.isArray(inner) ? inner
-            : Array.isArray(inner?.review_forms) ? inner.review_forms
-            : Array.isArray(inner?.forms)        ? inner.forms
-            : Array.isArray(inner?.content)      ? inner.content
+          const raw   = formsRes.data?.data ?? formsRes.data
+          const inner = (raw && typeof raw === 'object' && !Array.isArray(raw) && 'data' in raw)
+            ? (raw as Record<string, unknown>).data
+            : raw
+          const forms: ReviewForm[] = Array.isArray(inner)              ? inner
+            : Array.isArray((inner as any)?.review_forms)               ? (inner as any).review_forms
+            : Array.isArray((inner as any)?.forms)                      ? (inner as any).forms
+            : Array.isArray((inner as any)?.content)                    ? (inner as any).content
+            : Array.isArray((inner as any)?.items)                      ? (inner as any).items
+            : Array.isArray((inner as any)?.list)                       ? (inner as any).list
+            : Array.isArray((inner as any)?.review_form_list)           ? (inner as any).review_form_list
             : []
-          setReviewForms(forms.filter(f => (f.status ?? '').toUpperCase() !== 'INACTIVE'))
+          setReviewForms(forms.filter(f => f && typeof f === 'object' && (f.status ?? '').toUpperCase() !== 'INACTIVE'))
         } catch {
           // Non-fatal — curriculum still works without reviews
         }
