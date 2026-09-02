@@ -1203,17 +1203,19 @@ export default function CourseDetailPage() {
           if (resolvedProgramId) params.set('programId', String(resolvedProgramId))
           const formsRes = await apiClient.get(`/review-forms?${params}`)
           const raw   = formsRes.data?.data ?? formsRes.data
-          const inner = (raw && typeof raw === 'object' && !Array.isArray(raw) && 'data' in raw)
-            ? (raw as Record<string, unknown>).data
-            : raw
-          const forms: ReviewForm[] = Array.isArray(inner)              ? inner
-            : Array.isArray((inner as any)?.review_forms)               ? (inner as any).review_forms
-            : Array.isArray((inner as any)?.forms)                      ? (inner as any).forms
-            : Array.isArray((inner as any)?.content)                    ? (inner as any).content
-            : Array.isArray((inner as any)?.items)                      ? (inner as any).items
-            : Array.isArray((inner as any)?.list)                       ? (inner as any).list
-            : Array.isArray((inner as any)?.review_form_list)           ? (inner as any).review_form_list
-            : []
+          const inner: Record<string, unknown> = (raw && typeof raw === 'object' && !Array.isArray(raw) && 'data' in raw)
+            ? (raw as Record<string, unknown>).data as Record<string, unknown>
+            : raw as Record<string, unknown>
+          const arr = (v: unknown): ReviewForm[] | null => Array.isArray(v) ? v as ReviewForm[] : null
+          const forms: ReviewForm[] =
+            arr(inner) ??
+            arr(inner?.review_forms) ??
+            arr(inner?.forms) ??
+            arr(inner?.content) ??
+            arr(inner?.items) ??
+            arr(inner?.list) ??
+            arr(inner?.review_form_list) ??
+            []
           setReviewForms(forms.filter(f => f && typeof f === 'object' && (f.status ?? '').toUpperCase() !== 'INACTIVE'))
         } catch {
           // Non-fatal — curriculum still works without reviews

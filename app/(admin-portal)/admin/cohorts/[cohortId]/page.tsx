@@ -1739,7 +1739,6 @@ function QuestionModal({ formId, question, defaultReviewTarget, onClose, onSaved
   const [saving,    setSaving]    = useState(false)
   const [error,     setError]     = useState('')
 
-  const isChoice = ['RADIO', 'SINGLE_SELECT', 'CHECKBOX', 'MULTI_SELECT', 'YES_NO', 'YES_NO_MAYBE'].includes(type)
   const needsOptions = ['RADIO', 'SINGLE_SELECT', 'CHECKBOX', 'MULTI_SELECT'].includes(type)
 
   async function save() {
