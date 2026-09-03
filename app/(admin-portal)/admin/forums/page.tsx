@@ -23,9 +23,14 @@ interface ForumGroup {
 interface ForumMember {
   id?: number
   user_id?: number; userId?: number
-  user?: { id?: number; name?: string; first_name?: string; firstName?: string; last_name?: string; lastName?: string; email: string }
+  // flat fields returned by the API
+  user_name?: string; userName?: string
+  user_email?: string; userEmail?: string
+  // nested object (older shape, kept for safety)
+  user?: { id?: number; name?: string; first_name?: string; firstName?: string; last_name?: string; lastName?: string; email?: string }
   role?: string
   status?: string
+  joined_at?: string; joinedAt?: string
   source_cohort_id?: number
 }
 
@@ -38,12 +43,20 @@ interface UserSearchResult {
 }
 
 function memberName(m: ForumMember): string {
+  // Prefer flat user_name from API response
+  const flat = m.user_name ?? m.userName
+  if (flat) return flat
+  // Fallback: nested user object
   const u = m.user
   if (!u) return '—'
   if (u.name) return u.name
   const f = u.firstName ?? u.first_name ?? ''
   const l = u.lastName  ?? u.last_name  ?? ''
-  return `${f} ${l}`.trim() || u.email
+  return `${f} ${l}`.trim() || u.email || '—'
+}
+
+function memberEmail(m: ForumMember): string {
+  return m.user_email ?? m.userEmail ?? m.user?.email ?? '—'
 }
 
 function userName(u: UserSearchResult): string {
@@ -327,7 +340,7 @@ function MembersPanel({
               {activeMembers.map((m, i) => {
                 const uid  = m.user_id ?? m.userId ?? m.user?.id ?? i
                 const name = memberName(m)
-                const email = m.user?.email ?? '—'
+                const email = memberEmail(m)
                 const role  = roleMap[uid] ?? m.role ?? 'MEMBER'
                 return (
                   <div key={uid} className="flex items-center gap-3 px-5 py-3 border-b border-[#f3f4f6] last:border-b-0 hover:bg-[#f9fafb]">
