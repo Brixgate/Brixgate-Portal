@@ -505,12 +505,13 @@ function ReviewPanel({ form }: { form: ReviewForm }) {
           const av  = typeof val === 'number' ? String(val)
                     : Array.isArray(val)       ? val
                     : (val ?? '')
-          return { questionId: id, answerValue: av }
+          // Send both snake_case (backend Jackson naming strategy) and camelCase
+          return { question_id: id, questionId: id, answer_value: av, answerValue: av }
         })
         .filter(a => a.questionId > 0 && a.answerValue !== '' && a.answerValue != null)
       const payload = {
-        ...(submissionId != null ? { submissionId } : {}),
-        submissionStatus: 'SUBMITTED',
+        ...(submissionId != null ? { submissionId, submission_id: submissionId } : {}),
+        submissionStatus: 'SUBMITTED', submission_status: 'SUBMITTED',
         metadata: { device: 'web' },
         answers: answerList,
       }
