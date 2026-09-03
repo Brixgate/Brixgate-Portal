@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import TopNav from '@/components/layout/TopNav'
 import { apiClient, unwrap } from '@/lib/api-client'
@@ -424,6 +424,9 @@ function ReviewPanel({ form }: { form: ReviewForm }) {
   const [loading, setLoading]         = useState(true)
   const [step, setStep]               = useState(0)
   const [answers, setAnswers]         = useState<Record<number, AnswerValue>>({})
+  // ref always mirrors answers so handleSubmit never reads a stale closure value
+  const answersRef = useRef<Record<number, AnswerValue>>({})
+  const questionsRef = useRef<ReviewQuestion[]>([])
   const [submitting, setSubmitting]   = useState(false)
   const [done, setDone]               = useState(false)
   const [error, setError]             = useState('')
@@ -431,7 +434,9 @@ function ReviewPanel({ form }: { form: ReviewForm }) {
   const [submissionId, setSubmissionId] = useState<number | null>(null)
 
   useEffect(() => {
-    setLoading(true); setDone(false); setStep(0); setAnswers({}); setError(''); setFieldError('')
+    setLoading(true); setDone(false); setStep(0)
+    answersRef.current = {}; setAnswers({})
+    setError(''); setFieldError('')
     apiClient.get(`/review-forms/${form.id}`)
       .then(res => {
         const raw = res.data?.data ?? res.data
@@ -440,6 +445,7 @@ function ReviewPanel({ form }: { form: ReviewForm }) {
           ? [...data.questions].sort((a, b) =>
               (a.display_order ?? a.displayOrder ?? 0) - (b.display_order ?? b.displayOrder ?? 0))
           : []
+        questionsRef.current = qs
         setQuestions(qs)
       })
       .catch(() => setError('Failed to load review questions.'))
@@ -457,6 +463,7 @@ function ReviewPanel({ form }: { form: ReviewForm }) {
   }
 
   function setAnswer(id: number, val: AnswerValue) {
+    answersRef.current = { ...answersRef.current, [id]: val }
     setAnswers(prev => ({ ...prev, [id]: val }))
     setFieldError('')
   }
@@ -487,13 +494,25 @@ function ReviewPanel({ form }: { form: ReviewForm }) {
     if (!validate()) return
     setSubmitting(true); setError('')
     try {
+      // Use refs to get the latest questions and answers regardless of closure age
+      const snap = answersRef.current
+      const qs   = questionsRef.current
+      const answerList = qs
+        .map(q => {
+          const id  = rqId(q)
+          const val = snap[id]
+          // Coerce numeric rating to string so JsonNode deserialization is unambiguous
+          const av  = typeof val === 'number' ? String(val)
+                    : Array.isArray(val)       ? val
+                    : (val ?? '')
+          return { questionId: id, answerValue: av }
+        })
+        .filter(a => a.questionId > 0 && a.answerValue !== '' && a.answerValue != null)
       const payload = {
         ...(submissionId != null ? { submissionId } : {}),
         submissionStatus: 'SUBMITTED',
         metadata: { device: 'web' },
-        answers: Object.entries(answers)
-          .map(([qId, val]) => ({ questionId: Number(qId), answerValue: val }))
-          .filter(a => !isNaN(a.questionId) && a.questionId > 0 && a.answerValue != null && a.answerValue !== ''),
+        answers: answerList,
       }
       const res = await apiClient.post(`/review-forms/${form.id}/submissions`, payload)
       const data = res.data?.data ?? res.data
