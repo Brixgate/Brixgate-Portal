@@ -2231,6 +2231,11 @@ function ReviewsTab({ cohortId, programId }: { cohortId: string; programId: numb
   const [deleting,      setDeleting]      = useState(false)
   const [analyticsQ,    setAnalyticsQ]    = useState<AdminReviewQuestion | null>(null)
   const [deleteQId,     setDeleteQId]     = useState<number | null>(null)
+  const [detailTab,     setDetailTab]     = useState<'questions' | 'responses'>('questions')
+  // Responses tab state
+  const [responses,     setResponses]     = useState<Record<string, unknown>[]>([])
+  const [loadingRes,    setLoadingRes]    = useState(false)
+  const [expandedRes,   setExpandedRes]   = useState<Set<number>>(new Set())
 
   function loadForms() {
     setLoading(true)
@@ -2253,7 +2258,26 @@ function ReviewsTab({ cohortId, programId }: { cohortId: string; programId: numb
 
   useEffect(() => { loadForms() }, [cohortId, programId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  function loadResponses() {
+    setLoadingRes(true)
+    apiClient.get(`/admin/cohorts/${cohortId}/reviews?page=1&size=100`)
+      .then(res => {
+        const raw   = res.data?.data ?? res.data
+        const inner = raw?.data ?? raw
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const arr: any[] = Array.isArray(inner)             ? inner
+          : Array.isArray(inner?.reviews)     ? inner.reviews
+          : Array.isArray(inner?.submissions) ? inner.submissions
+          : Array.isArray(inner?.content)     ? inner.content
+          : []
+        setResponses(arr)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingRes(false))
+  }
+
   function loadFormDetail(form: AdminReviewForm) {
+    setDetailTab('questions'); setExpandedRes(new Set())
     setSelectedForm(form); setLoadingQs(true)
     apiClient.get(`/admin/review-forms/${form.id}`)
       .then(res => {
@@ -2413,14 +2437,33 @@ function ReviewsTab({ cohortId, programId }: { cohortId: string; programId: numb
             {' · '}{formQuestions.length} question{formQuestions.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <button onClick={() => { setEditingQ(null); setShowQModal(true) }}
-          className="flex items-center gap-2 h-8 px-3 bg-[#d51520] hover:bg-[#b81119] text-white text-[12px] font-semibold font-display rounded-[7px] transition-colors flex-shrink-0">
-          <Add01Icon size={13} strokeWidth={2} />
-          Add question
-        </button>
+        {detailTab === 'questions' && (
+          <button onClick={() => { setEditingQ(null); setShowQModal(true) }}
+            className="flex items-center gap-2 h-8 px-3 bg-[#d51520] hover:bg-[#b81119] text-white text-[12px] font-semibold font-display rounded-[7px] transition-colors flex-shrink-0">
+            <Add01Icon size={13} strokeWidth={2} />
+            Add question
+          </button>
+        )}
       </div>
 
-      {loadingQs ? (
+      {/* Tab bar */}
+      <div className="flex border-b border-[#f3f4f6] px-6">
+        {(['questions', 'responses'] as const).map(tab => (
+          <button key={tab}
+            onClick={() => {
+              setDetailTab(tab)
+              if (tab === 'responses' && responses.length === 0) loadResponses()
+            }}
+            className={`py-2.5 mr-5 text-[13px] font-semibold font-display border-b-2 transition-colors capitalize ${
+              detailTab === tab ? 'border-[#d51520] text-[#d51520]' : 'border-transparent text-[#4b5563] hover:text-[#374151]'
+            }`}>
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      {/* Questions tab */}
+      {detailTab === 'questions' && (loadingQs ? (
         <div className="flex items-center justify-center py-16">
           <Loading01Icon size={20} className="animate-spin" color="#d51520" strokeWidth={1.5} />
         </div>
@@ -2467,6 +2510,86 @@ function ReviewsTab({ cohortId, programId }: { cohortId: string; programId: numb
               </div>
             )
           })}
+        </div>
+      ))}
+
+      {/* Responses tab */}
+      {detailTab === 'responses' && (
+        <div className="flex-1 overflow-y-auto">
+          {loadingRes ? (
+            <div className="flex items-center justify-center py-16">
+              <Loading01Icon size={20} className="animate-spin" color="#d51520" strokeWidth={1.5} />
+            </div>
+          ) : responses.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center px-6">
+              <div className="w-14 h-14 rounded-[12px] bg-[#f9fafb] flex items-center justify-center mb-4">
+                <MessageQuestionIcon size={24} color="#d1d5db" strokeWidth={1.5} />
+              </div>
+              <p className="text-[14px] font-semibold text-[#374151] font-display mb-1">No responses yet</p>
+              <p className="text-[13px] text-[#4b5563] font-body max-w-[260px]">
+                Responses will appear here once students submit this review.
+              </p>
+            </div>
+          ) : (
+            <div>
+              {responses.map((r, idx) => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const sub = r as any
+                const respondentName = sub.user_name ?? sub.userName ?? sub.user?.name ?? sub.student_name ?? sub.studentName ?? `Submission #${idx + 1}`
+                const respondentEmail = sub.user_email ?? sub.userEmail ?? sub.user?.email ?? ''
+                const submittedAt = sub.submitted_at ?? sub.submittedAt ?? sub.created_at ?? sub.createdAt ?? ''
+                const answers: unknown[] = Array.isArray(sub.answers) ? sub.answers : []
+                const isExpanded = expandedRes.has(idx)
+                return (
+                  <div key={idx} className="border-b border-[#f3f4f6] last:border-b-0">
+                    <button
+                      onClick={() => setExpandedRes(prev => {
+                        const next = new Set(prev)
+                        if (next.has(idx)) next.delete(idx); else next.add(idx)
+                        return next
+                      })}
+                      className="w-full flex items-center gap-3 px-6 py-4 hover:bg-[#fafafa] transition-colors text-left"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-[#d51520] flex items-center justify-center flex-shrink-0">
+                        <span className="text-[11px] font-bold text-white font-display">
+                          {respondentName.split(' ').map((p: string) => p[0]).join('').slice(0, 2).toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-semibold text-[#111827] font-display truncate">{respondentName}</p>
+                        <p className="text-[11px] text-[#6b7280] font-body truncate">
+                          {respondentEmail}
+                          {submittedAt ? ` · ${new Date(submittedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className="text-[11px] text-[#9ca3af] font-body">{answers.length} answer{answers.length !== 1 ? 's' : ''}</span>
+                        {isExpanded ? <ArrowDown01Icon size={14} color="#4b5563" strokeWidth={1.5} /> : <ArrowRight01Icon size={14} color="#4b5563" strokeWidth={1.5} />}
+                      </div>
+                    </button>
+                    {isExpanded && answers.length > 0 && (
+                      <div className="px-6 pb-4 bg-[#fafafa]">
+                        {answers.map((a, ai) => {
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          const ans = a as any
+                          const qText = ans.question_text ?? ans.questionText ?? `Question ${ai + 1}`
+                          const rawVal = ans.answer_value ?? ans.answerValue
+                          const displayVal = Array.isArray(rawVal) ? rawVal.join(', ')
+                            : rawVal !== null && rawVal !== undefined ? String(rawVal) : '—'
+                          return (
+                            <div key={ai} className="py-3 border-b border-[#f3f4f6] last:border-b-0">
+                              <p className="text-[11px] font-semibold text-[#9ca3af] font-display uppercase tracking-wide mb-1">{qText}</p>
+                              <p className="text-[13px] text-[#111827] font-body">{displayVal}</p>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
 
