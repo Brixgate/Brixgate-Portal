@@ -25,10 +25,6 @@ interface Payout {
   notes?: string
 }
 
-interface Pagination {
-  total_elements: number
-}
-
 function fmt(n: number) {
   return '₦' + n.toLocaleString('en-NG', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 }
@@ -57,7 +53,6 @@ function StatusBadge({ status }: { status: string }) {
 export default function InstructorDashboardPage() {
   const { user } = useAuth()
   const [payouts, setPayouts] = useState<Payout[]>([])
-  const [pagination, setPagination] = useState<Pagination | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -65,7 +60,6 @@ export default function InstructorDashboardPage() {
       .then(res => {
         const d = res.data?.data ?? res.data
         setPayouts(d?.payouts ?? [])
-        setPagination(d?.pagination ?? null)
       })
       .catch(() => {})
       .finally(() => setLoading(false))
