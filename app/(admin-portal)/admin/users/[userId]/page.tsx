@@ -18,7 +18,7 @@ interface ApiUser {
   email: string
   role?: string
   status?: number   // 1 = active, 0 = suspended
-  phone?: string; phone_number?: string; phoneNumber?: string
+  phone?: string; phone_number?: string; phoneNumber?: string; full_phone_number?: string; fullPhoneNumber?: string
   created_at?: string; createdAt?: string
   last_login_at?: string; lastLoginAt?: string
 }
@@ -360,9 +360,9 @@ export default function AdminUserProfilePage() {
                   )}
                 </div>
                 <p className="text-[13px] text-[#6b7280] font-body mt-0.5">{user?.email ?? '—'}</p>
-                {(user?.phone ?? user?.phone_number ?? user?.phoneNumber) && (
+                {(user?.full_phone_number ?? user?.phone ?? user?.phone_number ?? user?.phoneNumber) && (
                   <p className="text-[12px] text-[#9ca3af] font-body mt-0.5">
-                    {user?.phone ?? user?.phone_number ?? user?.phoneNumber}
+                    {user?.full_phone_number ?? user?.phone ?? user?.phone_number ?? user?.phoneNumber}
                   </p>
                 )}
               </div>
