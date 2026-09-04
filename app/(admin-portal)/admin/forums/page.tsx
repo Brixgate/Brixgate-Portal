@@ -5,6 +5,7 @@ import {
   UserGroup02Icon, Add01Icon, PencilEdit01Icon, Delete01Icon,
   Search01Icon, Cancel01Icon, AlertCircleIcon,
   Loading01Icon, UserAdd01Icon, ArrowRight01Icon, BubbleChatAddIcon,
+  ArrowDown01Icon, ArrowUp01Icon, BubbleChatIcon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 
@@ -23,10 +24,8 @@ interface ForumGroup {
 interface ForumMember {
   id?: number
   user_id?: number; userId?: number
-  // flat fields returned by the API
   user_name?: string; userName?: string
   user_email?: string; userEmail?: string
-  // nested object (older shape, kept for safety)
   user?: { id?: number; name?: string; first_name?: string; firstName?: string; last_name?: string; lastName?: string; email?: string }
   role?: string
   status?: string
@@ -42,11 +41,30 @@ interface UserSearchResult {
   email: string
 }
 
+interface ForumPost {
+  id: number
+  content: string
+  scope?: string
+  forum_group_id?: number
+  author_name?: string; authorName?: string
+  author_id?: number; authorId?: number
+  created_at: string
+  updated_at?: string
+}
+
+interface ForumComment {
+  id: number
+  content: string
+  post_id?: number
+  author_name?: string; authorName?: string
+  author_id?: number; authorId?: number
+  created_at: string
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 function memberName(m: ForumMember): string {
-  // Prefer flat user_name from API response
   const flat = m.user_name ?? m.userName
   if (flat) return flat
-  // Fallback: nested user object
   const u = m.user
   if (!u) return '—'
   if (u.name) return u.name
@@ -64,6 +82,18 @@ function userName(u: UserSearchResult): string {
   const f = u.firstName ?? u.first_name ?? ''
   const l = u.lastName  ?? u.last_name  ?? ''
   return `${f} ${l}`.trim() || u.email
+}
+
+function formatTimeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(diff / 60000)
+  if (m < 1) return 'just now'
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  const d = Math.floor(h / 24)
+  if (d < 7) return `${d}d ago`
+  return new Date(iso).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })
 }
 
 const STATUS_STYLE: Record<string, string> = {
@@ -176,13 +206,8 @@ function GroupModal({
   )
 }
 
-// ── Members panel ─────────────────────────────────────────────────────────────
-function MembersPanel({
-  group, onClose,
-}: {
-  group: ForumGroup
-  onClose: () => void
-}) {
+// ── Members content (tab body) ────────────────────────────────────────────────
+function MembersContent({ group }: { group: ForumGroup }) {
   const [members,     setMembers]     = useState<ForumMember[]>([])
   const [loading,     setLoading]     = useState(true)
   const [search,      setSearch]      = useState('')
@@ -256,126 +281,376 @@ function MembersPanel({
   const activeMembers = members.filter(m => (m.status ?? 'ACTIVE') !== 'REMOVED')
 
   return (
+    <>
+      {/* Add member search */}
+      <div className="px-5 py-4 border-b border-[#f3f4f6] flex-shrink-0">
+        <p className="text-[12px] font-semibold text-[#374151] font-display mb-2">
+          Add Member <span className="font-normal text-[#9ca3af]">· {activeMembers.length} current</span>
+        </p>
+        <div className="relative">
+          <Search01Icon size={14} color="#9ca3af" strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by name or email…"
+            className="w-full h-9 pl-8 pr-3 rounded-[6px] border border-[#e5e7eb] text-[13px] text-[#111827] font-body focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520]"
+          />
+        </div>
+        {(searchRes.length > 0 || searching) && (
+          <div className="mt-1 border border-[#e5e7eb] rounded-[8px] bg-white shadow-sm overflow-hidden">
+            {searching && (
+              <div className="flex items-center justify-center py-3">
+                <Loading01Icon size={16} className="animate-spin text-[#d51520]" />
+              </div>
+            )}
+            {searchRes.map(u => {
+              const alreadyMember = activeMembers.some(m => (m.user_id ?? m.userId ?? m.user?.id) === u.id)
+              return (
+                <div key={u.id} className="flex items-center justify-between px-3 py-2.5 hover:bg-[#f9fafb] border-b border-[#f3f4f6] last:border-b-0">
+                  <div>
+                    <p className="text-[13px] font-semibold text-[#111827] font-display">{userName(u)}</p>
+                    <p className="text-[11px] text-[#6b7280] font-body">{u.email}</p>
+                  </div>
+                  {alreadyMember ? (
+                    <span className="text-[11px] text-[#6b7280] font-body">Already member</span>
+                  ) : (
+                    <button
+                      onClick={() => addMember(u)}
+                      disabled={addingId === u.id}
+                      className="flex items-center gap-1 h-7 px-3 rounded-[6px] bg-[#d51520] text-white text-[12px] font-semibold font-display hover:bg-[#b91219] transition-colors disabled:opacity-50"
+                    >
+                      {addingId === u.id ? <Loading01Icon size={12} className="animate-spin" /> : <UserAdd01Icon size={12} strokeWidth={2} />}
+                      Add
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+        {error && (
+          <p className="mt-2 text-[12px] text-[#d51520] font-body flex items-center gap-1">
+            <AlertCircleIcon size={12} strokeWidth={1.5} /> {error}
+          </p>
+        )}
+      </div>
+
+      {/* Members list */}
+      <div className="flex-1 overflow-y-auto">
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loading01Icon size={20} className="animate-spin text-[#d51520]" />
+          </div>
+        ) : activeMembers.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+            <div className="w-12 h-12 rounded-[10px] bg-[#f3f4f6] flex items-center justify-center mb-3">
+              <UserGroup02Icon size={20} color="#9ca3af" strokeWidth={1.5} />
+            </div>
+            <p className="text-[14px] font-semibold text-[#111827] font-display mb-1">No members yet</p>
+            <p className="text-[13px] text-[#6b7280] font-body">Add members using the search above.</p>
+          </div>
+        ) : (
+          <div>
+            {activeMembers.map((m, i) => {
+              const uid   = m.user_id ?? m.userId ?? m.user?.id ?? i
+              const name  = memberName(m)
+              const email = memberEmail(m)
+              const role  = roleMap[uid] ?? m.role ?? 'MEMBER'
+              return (
+                <div key={uid} className="flex items-center gap-3 px-5 py-3 border-b border-[#f3f4f6] last:border-b-0 hover:bg-[#f9fafb]">
+                  <div className="w-8 h-8 rounded-full bg-[#d51520] flex items-center justify-center flex-shrink-0">
+                    <span className="text-[11px] font-bold text-white font-display">
+                      {name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-semibold text-[#111827] font-display truncate">{name}</p>
+                    <p className="text-[11px] text-[#6b7280] font-body truncate">{email}</p>
+                  </div>
+                  <select
+                    value={role}
+                    onChange={e => updateRole(m, e.target.value)}
+                    className="h-7 px-2 rounded-[6px] border border-[#e5e7eb] text-[12px] text-[#374151] font-body bg-white"
+                  >
+                    <option value="MEMBER">Member</option>
+                    <option value="MODERATOR">Moderator</option>
+                    <option value="ADMIN">Admin</option>
+                  </select>
+                  <button
+                    onClick={() => removeMember(m)}
+                    disabled={removingId === uid}
+                    className="text-[#9ca3af] hover:text-[#d51520] transition-colors flex-shrink-0"
+                  >
+                    {removingId === uid
+                      ? <Loading01Icon size={15} className="animate-spin" />
+                      : <Delete01Icon size={15} strokeWidth={1.5} />}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
+// ── Posts content (tab body) ──────────────────────────────────────────────────
+function PostsContent({ group }: { group: ForumGroup }) {
+  const [posts,            setPosts]           = useState<ForumPost[]>([])
+  const [loading,          setLoading]         = useState(true)
+  const [newContent,       setNewContent]      = useState('')
+  const [posting,          setPosting]         = useState(false)
+  const [expandedId,       setExpandedId]      = useState<number | null>(null)
+  const [commentMap,       setCommentMap]      = useState<Record<number, ForumComment[]>>({})
+  const [commentLoading,   setCommentLoading]  = useState<number | null>(null)
+  const [commentInput,     setCommentInput]    = useState<Record<number, string>>({})
+  const [deletingPostId,   setDeletingPostId]  = useState<number | null>(null)
+  const [deletingCommentId, setDeletingCommentId] = useState<number | null>(null)
+
+  const loadPosts = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await apiClient.get(`/forum/posts?scope=GROUP&groupId=${group.id}&size=50`)
+      const raw = unwrap<{ posts?: ForumPost[]; content?: ForumPost[] } | ForumPost[]>(res.data)
+      const list: ForumPost[] = Array.isArray(raw) ? raw : raw?.posts ?? (raw as { content?: ForumPost[] })?.content ?? []
+      setPosts([...list].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()))
+    } catch { setPosts([]) } finally { setLoading(false) }
+  }, [group.id])
+
+  useEffect(() => { loadPosts() }, [loadPosts])
+
+  async function loadComments(postId: number) {
+    if (commentMap[postId] !== undefined) return
+    setCommentLoading(postId)
+    try {
+      const res = await apiClient.get(`/forum/posts/${postId}/comments?size=100`)
+      const raw = unwrap<{ comments?: ForumComment[]; content?: ForumComment[] } | ForumComment[]>(res.data)
+      const list: ForumComment[] = Array.isArray(raw) ? raw : raw?.comments ?? (raw as { content?: ForumComment[] })?.content ?? []
+      setCommentMap(prev => ({ ...prev, [postId]: list }))
+    } catch { setCommentMap(prev => ({ ...prev, [postId]: [] })) } finally { setCommentLoading(null) }
+  }
+
+  function togglePost(postId: number) {
+    if (expandedId === postId) {
+      setExpandedId(null)
+    } else {
+      setExpandedId(postId)
+      loadComments(postId)
+    }
+  }
+
+  async function submitPost() {
+    if (!newContent.trim()) return
+    setPosting(true)
+    try {
+      await apiClient.post('/forum/posts', { scope: 'GROUP', forum_group_id: group.id, content: newContent.trim() })
+      setNewContent('')
+      await loadPosts()
+    } catch { /* ignore */ } finally { setPosting(false) }
+  }
+
+  async function deletePost(postId: number) {
+    setDeletingPostId(postId)
+    try {
+      await apiClient.delete(`/forum/posts/${postId}`)
+      setPosts(prev => prev.filter(p => p.id !== postId))
+      if (expandedId === postId) setExpandedId(null)
+    } catch { /* ignore */ } finally { setDeletingPostId(null) }
+  }
+
+  async function submitComment(postId: number) {
+    const content = (commentInput[postId] ?? '').trim()
+    if (!content) return
+    try {
+      await apiClient.post(`/forum/posts/${postId}/comments`, { content })
+      setCommentInput(prev => ({ ...prev, [postId]: '' }))
+      // Reload comments for this post
+      setCommentMap(prev => { const next = { ...prev }; delete next[postId]; return next })
+      await loadComments(postId)
+    } catch { /* ignore */ }
+  }
+
+  async function deleteComment(postId: number, commentId: number) {
+    setDeletingCommentId(commentId)
+    try {
+      await apiClient.delete(`/forum/comments/${commentId}`)
+      setCommentMap(prev => ({ ...prev, [postId]: (prev[postId] ?? []).filter(c => c.id !== commentId) }))
+    } catch { /* ignore */ } finally { setDeletingCommentId(null) }
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto flex flex-col min-h-0">
+      {/* Compose */}
+      <div className="px-5 py-4 border-b border-[#f3f4f6] flex-shrink-0">
+        <p className="text-[12px] font-semibold text-[#374151] font-display mb-2">New Post</p>
+        <textarea
+          value={newContent}
+          onChange={e => setNewContent(e.target.value)}
+          rows={3}
+          placeholder="Write a post to this group…"
+          className="w-full px-3 py-2 rounded-[6px] border border-[#e5e7eb] text-[13px] text-[#111827] font-body focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520] resize-none"
+        />
+        <div className="flex justify-end mt-2">
+          <button
+            onClick={submitPost}
+            disabled={posting || !newContent.trim()}
+            className="h-8 px-4 rounded-[8px] bg-[#d51520] text-white text-[12px] font-semibold font-display hover:bg-[#b91219] transition-colors disabled:opacity-50 flex items-center gap-1.5"
+          >
+            {posting && <Loading01Icon size={12} className="animate-spin" />}
+            Post
+          </button>
+        </div>
+      </div>
+
+      {/* Posts list */}
+      <div className="flex-1 overflow-y-auto">
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loading01Icon size={20} className="animate-spin text-[#d51520]" />
+          </div>
+        ) : posts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+            <div className="w-12 h-12 rounded-[10px] bg-[#f3f4f6] flex items-center justify-center mb-3">
+              <BubbleChatIcon size={20} color="#9ca3af" strokeWidth={1.5} />
+            </div>
+            <p className="text-[14px] font-semibold text-[#111827] font-display mb-1">No posts yet</p>
+            <p className="text-[13px] text-[#6b7280] font-body">Be the first to post in this group.</p>
+          </div>
+        ) : (
+          posts.map(post => (
+            <div key={post.id} className="border-b border-[#f3f4f6] last:border-b-0">
+              {/* Post row */}
+              <div
+                className="px-5 py-3.5 hover:bg-[#f9fafb] cursor-pointer"
+                onClick={() => togglePost(post.id)}
+              >
+                <div className="flex items-start gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[12px] font-semibold text-[#374151] font-display mb-0.5">
+                      {post.author_name ?? post.authorName ?? 'Unknown'}
+                      <span className="font-normal text-[#9ca3af] ml-1.5">{formatTimeAgo(post.created_at)}</span>
+                    </p>
+                    <p className="text-[13px] text-[#111827] font-body leading-relaxed line-clamp-2">{post.content}</p>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0 mt-0.5">
+                    <button
+                      onClick={e => { e.stopPropagation(); deletePost(post.id) }}
+                      disabled={deletingPostId === post.id}
+                      className="w-6 h-6 flex items-center justify-center rounded-[5px] text-[#9ca3af] hover:text-[#d51520] hover:bg-[#fef2f2] transition-colors"
+                    >
+                      {deletingPostId === post.id
+                        ? <Loading01Icon size={11} className="animate-spin" />
+                        : <Delete01Icon size={11} strokeWidth={1.5} />}
+                    </button>
+                    {expandedId === post.id
+                      ? <ArrowUp01Icon size={14} color="#9ca3af" strokeWidth={1.5} />
+                      : <ArrowDown01Icon size={14} color="#9ca3af" strokeWidth={1.5} />}
+                  </div>
+                </div>
+              </div>
+
+              {/* Comments */}
+              {expandedId === post.id && (
+                <div className="bg-[#fafafa] border-t border-[#f3f4f6] px-5 py-3">
+                  {commentLoading === post.id ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loading01Icon size={16} className="animate-spin text-[#d51520]" />
+                    </div>
+                  ) : (commentMap[post.id] ?? []).length === 0 ? (
+                    <p className="text-[12px] text-[#9ca3af] font-body py-2">No comments yet.</p>
+                  ) : (
+                    <div className="space-y-2 mb-3">
+                      {(commentMap[post.id] ?? []).map(c => (
+                        <div key={c.id} className="flex items-start gap-2 bg-white rounded-[8px] px-3 py-2 border border-[#f3f4f6]">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[11px] font-semibold text-[#374151] font-display">
+                              {c.author_name ?? c.authorName ?? 'Unknown'}
+                              <span className="font-normal text-[#9ca3af] ml-1">{formatTimeAgo(c.created_at)}</span>
+                            </p>
+                            <p className="text-[12px] text-[#4b5563] font-body mt-0.5">{c.content}</p>
+                          </div>
+                          <button
+                            onClick={() => deleteComment(post.id, c.id)}
+                            disabled={deletingCommentId === c.id}
+                            className="flex-shrink-0 text-[#9ca3af] hover:text-[#d51520] transition-colors mt-0.5"
+                          >
+                            {deletingCommentId === c.id
+                              ? <Loading01Icon size={11} className="animate-spin" />
+                              : <Delete01Icon size={11} strokeWidth={1.5} />}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* Add comment input */}
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={commentInput[post.id] ?? ''}
+                      onChange={e => setCommentInput(prev => ({ ...prev, [post.id]: e.target.value }))}
+                      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitComment(post.id) } }}
+                      placeholder="Add a comment…"
+                      className="flex-1 h-8 px-3 rounded-[6px] border border-[#e5e7eb] text-[12px] font-body focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520]"
+                    />
+                    <button
+                      onClick={() => submitComment(post.id)}
+                      disabled={!(commentInput[post.id] ?? '').trim()}
+                      className="h-8 px-3 rounded-[6px] bg-[#d51520] text-white text-[12px] font-semibold font-display hover:bg-[#b91219] transition-colors disabled:opacity-50"
+                    >
+                      Send
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Group detail panel (Members + Posts tabs) ─────────────────────────────────
+function GroupDetailPanel({
+  group, onClose,
+}: {
+  group: ForumGroup
+  onClose: () => void
+}) {
+  const [activeTab, setActiveTab] = useState<'members' | 'posts'>('members')
+
+  return (
     <div className="fixed inset-0 z-50 flex">
       <div className="flex-1 bg-black/40" onClick={onClose} />
-      <div className="w-[480px] bg-white h-full flex flex-col shadow-xl">
+      <div className="w-[520px] bg-white h-full flex flex-col shadow-xl">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#f3f4f6] flex-shrink-0">
-          <div>
-            <h2 className="text-[15px] font-bold text-[#111827] font-display">{group.name}</h2>
-            <p className="text-[12px] text-[#6b7280] font-body mt-0.5">{activeMembers.length} members</p>
-          </div>
+          <h2 className="text-[15px] font-bold text-[#111827] font-display">{group.name}</h2>
           <button onClick={onClose} className="text-[#4b5563] hover:text-[#111827] transition-colors">
             <Cancel01Icon size={18} strokeWidth={1.5} />
           </button>
         </div>
 
-        {/* Add member search */}
-        <div className="px-5 py-4 border-b border-[#f3f4f6] flex-shrink-0">
-          <p className="text-[12px] font-semibold text-[#374151] font-display mb-2">Add Member</p>
-          <div className="relative">
-            <Search01Icon size={14} color="#9ca3af" strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search by name or email…"
-              className="w-full h-9 pl-8 pr-3 rounded-[6px] border border-[#e5e7eb] text-[13px] text-[#111827] font-body focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520]"
-            />
-          </div>
-          {(searchRes.length > 0 || searching) && (
-            <div className="mt-1 border border-[#e5e7eb] rounded-[8px] bg-white shadow-sm overflow-hidden">
-              {searching && (
-                <div className="flex items-center justify-center py-3">
-                  <Loading01Icon size={16} className="animate-spin text-[#d51520]" />
-                </div>
-              )}
-              {searchRes.map(u => {
-                const alreadyMember = activeMembers.some(m => (m.user_id ?? m.userId ?? m.user?.id) === u.id)
-                return (
-                  <div key={u.id} className="flex items-center justify-between px-3 py-2.5 hover:bg-[#f9fafb] border-b border-[#f3f4f6] last:border-b-0">
-                    <div>
-                      <p className="text-[13px] font-semibold text-[#111827] font-display">{userName(u)}</p>
-                      <p className="text-[11px] text-[#6b7280] font-body">{u.email}</p>
-                    </div>
-                    {alreadyMember ? (
-                      <span className="text-[11px] text-[#6b7280] font-body">Already member</span>
-                    ) : (
-                      <button
-                        onClick={() => addMember(u)}
-                        disabled={addingId === u.id}
-                        className="flex items-center gap-1 h-7 px-3 rounded-[6px] bg-[#d51520] text-white text-[12px] font-semibold font-display hover:bg-[#b91219] transition-colors disabled:opacity-50"
-                      >
-                        {addingId === u.id ? <Loading01Icon size={12} className="animate-spin" /> : <UserAdd01Icon size={12} strokeWidth={2} />}
-                        Add
-                      </button>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-          {error && (
-            <p className="mt-2 text-[12px] text-[#d51520] font-body flex items-center gap-1">
-              <AlertCircleIcon size={12} strokeWidth={1.5} /> {error}
-            </p>
-          )}
+        {/* Tab bar */}
+        <div className="flex border-b border-[#f3f4f6] flex-shrink-0">
+          {(['members', 'posts'] as const).map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`flex-1 py-3 text-[13px] font-semibold font-display transition-colors ${
+                activeTab === tab
+                  ? 'text-[#d51520] border-b-2 border-[#d51520]'
+                  : 'text-[#6b7280] hover:text-[#374151]'
+              }`}
+            >
+              {tab === 'members' ? 'Members' : 'Posts'}
+            </button>
+          ))}
         </div>
 
-        {/* Members list */}
-        <div className="flex-1 overflow-y-auto">
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loading01Icon size={20} className="animate-spin text-[#d51520]" />
-            </div>
-          ) : activeMembers.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-              <div className="w-12 h-12 rounded-[10px] bg-[#f3f4f6] flex items-center justify-center mb-3">
-                <UserGroup02Icon size={20} color="#9ca3af" strokeWidth={1.5} />
-              </div>
-              <p className="text-[14px] font-semibold text-[#111827] font-display mb-1">No members yet</p>
-              <p className="text-[13px] text-[#6b7280] font-body">Add members using the search above.</p>
-            </div>
-          ) : (
-            <div>
-              {activeMembers.map((m, i) => {
-                const uid  = m.user_id ?? m.userId ?? m.user?.id ?? i
-                const name = memberName(m)
-                const email = memberEmail(m)
-                const role  = roleMap[uid] ?? m.role ?? 'MEMBER'
-                return (
-                  <div key={uid} className="flex items-center gap-3 px-5 py-3 border-b border-[#f3f4f6] last:border-b-0 hover:bg-[#f9fafb]">
-                    <div className="w-8 h-8 rounded-full bg-[#d51520] flex items-center justify-center flex-shrink-0">
-                      <span className="text-[11px] font-bold text-white font-display">
-                        {name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase()}
-                      </span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-semibold text-[#111827] font-display truncate">{name}</p>
-                      <p className="text-[11px] text-[#6b7280] font-body truncate">{email}</p>
-                    </div>
-                    <select
-                      value={role}
-                      onChange={e => updateRole(m, e.target.value)}
-                      className="h-7 px-2 rounded-[6px] border border-[#e5e7eb] text-[12px] text-[#374151] font-body bg-white"
-                    >
-                      <option value="MEMBER">Member</option>
-                      <option value="MODERATOR">Moderator</option>
-                      <option value="ADMIN">Admin</option>
-                    </select>
-                    <button
-                      onClick={() => removeMember(m)}
-                      disabled={removingId === uid}
-                      className="text-[#9ca3af] hover:text-[#d51520] transition-colors flex-shrink-0"
-                    >
-                      {removingId === uid
-                        ? <Loading01Icon size={15} className="animate-spin" />
-                        : <Delete01Icon size={15} strokeWidth={1.5} />}
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          )}
+        {/* Tab content */}
+        <div className="flex-1 flex flex-col min-h-0">
+          {activeTab === 'members' ? <MembersContent group={group} /> : <PostsContent group={group} />}
         </div>
       </div>
     </div>
@@ -384,15 +659,15 @@ function MembersPanel({
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function ForumGroupsPage() {
-  const [groups,       setGroups]      = useState<ForumGroup[]>([])
-  const [loading,      setLoading]     = useState(true)
-  const [search,       setSearch]      = useState('')
-  const [showModal,    setShowModal]   = useState(false)
-  const [editTarget,   setEditTarget]  = useState<ForumGroup | null>(null)
-  const [panelGroup,   setPanelGroup]  = useState<ForumGroup | null>(null)
-  const [archivingId,  setArchivingId] = useState<number | null>(null)
+  const [groups,        setGroups]      = useState<ForumGroup[]>([])
+  const [loading,       setLoading]     = useState(true)
+  const [search,        setSearch]      = useState('')
+  const [showModal,     setShowModal]   = useState(false)
+  const [editTarget,    setEditTarget]  = useState<ForumGroup | null>(null)
+  const [panelGroup,    setPanelGroup]  = useState<ForumGroup | null>(null)
+  const [archivingId,   setArchivingId] = useState<number | null>(null)
   const [archiveTarget, setArchiveTarget] = useState<ForumGroup | null>(null)
-  const [error,        setError]       = useState('')
+  const [error,         setError]       = useState('')
 
   const loadGroups = useCallback(async () => {
     setLoading(true)
@@ -459,7 +734,6 @@ export default function ForumGroupsPage() {
 
       {/* Table */}
       <div className="bg-white rounded-[10px] border border-[#eaecf0] overflow-hidden">
-        {/* Table header */}
         <div className="grid grid-cols-[1fr_160px_120px_100px_100px_80px] items-center px-4 py-2.5 bg-[#f9fafb] border-b border-[#eaecf0]">
           {['Name', 'Slug', 'Visibility', 'Status', 'Members', ''].map(h => (
             <span key={h} className="text-[11px] font-bold uppercase tracking-wider text-[#6b7280] font-display">{h}</span>
@@ -488,30 +762,24 @@ export default function ForumGroupsPage() {
               key={g.id}
               className="grid grid-cols-[1fr_160px_120px_100px_100px_80px] items-center px-4 py-3.5 border-b border-[#f3f4f6] last:border-b-0 hover:bg-[#f9fafb] group"
             >
-              {/* Name */}
               <div className="min-w-0">
                 <p className="text-[13px] font-semibold text-[#111827] font-display truncate">{g.name}</p>
                 {g.description && (
                   <p className="text-[11px] text-[#6b7280] font-body truncate mt-0.5">{g.description}</p>
                 )}
               </div>
-              {/* Slug */}
               <p className="text-[12px] text-[#6b7280] font-body truncate">{g.slug ?? '—'}</p>
-              {/* Visibility */}
               <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold font-display w-fit ${VISIBILITY_STYLE[g.visibility ?? ''] ?? 'bg-[#f3f4f6] text-[#374151]'}`}>
                 {g.visibility ?? '—'}
               </span>
-              {/* Status */}
               <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold font-display w-fit ${STATUS_STYLE[g.status ?? ''] ?? 'bg-[#f3f4f6] text-[#374151]'}`}>
                 {g.status ?? '—'}
               </span>
-              {/* Members */}
               <p className="text-[13px] text-[#374151] font-body">{g.member_count ?? g.memberCount ?? '—'}</p>
-              {/* Actions */}
               <div className="flex items-center gap-1 justify-end">
                 <button
                   onClick={() => setPanelGroup(g)}
-                  title="Manage members"
+                  title="View members & posts"
                   className="w-7 h-7 flex items-center justify-center rounded-[6px] text-[#6b7280] hover:text-[#111827] hover:bg-[#f3f4f6] transition-colors"
                 >
                   <ArrowRight01Icon size={14} strokeWidth={1.5} />
@@ -548,13 +816,13 @@ export default function ForumGroupsPage() {
         />
       )}
       {panelGroup && (
-        <MembersPanel
+        <GroupDetailPanel
           group={panelGroup}
           onClose={() => setPanelGroup(null)}
         />
       )}
 
-      {/* Archive confirmation modal */}
+      {/* Archive confirmation */}
       {archiveTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-[12px] shadow-xl w-[440px] max-w-[95vw]">
@@ -591,4 +859,3 @@ export default function ForumGroupsPage() {
     </div>
   )
 }
-
