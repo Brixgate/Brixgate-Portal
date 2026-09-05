@@ -85,6 +85,20 @@ function formatTime(iso: string): string {
   })
 }
 
+function googleCalUrl(ev: CalEvent): string {
+  const fmtForGcal = (iso: string) =>
+    iso.replace(/[-:]/g, '').replace(/\.\d{3}/, '').replace('Z', 'Z').slice(0, 15) + 'Z'
+  const details = [ev.description, ev.cohortTitle, ev.meetingLink ? `Join: ${ev.meetingLink}` : '']
+    .filter(Boolean).join('\n')
+  return [
+    'https://calendar.google.com/calendar/render?action=TEMPLATE',
+    `&text=${encodeURIComponent(ev.title)}`,
+    `&dates=${fmtForGcal(ev.startISO)}/${fmtForGcal(ev.endISO || ev.startISO)}`,
+    `&details=${encodeURIComponent(details)}`,
+    ev.meetingLink ? `&location=${encodeURIComponent(ev.meetingLink)}` : '',
+  ].join('')
+}
+
 // ── Day detail panel ──────────────────────────────────────────────────────────
 function DayPanel({
   day, month, year, events, onClose,
@@ -146,19 +160,32 @@ function DayPanel({
                 </p>
               )}
 
-              {ev.meetingLink ? (
-                <a
-                  href={ev.meetingLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-0.5 inline-flex items-center justify-center gap-1.5 text-[11px] font-semibold font-display text-white bg-[#d51520] hover:bg-[#b81119] px-3 py-1.5 rounded-[6px] transition-colors"
-                >
-                  <LinkSquare01Icon size={11} color="white" strokeWidth={2} />
-                  Join Session
-                </a>
-              ) : (
-                <p className="text-[10px] text-[#9ca3af] font-body">Link not available yet</p>
-              )}
+              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                {ev.meetingLink ? (
+                  <a
+                    href={ev.meetingLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-1.5 text-[11px] font-semibold font-display text-white bg-[#d51520] hover:bg-[#b81119] px-3 py-1.5 rounded-[6px] transition-colors"
+                  >
+                    <LinkSquare01Icon size={11} color="white" strokeWidth={2} />
+                    Join Session
+                  </a>
+                ) : (
+                  <p className="text-[10px] text-[#9ca3af] font-body">Link not available yet</p>
+                )}
+                {ev.startISO && (
+                  <a
+                    href={googleCalUrl(ev)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-1 text-[11px] font-medium font-body text-[#374151] bg-white border border-[#e5e7eb] hover:bg-[#f3f4f6] px-2.5 py-1.5 rounded-[6px] transition-colors"
+                  >
+                    <Calendar01Icon size={10} color="#374151" strokeWidth={2} />
+                    Add to Calendar
+                  </a>
+                )}
+              </div>
             </div>
           ))
         )}

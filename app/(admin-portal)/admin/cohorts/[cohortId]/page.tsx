@@ -2735,12 +2735,14 @@ function ScheduleModal({ cohortId, schedule, onClose, onSaved }: {
     if (!startDt)        { setError('Start date/time is required.'); return }
     if (!endDt)          { setError('End date/time is required.'); return }
     setSaving(true); setError('')
+    // datetime-local values are sliced UTC ISO strings from the API (no tz suffix).
+    // Appending 'Z' sends them back as UTC directly, avoiding browser-local-time conversion.
     const payload: Record<string, unknown> = {
       title:              title.trim(),
       description:        desc.trim() || undefined,
       session_type:       sessType,
-      start_datetime:     new Date(startDt).toISOString(),
-      end_datetime:       new Date(endDt).toISOString(),
+      start_datetime:     startDt.length === 16 ? startDt + ':00.000Z' : new Date(startDt).toISOString(),
+      end_datetime:       endDt.length === 16   ? endDt   + ':00.000Z' : new Date(endDt).toISOString(),
       timezone,
       meeting_link:       meetLink.trim() || undefined,
       meeting_provider:   meetProv.trim() || undefined,
@@ -2943,12 +2945,13 @@ function ScheduleModal({ cohortId, schedule, onClose, onSaved }: {
 }
 
 function ScheduleTab({ cohortId }: { cohortId: string }) {
-  const [schedules, setSchedules]   = useState<CohortSchedule[]>([])
-  const [loading,   setLoading]     = useState(true)
-  const [showModal, setShowModal]   = useState(false)
-  const [editing,   setEditing]     = useState<CohortSchedule | null>(null)
-  const [deleteId,  setDeleteId]    = useState<number | null>(null)
-  const [deleting,  setDeleting]    = useState(false)
+  const [schedules,       setSchedules]       = useState<CohortSchedule[]>([])
+  const [loading,         setLoading]         = useState(true)
+  const [showModal,       setShowModal]       = useState(false)
+  const [editing,         setEditing]         = useState<CohortSchedule | null>(null)
+  const [deleteId,        setDeleteId]        = useState<number | null>(null)
+  const [deleting,        setDeleting]        = useState(false)
+  const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null)
 
   function load() {
     setLoading(true)
@@ -2976,6 +2979,14 @@ function ScheduleTab({ cohortId }: { cohortId: string }) {
       setDeleteId(null)
       load()
     } catch { /* ignore */ } finally { setDeleting(false) }
+  }
+
+  async function updateStatus(id: number, newStatus: string) {
+    setUpdatingStatusId(id)
+    try {
+      await apiClient.patch(`/admin/cohort-schedules/${id}`, { status: newStatus })
+      setSchedules(prev => prev.map(s => s.id === id ? { ...s, status: newStatus } : s))
+    } catch { /* ignore */ } finally { setUpdatingStatusId(null) }
   }
 
   return (
@@ -3050,9 +3061,22 @@ function ScheduleTab({ cohortId }: { cohortId: string }) {
                   <td className="px-4 py-3.5 text-[12px] text-[#374151] font-body whitespace-nowrap">{formatScheduleDateTime(s.start_datetime, s.timezone)}</td>
                   <td className="px-4 py-3.5 text-[12px] text-[#374151] font-body whitespace-nowrap">{formatScheduleDateTime(s.end_datetime, s.timezone)}</td>
                   <td className="px-4 py-3.5">
-                    <span className={`text-[11px] font-semibold font-display px-2 py-0.5 rounded-full ${schedStatusStyle(s.status ?? '')}`}>
-                      {s.status ?? '—'}
-                    </span>
+                    <div className="relative inline-flex items-center">
+                      <select
+                        value={s.status ?? 'SCHEDULED'}
+                        onChange={e => updateStatus(s.id, e.target.value)}
+                        disabled={updatingStatusId === s.id}
+                        className={`appearance-none text-[11px] font-semibold font-display px-2 py-0.5 pr-5 rounded-full border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#d51520]/30 disabled:opacity-60 ${schedStatusStyle(s.status ?? '')}`}
+                      >
+                        {SCHED_STATUSES.map(st => (
+                          <option key={st} value={st}>{st}</option>
+                        ))}
+                      </select>
+                      {updatingStatusId === s.id
+                        ? <Loading01Icon size={10} className="animate-spin absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        : <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[8px] pointer-events-none opacity-60">▾</span>
+                      }
+                    </div>
                   </td>
                   <td className="px-4 py-3.5">
                     {s.meeting_link
