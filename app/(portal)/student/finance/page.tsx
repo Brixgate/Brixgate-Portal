@@ -17,7 +17,7 @@ import {
   Calendar03Icon,
   Clock01Icon,
 } from 'hugeicons-react'
-import { apiClient, unwrap, getApiError } from '@/lib/api-client'
+import { apiClient, getApiError } from '@/lib/api-client'
 
 // ── API shapes ────────────────────────────────────────────────────────────────
 interface ApiInstallment {
