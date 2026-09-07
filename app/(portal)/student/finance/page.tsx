@@ -161,10 +161,6 @@ function fmtDate(d?: string | null) {
   return new Date(d).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-function fmtDateFull(d?: string | null) {
-  if (!d) return '—'
-  return new Date(d).toLocaleDateString('en-NG', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
-}
 
 function normaliseInstallments(raw: ApiInstallment[]): Installment[] {
   return raw.map((r, i) => ({
