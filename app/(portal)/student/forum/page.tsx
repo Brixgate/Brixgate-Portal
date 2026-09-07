@@ -200,12 +200,13 @@ function WritePostModal({
 
 // ── Post detail panel ─────────────────────────────────────────────────────────
 function PostPanel({
-  post, currentUserId, onClose, onDeleted,
+  post, currentUserId, onClose, onDeleted, onUpdated,
 }: {
   post: ForumPost
   currentUserId: number | null
   onClose: () => void
   onDeleted: () => void
+  onUpdated: () => void
 }) {
   const [comments,      setComments]      = useState<ForumComment[]>([])
   const [commentsLoading, setCommentsLoading] = useState(true)
@@ -214,6 +215,12 @@ function PostPanel({
   const [deletingPost,  setDeletingPost]  = useState(false)
   const [deletingCid,   setDeletingCid]   = useState<number | null>(null)
   const [error,         setError]         = useState('')
+  const [isEditing,     setIsEditing]     = useState(false)
+  const [editTitle,     setEditTitle]     = useState(post.title)
+  const [editBody,      setEditBody]      = useState(post.body)
+  const [editSaving,    setEditSaving]    = useState(false)
+  const [localTitle,    setLocalTitle]    = useState(post.title)
+  const [localBody,     setLocalBody]     = useState(post.body)
   const commentRef = useRef<HTMLTextAreaElement>(null)
 
   const loadComments = useCallback(async () => {
@@ -260,6 +267,18 @@ function PostPanel({
     } catch { /* ignore */ } finally { setDeletingPost(false) }
   }
 
+  async function saveEdit() {
+    if (!editTitle.trim() || !editBody.trim()) return
+    setEditSaving(true)
+    try {
+      await apiClient.patch(`/forum/posts/${post.id}`, { title: editTitle.trim(), body: editBody.trim() })
+      setLocalTitle(editTitle.trim())
+      setLocalBody(editBody.trim())
+      setIsEditing(false)
+      onUpdated()
+    } catch { /* ignore */ } finally { setEditSaving(false) }
+  }
+
   const isMyPost = currentUserId !== null && post.author_user_id === currentUserId
 
   return (
@@ -273,14 +292,44 @@ function PostPanel({
             Back
           </button>
           {isMyPost && (
-            <button
-              onClick={deletePost}
-              disabled={deletingPost}
-              className="flex items-center gap-1 text-[12px] text-[#9ca3af] hover:text-[#d51520] font-display transition-colors"
-            >
-              {deletingPost ? <Loading01Icon size={13} className="animate-spin" /> : <Delete01Icon size={13} strokeWidth={1.5} />}
-              Delete
-            </button>
+            <div className="flex items-center gap-3">
+              {isEditing ? (
+                <>
+                  <button
+                    onClick={() => { setIsEditing(false); setEditTitle(localTitle); setEditBody(localBody) }}
+                    className="text-[12px] text-[#9ca3af] hover:text-[#374151] font-display transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveEdit}
+                    disabled={editSaving || !editTitle.trim() || !editBody.trim()}
+                    className="flex items-center gap-1 text-[12px] text-[#d51520] font-semibold font-display transition-colors disabled:opacity-50"
+                  >
+                    {editSaving && <Loading01Icon size={12} className="animate-spin" />}
+                    Save
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => { setEditTitle(localTitle); setEditBody(localBody); setIsEditing(true) }}
+                    className="flex items-center gap-1 text-[12px] text-[#9ca3af] hover:text-[#374151] font-display transition-colors"
+                  >
+                    <PencilEdit01Icon size={13} strokeWidth={1.5} />
+                    Edit
+                  </button>
+                  <button
+                    onClick={deletePost}
+                    disabled={deletingPost}
+                    className="flex items-center gap-1 text-[12px] text-[#9ca3af] hover:text-[#d51520] font-display transition-colors"
+                  >
+                    {deletingPost ? <Loading01Icon size={13} className="animate-spin" /> : <Delete01Icon size={13} strokeWidth={1.5} />}
+                    Delete
+                  </button>
+                </>
+              )}
+            </div>
           )}
         </div>
 
@@ -310,8 +359,28 @@ function PostPanel({
               </div>
             </div>
             {/* Title + body */}
-            <h2 className="text-[17px] font-bold text-[#111827] font-display mb-2 leading-snug">{post.title}</h2>
-            <p className="text-[14px] text-[#374151] font-body leading-relaxed whitespace-pre-wrap">{post.body}</p>
+            {isEditing ? (
+              <div className="flex flex-col gap-3">
+                <input
+                  value={editTitle}
+                  onChange={e => setEditTitle(e.target.value)}
+                  className="w-full h-10 px-3 rounded-[6px] border border-[#e5e7eb] text-[15px] font-bold text-[#111827] font-display focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520]"
+                  placeholder="Title"
+                />
+                <textarea
+                  value={editBody}
+                  onChange={e => setEditBody(e.target.value)}
+                  rows={8}
+                  className="w-full px-3 py-2.5 rounded-[6px] border border-[#e5e7eb] text-[14px] text-[#374151] font-body focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520] resize-none"
+                  placeholder="Body"
+                />
+              </div>
+            ) : (
+              <>
+                <h2 className="text-[17px] font-bold text-[#111827] font-display mb-2 leading-snug">{localTitle}</h2>
+                <p className="text-[14px] text-[#374151] font-body leading-relaxed whitespace-pre-wrap">{localBody}</p>
+              </>
+            )}
           </div>
 
           {/* Comments */}
@@ -635,6 +704,7 @@ export default function ForumPage() {
           currentUserId={currentUserId}
           onClose={() => setActivePost(null)}
           onDeleted={loadPosts}
+          onUpdated={loadPosts}
         />
       )}
     </div>

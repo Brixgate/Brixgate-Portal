@@ -32,6 +32,8 @@ const ROUTE_MAP: { pattern: RegExp; title: string; crumbs?: string[] }[] = [
   { pattern: /^\/admin\/forums$/,                         title: 'Forum Groups'                               },
   { pattern: /^\/admin\/polls$/,                          title: 'Polls'                                      },
   { pattern: /^\/admin\/announcements$/,                  title: 'Announcements'                              },
+  { pattern: /^\/admin\/instructor-payouts$/,             title: 'Instructor Payouts'                         },
+  { pattern: /^\/admin\/instructor-pay-settings$/,        title: 'Pay Settings'                               },
   { pattern: /^\/admin\/?$/,                              title: 'Dashboard'                                  },
 ]
 
