@@ -193,8 +193,11 @@ function normalisePayments(raw: ApiPayment[]): PlanPayment[] {
   }))
 }
 
-function normalisePlan(r: ApiPaymentPlan): PaymentPlan {
-  const prog   = r.program_title ?? r.programTitle ?? 'Programme'
+function normalisePlan(r: ApiPaymentPlan, programTitles?: Map<number, string>): PaymentPlan {
+  const programId = r.program_id ?? r.programId ?? 0
+  const prog   = r.program_title ?? r.programTitle
+    ?? programTitles?.get(programId)
+    ?? (programId ? `Programme #${programId}` : 'Programme')
   const cohort = r.cohort_title  ?? r.cohortTitle  ?? ''
   const installments = normaliseInstallments(r.installments ?? r.payment_schedule ?? [])
   const payments     = normalisePayments(r.payments ?? [])
@@ -851,15 +854,29 @@ export default function FinancePage() {
   const loadData = useCallback(async () => {
     setError(null)
 
-    const [walletRes, plansRes] = await Promise.allSettled([
+    const [walletRes, plansRes, programsRes] = await Promise.allSettled([
       apiClient.get('/me/wallet'),
       apiClient.get('/me/enrollment-payment-plans'),
+      apiClient.get('/users/me/programs'),
     ])
+
+    // ── Build programId → title map from /users/me/programs ────────────────────
+    const programTitles = new Map<number, string>()
+    if (programsRes.status === 'fulfilled') {
+      const body  = dig(programsRes.value.data)
+      const inner = dig(body.data ?? body)
+      const progs = Array.isArray(inner.programs) ? inner.programs as Record<string, unknown>[]
+        : Array.isArray(inner) ? inner as Record<string, unknown>[] : []
+      for (const p of progs) {
+        const id    = Number(p.id ?? 0)
+        const title = String(p.title ?? '')
+        if (id && title) programTitles.set(id, title)
+      }
+    }
 
     // ── Wallet ──────────────────────────────────────────────────────────────────
     setLoadingWallet(false)
     if (walletRes.status === 'fulfilled') {
-      // res.data = { success, data: { balance, ... } }  OR  { balance, ... }
       const body  = dig(walletRes.value.data)
       const inner = dig(body.data ?? body)
       setWallet(normaliseWallet(inner as ApiWallet))
@@ -868,7 +885,6 @@ export default function FinancePage() {
     // ── Plans list ──────────────────────────────────────────────────────────────
     setLoadingPlans(false)
     if (plansRes.status === 'fulfilled') {
-      // res.data = { success, data: { enrollment_payment_plans: [...] } }
       const body  = dig(plansRes.value.data)
       const inner = dig(body.data ?? body)
 
@@ -893,16 +909,15 @@ export default function FinancePage() {
 
       const normalised = details.map((d, i) => {
         if (d.status === 'fulfilled') {
-          // res.data = { success, data: { enrollment_payment_plan: { ...installments } } }
           const body  = dig(d.value.data)
           const inner = dig(body.data ?? body)
           const plan  = (inner.enrollment_payment_plan ?? inner) as ApiPaymentPlan
           if (!plan.installments && !plan.payment_schedule) {
-            return normalisePlan({ ...list[i], ...plan })
+            return normalisePlan({ ...list[i], ...plan }, programTitles)
           }
-          return normalisePlan(plan)
+          return normalisePlan(plan, programTitles)
         }
-        return normalisePlan(list[i])
+        return normalisePlan(list[i], programTitles)
       })
 
       setPlans(normalised)
