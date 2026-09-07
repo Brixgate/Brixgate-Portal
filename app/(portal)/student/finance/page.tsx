@@ -14,6 +14,8 @@ import {
   LockIcon,
   RefreshIcon,
   ArrowDown01Icon,
+  Calendar03Icon,
+  Clock01Icon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 
@@ -21,10 +23,27 @@ import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 interface ApiInstallment {
   id: number
   installment_number?: number; installmentNumber?: number
-  amount: number
+  amount_due?: number; amountDue?: number; amount?: number
+  amount_paid?: number; amountPaid?: number
+  outstanding_amount?: number; outstandingAmount?: number
   due_date?: string; dueDate?: string
-  status: 'PAID' | 'UPCOMING' | 'OVERDUE'
+  grace_due_date?: string; graceDueDate?: string
+  status: 'PAID' | 'PENDING' | 'UPCOMING' | 'OVERDUE'
   paid_at?: string; paidAt?: string
+}
+
+interface ApiPayment {
+  id: number
+  amount_paid?: number; amountPaid?: number
+  payable_amount?: number; payableAmount?: number
+  payable_currency?: string; payableCurrency?: string
+  currency_paid?: string
+  payment_method?: string; paymentMethod?: string
+  payment_status?: string; paymentStatus?: string
+  payment_reference?: string; brixgate_reference?: string; paymentReference?: string
+  installment_role?: string; installmentRole?: string
+  payment_date?: string; paymentDate?: string
+  created_at?: string; createdAt?: string
 }
 
 interface ApiPaymentPlan {
@@ -32,14 +51,26 @@ interface ApiPaymentPlan {
   cohort_id?: number; cohortId?: number
   cohort_title?: string; cohortTitle?: string
   program_title?: string; programTitle?: string
+  program_id?: number; programId?: number
   status: 'ACTIVE' | 'SUSPENDED' | 'DEFAULTED' | 'COMPLETED' | string
+  access_status?: string; accessStatus?: string
   total_amount?: number; totalAmount?: number
   amount_paid?: number; amountPaid?: number
+  outstanding_amount?: number; outstandingAmount?: number
   amount_outstanding?: number; amountOutstanding?: number
   number_of_installments?: number; numberOfInstallments?: number
+  payments_completed?: number; paymentsCompleted?: number
+  payment_mode?: string; paymentMode?: string
+  installment_calculation_type?: string; installmentCalculationType?: string
+  next_due_date?: string; nextDueDate?: string
+  final_due_date?: string; finalDueDate?: string
+  start_date?: string; startDate?: string
   installments?: ApiInstallment[]
   payment_schedule?: ApiInstallment[]
+  payments?: ApiPayment[]
   pricing_plan_id?: number; pricingPlanId?: number
+  pricing_breakdown_id?: number
+  payment_option_id?: number; paymentOptionId?: number
   currency?: string
 }
 
@@ -64,22 +95,45 @@ interface ApiWalletTx {
 interface Installment {
   id: number
   number: number
-  amount: number
+  amountDue: number
+  amountPaid: number
+  outstanding: number
   dueDate: string
-  status: 'PAID' | 'UPCOMING' | 'OVERDUE'
+  graceDueDate: string | null
+  status: 'PAID' | 'PENDING' | 'UPCOMING' | 'OVERDUE'
   paidAt: string | null
+}
+
+interface PlanPayment {
+  id: number
+  amount: number
+  currency: string
+  status: string
+  reference: string
+  role: string
+  date: string
 }
 
 interface PaymentPlan {
   id: number
   cohortId: number
-  label: string          // "Programme — Cohort"
+  cohortEnrollmentId: number | null
+  label: string
   status: string
+  accessStatus: string
   totalAmount: number
   amountPaid: number
   amountOutstanding: number
+  numberOfInstallments: number
+  paymentsCompleted: number
+  paymentMode: string
+  calculationType: string
+  nextDueDate: string | null
+  finalDueDate: string | null
   installments: Installment[]
+  payments: PlanPayment[]
   pricingPlanId: number | null
+  paymentOptionId: number | null
   currency: string
 }
 
@@ -107,14 +161,34 @@ function fmtDate(d?: string | null) {
   return new Date(d).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+function fmtDateFull(d?: string | null) {
+  if (!d) return '—'
+  return new Date(d).toLocaleDateString('en-NG', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+}
+
 function normaliseInstallments(raw: ApiInstallment[]): Installment[] {
   return raw.map((r, i) => ({
-    id:     r.id,
-    number: r.installment_number ?? r.installmentNumber ?? (i + 1),
-    amount: r.amount,
-    dueDate: fmtDate(r.due_date ?? r.dueDate),
-    status: r.status,
-    paidAt: r.paid_at ?? r.paidAt ?? null,
+    id:           r.id,
+    number:       r.installment_number ?? r.installmentNumber ?? (i + 1),
+    amountDue:    r.amount_due ?? r.amountDue ?? r.amount ?? 0,
+    amountPaid:   r.amount_paid ?? r.amountPaid ?? 0,
+    outstanding:  r.outstanding_amount ?? r.outstandingAmount ?? 0,
+    dueDate:      fmtDate(r.due_date ?? r.dueDate),
+    graceDueDate: r.grace_due_date ?? r.graceDueDate ?? null,
+    status:       r.status,
+    paidAt:       r.paid_at ?? r.paidAt ?? null,
+  }))
+}
+
+function normalisePayments(raw: ApiPayment[]): PlanPayment[] {
+  return raw.map(r => ({
+    id:        r.id,
+    amount:    r.amount_paid ?? r.amountPaid ?? r.payable_amount ?? r.payableAmount ?? 0,
+    currency:  r.payable_currency ?? r.payableCurrency ?? r.currency_paid ?? 'NGN',
+    status:    (r.payment_status ?? r.paymentStatus ?? '').toUpperCase(),
+    reference: r.brixgate_reference ?? r.payment_reference ?? r.paymentReference ?? '',
+    role:      r.installment_role ?? r.installmentRole ?? '',
+    date:      fmtDate(r.payment_date ?? r.paymentDate ?? r.created_at ?? r.createdAt),
   }))
 }
 
@@ -122,17 +196,28 @@ function normalisePlan(r: ApiPaymentPlan): PaymentPlan {
   const prog   = r.program_title ?? r.programTitle ?? 'Programme'
   const cohort = r.cohort_title  ?? r.cohortTitle  ?? ''
   const installments = normaliseInstallments(r.installments ?? r.payment_schedule ?? [])
+  const payments     = normalisePayments(r.payments ?? [])
   return {
-    id:                r.id,
-    cohortId:          r.cohort_id ?? r.cohortId ?? 0,
-    label:             cohort ? `${prog} — ${cohort}` : prog,
-    status:            r.status,
-    totalAmount:       r.total_amount       ?? r.totalAmount       ?? 0,
-    amountPaid:        r.amount_paid        ?? r.amountPaid        ?? 0,
-    amountOutstanding: r.amount_outstanding ?? r.amountOutstanding ?? 0,
+    id:                   r.id,
+    cohortId:             r.cohort_id ?? r.cohortId ?? 0,
+    cohortEnrollmentId:   null,
+    label:                cohort ? `${prog} — ${cohort}` : prog,
+    status:               r.status,
+    accessStatus:         r.access_status ?? r.accessStatus ?? r.status,
+    totalAmount:          r.total_amount       ?? r.totalAmount       ?? 0,
+    amountPaid:           r.amount_paid        ?? r.amountPaid        ?? 0,
+    amountOutstanding:    r.outstanding_amount ?? r.outstandingAmount ?? r.amount_outstanding ?? r.amountOutstanding ?? 0,
+    numberOfInstallments: r.number_of_installments ?? r.numberOfInstallments ?? installments.length,
+    paymentsCompleted:    r.payments_completed  ?? r.paymentsCompleted  ?? installments.filter(i => i.status === 'PAID').length,
+    paymentMode:          r.payment_mode ?? r.paymentMode ?? '',
+    calculationType:      r.installment_calculation_type ?? r.installmentCalculationType ?? '',
+    nextDueDate:          r.next_due_date ?? r.nextDueDate ?? null,
+    finalDueDate:         r.final_due_date ?? r.finalDueDate ?? null,
     installments,
-    pricingPlanId:     r.pricing_plan_id ?? r.pricingPlanId ?? null,
-    currency:          r.currency ?? 'NGN',
+    payments,
+    pricingPlanId:        r.pricing_plan_id ?? r.pricingPlanId ?? null,
+    paymentOptionId:      r.payment_option_id ?? r.paymentOptionId ?? null,
+    currency:             r.currency ?? 'NGN',
   }
 }
 
@@ -151,18 +236,20 @@ function normaliseWallet(r: ApiWallet): Wallet {
   }
 }
 
-// ── Status badge ──────────────────────────────────────────────────────────────
+// ── Status badges ─────────────────────────────────────────────────────────────
 function InstallmentBadge({ status }: { status: string }) {
   const cfg: Record<string, { bg: string; text: string; dot: string }> = {
     PAID:     { bg: 'bg-[#ecfdf3] border border-[#bbf7d0]', text: 'text-[#16a34a]', dot: 'bg-[#16a34a]' },
+    PENDING:  { bg: 'bg-blue-50 border border-blue-200',    text: 'text-blue-700',    dot: 'bg-blue-500'  },
     UPCOMING: { bg: 'bg-blue-50 border border-blue-200',    text: 'text-blue-700',    dot: 'bg-blue-500'  },
     OVERDUE:  { bg: 'bg-[#fef2f2] border border-[#fecdca]', text: 'text-[#d51520]',  dot: 'bg-[#d51520]' },
   }
-  const c = cfg[status] ?? cfg.UPCOMING
+  const c = cfg[status] ?? cfg.PENDING
+  const label = status === 'PENDING' ? 'UPCOMING' : status
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold font-display ${c.bg} ${c.text}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
-      {status}
+      {label}
     </span>
   )
 }
@@ -182,8 +269,23 @@ function PlanStatusBadge({ status }: { status: string }) {
   )
 }
 
+function PaymentStatusDot({ status }: { status: string }) {
+  const cfg: Record<string, string> = {
+    SUCCESS: 'bg-[#ecfdf3] text-[#15803d] border border-[#bbf7d0]',
+    PENDING: 'bg-[#fffbeb] text-[#b45309] border border-[#fde68a]',
+    FAILED:  'bg-[#fef2f2] text-[#dc2626] border border-[#fecaca]',
+  }
+  const dot: Record<string, string> = { SUCCESS: '#15803d', PENDING: '#b45309', FAILED: '#dc2626' }
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold font-display ${cfg[status] ?? 'bg-[#f3f4f6] text-[#374151] border border-[#e5e7eb]'}`}>
+      <span className="w-1.5 h-1.5 rounded-full" style={{ background: dot[status] ?? '#6b7280' }} />
+      {status || '—'}
+    </span>
+  )
+}
+
 // ── Pay button ────────────────────────────────────────────────────────────────
-function PayButton({ plan }: {
+function PayButton({ plan, installment, onSuccess }: {
   plan: PaymentPlan
   installment: Installment
   onSuccess: () => void
@@ -200,7 +302,9 @@ function PayButton({ plan }: {
           payment_type:               'ENROLLMENT',
           entity_id:                  plan.cohortId,
           pricing_plan_id:            plan.pricingPlanId,
+          payment_option_id:          plan.paymentOptionId,
           enrollment_payment_plan_id: plan.id,
+          payment_installment_id:     installment.id,
           payment_method:             'PAYSTACK',
           currency:                   plan.currency,
         })
@@ -216,6 +320,7 @@ function PayButton({ plan }: {
       setError(getApiError(e))
     } finally {
       setLoading(false)
+      onSuccess()
     }
   }
 
@@ -240,29 +345,38 @@ function PayButton({ plan }: {
 // ── Plan card ─────────────────────────────────────────────────────────────────
 function PlanCard({ plan, onPaySuccess }: { plan: PaymentPlan; onPaySuccess: () => void }) {
   const isSuspended = plan.status === 'SUSPENDED' || plan.status === 'DEFAULTED'
+  const nextDue     = plan.installments.find(i => i.status === 'OVERDUE' || i.status === 'PENDING' || i.status === 'UPCOMING')
   const hasOverdue  = plan.installments.some(i => i.status === 'OVERDUE')
-  const nextDue     = plan.installments.find(i => i.status === 'OVERDUE' || i.status === 'UPCOMING')
-  const paidCount   = plan.installments.filter(i => i.status === 'PAID').length
-  const total       = plan.installments.length
+  const progressPct = plan.totalAmount > 0
+    ? Math.min(100, Math.round((plan.amountPaid / plan.totalAmount) * 100))
+    : 0
+
+  const modeLabel = plan.paymentMode === 'FIXED_INSTALLMENT' ? 'Fixed Installment'
+    : plan.paymentMode === 'FLEXIBLE' ? 'Flexible'
+    : plan.paymentMode || 'Installment'
+
+  const calcLabel = plan.calculationType === 'CUSTOM' ? 'Custom amounts'
+    : plan.calculationType === 'EQUAL' ? 'Equal split'
+    : ''
 
   return (
     <div className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)]">
-      {/* Suspended / overdue alert */}
+
+      {/* Access suspended alert */}
       {isSuspended && (
         <div className="mx-6 mt-5 flex items-start gap-3 bg-[#fef2f2] border border-[#fecdca] rounded-[8px] p-4">
           <LockIcon size={16} color="#d51520" strokeWidth={1.5} className="mt-0.5 flex-shrink-0" />
           <div className="flex-1">
             <p className="text-[13px] font-semibold text-[#d51520] font-display">Access suspended</p>
             <p className="text-[12px] text-[#6b7280] font-body mt-0.5">
-              Your access has been suspended due to overdue payments. Pay your outstanding balance to restore access.
+              Your portal access has been suspended due to overdue payments. Pay your outstanding balance to restore access.
             </p>
           </div>
-          {nextDue && (
-            <PayButton plan={plan} installment={nextDue} onSuccess={onPaySuccess} />
-          )}
+          {nextDue && <PayButton plan={plan} installment={nextDue} onSuccess={onPaySuccess} />}
         </div>
       )}
 
+      {/* Overdue warning (not suspended) */}
       {!isSuspended && hasOverdue && (
         <div className="mx-6 mt-5 flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-[8px] px-4 py-3">
           <div className="flex items-center gap-2.5">
@@ -283,9 +397,16 @@ function PlanCard({ plan, onPaySuccess }: { plan: PaymentPlan; onPaySuccess: () 
           </div>
           <div>
             <p className="text-[15px] font-semibold text-[#111827] font-display leading-snug">{plan.label}</p>
-            <p className="text-[12px] text-[#6b7280] font-body mt-0.5">
-              {paidCount} of {total} installments paid
-            </p>
+            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+              <p className="text-[12px] text-[#6b7280] font-body">
+                {plan.paymentsCompleted} of {plan.numberOfInstallments} installments paid
+              </p>
+              {modeLabel && (
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af] bg-[#f3f4f6] rounded-full px-2 py-0.5 font-display">
+                  {modeLabel}{calcLabel ? ` · ${calcLabel}` : ''}
+                </span>
+              )}
+            </div>
           </div>
         </div>
         <PlanStatusBadge status={plan.status} />
@@ -306,24 +427,40 @@ function PlanCard({ plan, onPaySuccess }: { plan: PaymentPlan; onPaySuccess: () 
       </div>
 
       {/* Progress bar */}
-      {plan.totalAmount > 0 && (
-        <div className="mx-6 mb-5">
-          <div className="flex items-center justify-between mb-1.5">
-            <p className="text-[11px] text-[#6b7280] font-body">Payment progress</p>
-            <p className="text-[11px] font-semibold text-[#374151] font-display">
-              {Math.round((plan.amountPaid / plan.totalAmount) * 100)}%
-            </p>
+      <div className="mx-6 mb-5">
+        <div className="flex items-center justify-between mb-1.5">
+          <p className="text-[11px] text-[#6b7280] font-body">Payment progress</p>
+          <p className="text-[11px] font-semibold text-[#374151] font-display">{progressPct}%</p>
+        </div>
+        <div className="h-2 bg-[#f3f4f6] rounded-full overflow-hidden">
+          <div
+            className="h-full bg-[#d51520] rounded-full transition-all duration-500"
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Next due date banner (active, non-overdue) */}
+      {!isSuspended && !hasOverdue && nextDue && plan.status === 'ACTIVE' && (
+        <div className="mx-6 mb-4 flex items-center justify-between gap-4 bg-[#fef2f2] border border-[#fecdca] rounded-[8px] px-4 py-3">
+          <div className="flex items-center gap-2.5">
+            <Calendar03Icon size={15} color="#d51520" strokeWidth={1.5} className="flex-shrink-0" />
+            <div>
+              <p className="text-[12px] font-semibold text-[#d51520] font-display">
+                Next payment: {fmt(nextDue.outstanding || nextDue.amountDue)} due {nextDue.dueDate}
+              </p>
+              {nextDue.graceDueDate && (
+                <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">
+                  Grace period until {fmtDate(nextDue.graceDueDate)}
+                </p>
+              )}
+            </div>
           </div>
-          <div className="h-2 bg-[#f3f4f6] rounded-full overflow-hidden">
-            <div
-              className="h-full bg-[#d51520] rounded-full transition-all duration-500"
-              style={{ width: `${Math.min(100, Math.round((plan.amountPaid / plan.totalAmount) * 100))}%` }}
-            />
-          </div>
+          <PayButton plan={plan} installment={nextDue} onSuccess={onPaySuccess} />
         </div>
       )}
 
-      {/* Installments table */}
+      {/* Installment schedule */}
       {plan.installments.length > 0 && (
         <>
           <div className="h-px bg-[#eaecf0]" />
@@ -332,37 +469,87 @@ function PlanCard({ plan, onPaySuccess }: { plan: PaymentPlan; onPaySuccess: () 
               Installment Schedule
             </p>
             <div className="flex flex-col divide-y divide-[#f3f4f6]">
-              {plan.installments.map(inst => (
-                <div key={inst.id} className="flex items-center justify-between py-3">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-bold font-display ${
-                      inst.status === 'PAID' ? 'bg-[#ecfdf3] text-[#16a34a]' :
-                      inst.status === 'OVERDUE' ? 'bg-[#fef2f2] text-[#d51520]' :
-                      'bg-[#f3f4f6] text-[#6b7280]'
-                    }`}>
-                      {inst.status === 'PAID'
-                        ? <CheckmarkCircle01Icon size={14} strokeWidth={1.5} />
-                        : inst.number}
+              {plan.installments.map(inst => {
+                const isNext = inst.id === nextDue?.id && !isSuspended && !hasOverdue
+                return (
+                  <div
+                    key={inst.id}
+                    className={`flex items-center justify-between py-3.5 ${isNext ? 'bg-[#fef9f9] -mx-2 px-2 rounded-[6px]' : ''}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-bold font-display ${
+                        inst.status === 'PAID' ? 'bg-[#ecfdf3] text-[#16a34a]' :
+                        inst.status === 'OVERDUE' ? 'bg-[#fef2f2] text-[#d51520]' :
+                        'bg-[#f3f4f6] text-[#6b7280]'
+                      }`}>
+                        {inst.status === 'PAID'
+                          ? <CheckmarkCircle01Icon size={14} strokeWidth={1.5} />
+                          : inst.number}
+                      </div>
+                      <div>
+                        <p className="text-[13px] font-semibold text-[#111827] font-display">
+                          {fmt(inst.amountDue)}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <Clock01Icon size={10} color="#9ca3af" strokeWidth={1.5} />
+                          <p className="text-[11px] text-[#6b7280] font-body">
+                            Due {inst.dueDate}
+                            {inst.graceDueDate ? ` · Grace until ${fmtDate(inst.graceDueDate)}` : ''}
+                            {inst.paidAt ? ` · Paid ${fmtDate(inst.paidAt)}` : ''}
+                          </p>
+                        </div>
+                        {inst.status !== 'PAID' && inst.outstanding > 0 && (
+                          <p className="text-[11px] text-[#d51520] font-body mt-0.5">
+                            {fmt(inst.outstanding)} outstanding
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-[13px] font-semibold text-[#111827] font-display">
-                        {fmt(inst.amount)}
-                      </p>
-                      <p className="text-[11px] text-[#6b7280] font-body mt-0.5">
-                        Due {inst.dueDate}
-                        {inst.paidAt ? ` · Paid ${fmtDate(inst.paidAt)}` : ''}
-                      </p>
+                    <div className="flex items-center gap-3">
+                      <InstallmentBadge status={inst.status} />
+                      {inst.status === 'OVERDUE' && inst.id === nextDue?.id && !isSuspended && (
+                        <PayButton plan={plan} installment={inst} onSuccess={onPaySuccess} />
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <InstallmentBadge status={inst.status} />
-                    {(inst.status === 'OVERDUE' || (inst.status === 'UPCOMING' && !plan.installments.find(x => x.status === 'OVERDUE'))) &&
-                     inst === nextDue && !isSuspended && (
-                      <PayButton plan={plan} installment={inst} onSuccess={onPaySuccess} />
-                    )}
+                )
+              })}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Payment history (from plan detail) */}
+      {plan.payments.length > 0 && (
+        <>
+          <div className="h-px bg-[#eaecf0]" />
+          <div className="px-6 py-4">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display mb-3">
+              Payment History
+            </p>
+            <div className="flex flex-col divide-y divide-[#f3f4f6]">
+              {plan.payments.map(p => {
+                const roleLabel = p.role === 'INITIAL_PAYMENT' ? 'Initial payment'
+                  : p.role === 'INSTALLMENT' ? 'Installment'
+                  : p.role || 'Payment'
+                return (
+                  <div key={p.id} className="flex items-center gap-3 py-3">
+                    <div className="w-8 h-8 rounded-full bg-[#ecfdf3] flex items-center justify-center flex-shrink-0">
+                      <Money01Icon size={14} color="#16a34a" strokeWidth={1.5} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-medium text-[#111827] font-body">{roleLabel}</p>
+                      <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">
+                        {p.date}{p.reference ? ` · ${p.reference}` : ''}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2.5 flex-shrink-0">
+                      <p className="text-[13px] font-semibold text-[#111827] font-display">{fmt(p.amount)}</p>
+                      <PaymentStatusDot status={p.status} />
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         </>
@@ -372,7 +559,7 @@ function PlanCard({ plan, onPaySuccess }: { plan: PaymentPlan; onPaySuccess: () 
 }
 
 // ── Wallet card ───────────────────────────────────────────────────────────────
-function WalletCard({ wallet }: { wallet: Wallet | null; loading: boolean }) {
+function WalletCard({ wallet }: { wallet: Wallet | null }) {
   if (!wallet) return null
 
   return (
@@ -432,7 +619,7 @@ function WalletCard({ wallet }: { wallet: Wallet | null; loading: boolean }) {
   )
 }
 
-// ── Recent Payments (with requery for PENDING) ────────────────────────────────
+// ── Recent Payments (full-payment students / general history) ─────────────────
 interface StudentPayment {
   id: number
   amount?: number; payable_amount?: number; payableAmount?: number
@@ -552,8 +739,8 @@ function PaymentStatusPill({ payment, onUpdated }: { payment: StudentPayment; on
 }
 
 function RecentPayments() {
-  const [payments, setPayments]   = useState<StudentPayment[]>([])
-  const [loading, setLoading]     = useState(true)
+  const [payments, setPayments] = useState<StudentPayment[]>([])
+  const [loading, setLoading]   = useState(true)
 
   useEffect(() => {
     apiClient.get('/payments?size=10')
@@ -585,8 +772,8 @@ function RecentPayments() {
   return (
     <div className="bg-white rounded-[10px] border border-[#eaecf0]">
       <div className="px-5 py-4 border-b border-[#f3f4f6]">
-        <p className="text-[14px] font-semibold text-[#111827] font-display">Payment History</p>
-        <p className="text-[12px] text-[#6b7280] font-body mt-0.5">Your recent transactions</p>
+        <p className="text-[14px] font-semibold text-[#111827] font-display">All Payments</p>
+        <p className="text-[12px] text-[#6b7280] font-body mt-0.5">Your full transaction history</p>
       </div>
       <div className="divide-y divide-[#f3f4f6]">
         {payments.map(p => (
@@ -622,38 +809,35 @@ export default function FinancePage() {
 
   const loadData = useCallback(async () => {
     setError(null)
-    // Load wallet + plan list in parallel
+
     const [walletRes, plansRes] = await Promise.allSettled([
       unwrap<ApiWallet | { data?: ApiWallet }>(apiClient.get('/me/wallet')),
-      unwrap<ApiPaymentPlan[] | { data?: ApiPaymentPlan[] }>(apiClient.get('/me/enrollment-payment-plans')),
+      unwrap<unknown>(apiClient.get('/me/enrollment-payment-plans')),
     ])
 
     // Wallet
     setLoadingWallet(false)
     if (walletRes.status === 'fulfilled') {
       const raw = walletRes.value as ApiWallet & { data?: ApiWallet }
-      const w = raw.data ?? raw
-      setWallet(normaliseWallet(w))
+      setWallet(normaliseWallet(raw.data ?? raw))
     }
 
-    // Plans list — then fetch each detail to get installment schedules
+    // Plans list — handle all response shapes
     setLoadingPlans(false)
     if (plansRes.status === 'fulfilled') {
       const raw = plansRes.value as unknown
 
-      // Handle any response shape the backend might send
       const extractList = (val: unknown): ApiPaymentPlan[] => {
         if (Array.isArray(val)) return val as ApiPaymentPlan[]
         if (val && typeof val === 'object') {
           const o = val as Record<string, unknown>
           const candidates = [
-            o.data, o.payment_plans, o.paymentPlans,
-            o.enrollment_payment_plans, o.enrollmentPaymentPlans, o.plans,
+            o.enrollment_payment_plans, o.enrollmentPaymentPlans,
+            o.payment_plans, o.paymentPlans, o.plans, o.data,
           ]
           for (const c of candidates) {
             if (Array.isArray(c)) return c as ApiPaymentPlan[]
           }
-          // data is itself an object — look one level deeper
           if (o.data && typeof o.data === 'object' && !Array.isArray(o.data)) {
             return extractList(o.data)
           }
@@ -662,27 +846,22 @@ export default function FinancePage() {
       }
 
       const list = extractList(raw)
-
       if (list.length === 0) { setPlans([]); return }
 
-      // Fetch detail for each plan (has installments)
+      // Fetch detail for each plan to get installments + payment history
       const details = await Promise.allSettled(
         list.map(p =>
-          unwrap<ApiPaymentPlan | { data?: ApiPaymentPlan }>(
-            apiClient.get(`/me/enrollment-payment-plans/${p.id}`)
-          )
+          unwrap<unknown>(apiClient.get(`/me/enrollment-payment-plans/${p.id}`))
         )
       )
 
       const normalised = details.map((d, i) => {
         if (d.status === 'fulfilled') {
-          const r = d.value as ApiPaymentPlan & { data?: ApiPaymentPlan }
-          // detail endpoint might return the plan directly or wrapped
-          const plan = r.data ?? r
-          // if installments missing in detail, fall back to list-level data
+          const r = d.value as Record<string, unknown>
+          // Detail endpoint wraps in enrollment_payment_plan (singular)
+          const plan = (r.enrollment_payment_plan ?? r.data ?? r) as ApiPaymentPlan
           if (!plan.installments && !plan.payment_schedule) {
-            const base = list[i]
-            return normalisePlan({ ...base, ...plan })
+            return normalisePlan({ ...list[i], ...plan })
           }
           return normalisePlan(plan)
         }
@@ -697,8 +876,8 @@ export default function FinancePage() {
 
   useEffect(() => { loadData() }, [loadData])
 
-  const hasAnything  = plans.length > 0 || wallet !== null
-  const isLoading    = loadingPlans && loadingWallet
+  const hasAnything = plans.length > 0 || wallet !== null
+  const isLoading   = loadingPlans && loadingWallet
 
   return (
     <>
@@ -714,14 +893,12 @@ export default function FinancePage() {
           </p>
         </div>
 
-        {/* Loading */}
         {isLoading && (
           <div className="flex items-center justify-center py-20">
             <Loading01Icon size={28} color="#d51520" className="animate-spin" />
           </div>
         )}
 
-        {/* Error */}
         {!isLoading && error && (
           <div className="flex items-center gap-3 bg-[#fef2f2] border border-[#fecdca] rounded-[10px] p-5">
             <AlertCircleIcon size={18} color="#d51520" strokeWidth={1.5} />
@@ -729,7 +906,6 @@ export default function FinancePage() {
           </div>
         )}
 
-        {/* No payment plans */}
         {!isLoading && !error && !hasAnything && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="w-16 h-16 rounded-[12px] bg-[#f3f4f6] flex items-center justify-center mb-4">
@@ -744,10 +920,8 @@ export default function FinancePage() {
 
         {!isLoading && !error && hasAnything && (
           <div className="flex flex-col gap-5">
-            {/* Wallet */}
-            <WalletCard wallet={wallet} loading={loadingWallet} />
+            <WalletCard wallet={wallet} />
 
-            {/* Plans */}
             {plans.length > 0 && (
               <div className="flex flex-col gap-4">
                 <div className="flex items-center gap-2">
@@ -761,6 +935,7 @@ export default function FinancePage() {
                 ))}
               </div>
             )}
+
             <RecentPayments />
           </div>
         )}
