@@ -152,6 +152,11 @@ interface Wallet {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+const dig = (val: unknown): Record<string, unknown> => {
+  if (val && typeof val === 'object') return val as Record<string, unknown>
+  return {}
+}
+
 function fmt(amount: number, currency = '₦') {
   return `${currency}${amount.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
@@ -281,46 +286,87 @@ function PaymentStatusDot({ status }: { status: string }) {
 }
 
 // ── Pay button ────────────────────────────────────────────────────────────────
+// Handles both FIXED_INSTALLMENT (partAmount omitted — backend pays earliest outstanding)
+// and FLEXIBLE_PART_PAYMENT (partAmount required — shown as editable input).
 function PayButton({ plan, installment, onSuccess }: {
   plan: PaymentPlan
   installment: Installment
   onSuccess: () => void
 }) {
+  const isFlexible = plan.paymentMode === 'FLEXIBLE_PART_PAYMENT'
+
+  // For flexible mode the student enters the amount they want to pay.
+  // Pre-fill with the installment's outstanding amount as a sensible default.
+  const [partAmount, setPartAmount] = useState<string>(
+    isFlexible ? String(Math.round(installment.outstanding || installment.amountDue)) : ''
+  )
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState<string | null>(null)
 
   async function handlePay() {
+    if (isFlexible) {
+      const amt = Number(partAmount.replace(/[^0-9.]/g, ''))
+      if (!amt || amt <= 0) { setError('Enter a valid amount.'); return }
+      if (amt > plan.amountOutstanding) {
+        setError(`Amount cannot exceed outstanding balance of ${fmt(plan.amountOutstanding)}.`)
+        return
+      }
+    }
+
     setLoading(true)
     setError(null)
     try {
-      const axiosRes = await apiClient.post('/payments/initiate', {
-        payment_type:               'ENROLLMENT',
-        entity_id:                  plan.cohortId,
-        pricing_plan_id:            plan.pricingPlanId,
-        payment_option_id:          plan.paymentOptionId,
-        enrollment_payment_plan_id: plan.id,
-        payment_installment_id:     installment.id,
-        payment_method:             'PAYSTACK',
-        currency:                   plan.currency,
-      })
-      const res = unwrap<{ authorization_url?: string; authorizationUrl?: string; data?: { authorization_url?: string; authorizationUrl?: string } }>(axiosRes.data)
-      const url = res.authorization_url ?? res.authorizationUrl
-        ?? res.data?.authorization_url ?? res.data?.authorizationUrl
-      if (url) {
+      // Payload per API spec (camelCase). For FIXED_INSTALLMENT omit partAmount —
+      // backend automatically applies payment to the earliest unpaid installment.
+      const payload: Record<string, unknown> = {
+        paymentType:             'ENROLLMENT',
+        paymentMethod:           'PAYSTACK',
+        entityId:                plan.cohortId,
+        pricingPlanId:           plan.pricingPlanId,
+        enrollmentPaymentPlanId: plan.id,
+      }
+      if (isFlexible) {
+        payload.partAmount = Number(partAmount.replace(/[^0-9.]/g, ''))
+      }
+
+      const axiosRes = await apiClient.post('/payments/initiate', payload)
+      const body = dig(axiosRes.data)
+      const inner = dig(body.data ?? body)
+      const url = inner.authorization_url ?? inner.authorizationUrl
+        ?? inner.data && dig(inner.data).authorization_url
+        ?? inner.data && dig(inner.data).authorizationUrl
+
+      if (url && typeof url === 'string') {
+        // Redirect to Paystack — don't call onSuccess, page is navigating away
         window.location.href = url
       } else {
-        setError('Payment URL not returned. Please try again.')
+        // Wallet settled immediately (no redirect URL returned)
+        setError(null)
+        onSuccess()
       }
     } catch (e) {
       setError(getApiError(e))
-    } finally {
       setLoading(false)
-      onSuccess()
     }
   }
 
   return (
-    <div className="flex flex-col items-end gap-1">
+    <div className="flex flex-col items-end gap-1.5">
+      {isFlexible && (
+        <div className="flex items-center gap-1.5">
+          <span className="text-[12px] text-[#374151] font-body">₦</span>
+          <input
+            type="number"
+            min={1}
+            max={plan.amountOutstanding}
+            value={partAmount}
+            onChange={e => setPartAmount(e.target.value)}
+            disabled={loading}
+            className="w-28 h-8 border border-[#e5e7eb] rounded-[6px] px-2 text-[12px] font-body text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520] disabled:opacity-50"
+            placeholder="Amount"
+          />
+        </div>
+      )}
       <button
         onClick={handlePay}
         disabled={loading}
@@ -332,7 +378,7 @@ function PayButton({ plan, installment, onSuccess }: {
         }
         {loading ? 'Processing…' : 'Pay Now'}
       </button>
-      {error && <p className="text-[11px] text-[#d51520] font-body">{error}</p>}
+      {error && <p className="text-[11px] text-[#d51520] font-body text-right max-w-[180px]">{error}</p>}
     </div>
   )
 }
@@ -801,12 +847,6 @@ export default function FinancePage() {
   const [loadingPlans,  setLoadingPlans]  = useState(true)
   const [loadingWallet, setLoadingWallet] = useState(true)
   const [error,         setError]         = useState<string | null>(null)
-
-  // unwrap() takes res.data (the JSON body), not a Promise — call it correctly
-  const dig = (val: unknown): Record<string, unknown> => {
-    if (val && typeof val === 'object') return val as Record<string, unknown>
-    return {}
-  }
 
   const loadData = useCallback(async () => {
     setError(null)
