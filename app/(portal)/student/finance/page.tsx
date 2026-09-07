@@ -642,7 +642,7 @@ export default function FinancePage() {
       const raw = plansRes.value as unknown
 
       // Handle any response shape the backend might send
-      function extractList(val: unknown): ApiPaymentPlan[] {
+      const extractList = (val: unknown): ApiPaymentPlan[] => {
         if (Array.isArray(val)) return val as ApiPaymentPlan[]
         if (val && typeof val === 'object') {
           const o = val as Record<string, unknown>
