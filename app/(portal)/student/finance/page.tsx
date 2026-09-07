@@ -639,8 +639,29 @@ export default function FinancePage() {
     // Plans list — then fetch each detail to get installment schedules
     setLoadingPlans(false)
     if (plansRes.status === 'fulfilled') {
-      const raw   = plansRes.value as (ApiPaymentPlan[] | { data?: ApiPaymentPlan[] })
-      const list  = (Array.isArray(raw) ? raw : raw.data ?? []) as ApiPaymentPlan[]
+      const raw = plansRes.value as unknown
+
+      // Handle any response shape the backend might send
+      function extractList(val: unknown): ApiPaymentPlan[] {
+        if (Array.isArray(val)) return val as ApiPaymentPlan[]
+        if (val && typeof val === 'object') {
+          const o = val as Record<string, unknown>
+          const candidates = [
+            o.data, o.payment_plans, o.paymentPlans,
+            o.enrollment_payment_plans, o.enrollmentPaymentPlans, o.plans,
+          ]
+          for (const c of candidates) {
+            if (Array.isArray(c)) return c as ApiPaymentPlan[]
+          }
+          // data is itself an object — look one level deeper
+          if (o.data && typeof o.data === 'object' && !Array.isArray(o.data)) {
+            return extractList(o.data)
+          }
+        }
+        return []
+      }
+
+      const list = extractList(raw)
 
       if (list.length === 0) { setPlans([]); return }
 
@@ -655,8 +676,15 @@ export default function FinancePage() {
 
       const normalised = details.map((d, i) => {
         if (d.status === 'fulfilled') {
-          const raw = d.value as ApiPaymentPlan & { data?: ApiPaymentPlan }
-          return normalisePlan(raw.data ?? raw)
+          const r = d.value as ApiPaymentPlan & { data?: ApiPaymentPlan }
+          // detail endpoint might return the plan directly or wrapped
+          const plan = r.data ?? r
+          // if installments missing in detail, fall back to list-level data
+          if (!plan.installments && !plan.payment_schedule) {
+            const base = list[i]
+            return normalisePlan({ ...base, ...plan })
+          }
+          return normalisePlan(plan)
         }
         return normalisePlan(list[i])
       })
