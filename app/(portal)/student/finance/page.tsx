@@ -335,9 +335,9 @@ function PayButton({ plan, installment, onSuccess }: {
       const axiosRes = await apiClient.post('/payments/initiate', payload)
       const body = dig(axiosRes.data)
       const inner = dig(body.data ?? body)
+      const innerData = inner.data ? dig(inner.data) : {}
       const url = inner.authorization_url ?? inner.authorizationUrl
-        ?? inner.data && dig(inner.data).authorization_url
-        ?? inner.data && dig(inner.data).authorizationUrl
+        ?? innerData.authorization_url ?? innerData.authorizationUrl
 
       if (url && typeof url === 'string') {
         // Redirect to Paystack — don't call onSuccess, page is navigating away
