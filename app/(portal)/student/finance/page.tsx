@@ -293,18 +293,17 @@ function PayButton({ plan, installment, onSuccess }: {
     setLoading(true)
     setError(null)
     try {
-      const res = await unwrap<{ authorization_url?: string; authorizationUrl?: string; data?: { authorization_url?: string; authorizationUrl?: string } }>(
-        apiClient.post('/payments/initiate', {
-          payment_type:               'ENROLLMENT',
-          entity_id:                  plan.cohortId,
-          pricing_plan_id:            plan.pricingPlanId,
-          payment_option_id:          plan.paymentOptionId,
-          enrollment_payment_plan_id: plan.id,
-          payment_installment_id:     installment.id,
-          payment_method:             'PAYSTACK',
-          currency:                   plan.currency,
-        })
-      )
+      const axiosRes = await apiClient.post('/payments/initiate', {
+        payment_type:               'ENROLLMENT',
+        entity_id:                  plan.cohortId,
+        pricing_plan_id:            plan.pricingPlanId,
+        payment_option_id:          plan.paymentOptionId,
+        enrollment_payment_plan_id: plan.id,
+        payment_installment_id:     installment.id,
+        payment_method:             'PAYSTACK',
+        currency:                   plan.currency,
+      })
+      const res = unwrap<{ authorization_url?: string; authorizationUrl?: string; data?: { authorization_url?: string; authorizationUrl?: string } }>(axiosRes.data)
       const url = res.authorization_url ?? res.authorizationUrl
         ?? res.data?.authorization_url ?? res.data?.authorizationUrl
       if (url) {
@@ -803,59 +802,61 @@ export default function FinancePage() {
   const [loadingWallet, setLoadingWallet] = useState(true)
   const [error,         setError]         = useState<string | null>(null)
 
+  // unwrap() takes res.data (the JSON body), not a Promise — call it correctly
+  const dig = (val: unknown): Record<string, unknown> => {
+    if (val && typeof val === 'object') return val as Record<string, unknown>
+    return {}
+  }
+
   const loadData = useCallback(async () => {
     setError(null)
 
     const [walletRes, plansRes] = await Promise.allSettled([
-      unwrap<ApiWallet | { data?: ApiWallet }>(apiClient.get('/me/wallet')),
-      unwrap<unknown>(apiClient.get('/me/enrollment-payment-plans')),
+      apiClient.get('/me/wallet'),
+      apiClient.get('/me/enrollment-payment-plans'),
     ])
 
-    // Wallet
+    // ── Wallet ──────────────────────────────────────────────────────────────────
     setLoadingWallet(false)
     if (walletRes.status === 'fulfilled') {
-      const raw = walletRes.value as ApiWallet & { data?: ApiWallet }
-      setWallet(normaliseWallet(raw.data ?? raw))
+      // res.data = { success, data: { balance, ... } }  OR  { balance, ... }
+      const body  = dig(walletRes.value.data)
+      const inner = dig(body.data ?? body)
+      setWallet(normaliseWallet(inner as ApiWallet))
     }
 
-    // Plans list — handle all response shapes
+    // ── Plans list ──────────────────────────────────────────────────────────────
     setLoadingPlans(false)
     if (plansRes.status === 'fulfilled') {
-      const raw = plansRes.value as unknown
+      // res.data = { success, data: { enrollment_payment_plans: [...] } }
+      const body  = dig(plansRes.value.data)
+      const inner = dig(body.data ?? body)
 
       const extractList = (val: unknown): ApiPaymentPlan[] => {
         if (Array.isArray(val)) return val as ApiPaymentPlan[]
         if (val && typeof val === 'object') {
           const o = val as Record<string, unknown>
-          const candidates = [
-            o.enrollment_payment_plans, o.enrollmentPaymentPlans,
-            o.payment_plans, o.paymentPlans, o.plans, o.data,
-          ]
-          for (const c of candidates) {
-            if (Array.isArray(c)) return c as ApiPaymentPlan[]
-          }
-          if (o.data && typeof o.data === 'object' && !Array.isArray(o.data)) {
-            return extractList(o.data)
+          for (const key of ['enrollment_payment_plans', 'enrollmentPaymentPlans', 'payment_plans', 'paymentPlans', 'plans']) {
+            if (Array.isArray(o[key])) return o[key] as ApiPaymentPlan[]
           }
         }
         return []
       }
 
-      const list = extractList(raw)
+      const list = extractList(inner)
       if (list.length === 0) { setPlans([]); return }
 
       // Fetch detail for each plan to get installments + payment history
       const details = await Promise.allSettled(
-        list.map(p =>
-          unwrap<unknown>(apiClient.get(`/me/enrollment-payment-plans/${p.id}`))
-        )
+        list.map(p => apiClient.get(`/me/enrollment-payment-plans/${p.id}`))
       )
 
       const normalised = details.map((d, i) => {
         if (d.status === 'fulfilled') {
-          const r = d.value as Record<string, unknown>
-          // Detail endpoint wraps in enrollment_payment_plan (singular)
-          const plan = (r.enrollment_payment_plan ?? r.data ?? r) as ApiPaymentPlan
+          // res.data = { success, data: { enrollment_payment_plan: { ...installments } } }
+          const body  = dig(d.value.data)
+          const inner = dig(body.data ?? body)
+          const plan  = (inner.enrollment_payment_plan ?? inner) as ApiPaymentPlan
           if (!plan.installments && !plan.payment_schedule) {
             return normalisePlan({ ...list[i], ...plan })
           }
