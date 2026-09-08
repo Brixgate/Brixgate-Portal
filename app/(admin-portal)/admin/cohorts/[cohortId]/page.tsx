@@ -2685,6 +2685,7 @@ function ScheduleModal({ cohortId, schedule, onClose, onSaved }: {
   const [sessType,    setSessType]    = useState(schedule?.session_type ?? 'LIVE_CLASS')
   const [startDt,     setStartDt]     = useState(schedule?.start_datetime?.slice(0, 16) ?? '')
   const [endDt,       setEndDt]       = useState(schedule?.end_datetime?.slice(0, 16) ?? '')
+  const [endDtTouched, setEndDtTouched] = useState(!!(schedule?.end_datetime))
   const [timezone,    setTimezone]    = useState(schedule?.timezone ?? 'WAT')
   const [meetLink,    setMeetLink]    = useState(schedule?.meeting_link ?? '')
   const [meetProv,    setMeetProv]    = useState(schedule?.meeting_provider ?? '')
@@ -2730,10 +2731,26 @@ function ScheduleModal({ cohortId, schedule, onClose, onSaved }: {
       .finally(() => setLoadingLessons(false))
   }, [selectedMod, cohortId])
 
+  // Auto-set end time to 1 hour after start when start changes and end hasn't been manually set
+  function handleStartChange(val: string) {
+    setStartDt(val)
+    if (!endDtTouched && val) {
+      const d = new Date(val)
+      d.setHours(d.getHours() + 1)
+      const pad = (n: number) => String(n).padStart(2, '0')
+      const auto = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+      setEndDt(auto)
+    }
+  }
+
   async function save() {
     if (!title.trim())   { setError('Title is required.'); return }
     if (!startDt)        { setError('Start date/time is required.'); return }
     if (!endDt)          { setError('End date/time is required.'); return }
+    if (new Date(startDt) >= new Date(endDt)) {
+      setError('End time must be after start time. Sessions must have a duration of at least 1 minute.')
+      return
+    }
     setSaving(true); setError('')
     // datetime-local values are sliced UTC ISO strings from the API (no tz suffix).
     // Appending 'Z' sends them back as UTC directly, avoiding browser-local-time conversion.
@@ -2839,11 +2856,16 @@ function ScheduleModal({ cohortId, schedule, onClose, onSaved }: {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelClass}>Start date & time <span className="text-[#d51520]">*</span></label>
-              <input type="datetime-local" value={startDt} onChange={e => setStartDt(e.target.value)} className={fieldClass} />
+              <input type="datetime-local" value={startDt} onChange={e => handleStartChange(e.target.value)} className={fieldClass} />
             </div>
             <div>
               <label className={labelClass}>End date & time <span className="text-[#d51520]">*</span></label>
-              <input type="datetime-local" value={endDt} onChange={e => setEndDt(e.target.value)} className={fieldClass} />
+              <input type="datetime-local" value={endDt}
+                onChange={e => { setEndDt(e.target.value); setEndDtTouched(true) }}
+                className={fieldClass} />
+              {!endDtTouched && startDt && (
+                <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">Auto-set to 1 hr after start</p>
+              )}
             </div>
           </div>
 
@@ -2952,6 +2974,8 @@ function ScheduleTab({ cohortId }: { cohortId: string }) {
   const [deleteId,        setDeleteId]        = useState<number | null>(null)
   const [deleting,        setDeleting]        = useState(false)
   const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null)
+  const [statusError,     setStatusError]     = useState<string | null>(null)
+  const [viewingSchedule, setViewingSchedule] = useState<CohortSchedule | null>(null)
 
   function load() {
     setLoading(true)
@@ -2982,11 +3006,14 @@ function ScheduleTab({ cohortId }: { cohortId: string }) {
   }
 
   async function updateStatus(id: number, newStatus: string) {
-    setUpdatingStatusId(id)
+    setUpdatingStatusId(id); setStatusError(null)
     try {
       await apiClient.patch(`/admin/cohort-schedules/${id}`, { status: newStatus })
       setSchedules(prev => prev.map(s => s.id === id ? { ...s, status: newStatus } : s))
-    } catch { /* ignore */ } finally { setUpdatingStatusId(null) }
+    } catch (e) {
+      setStatusError(getApiError(e))
+      setTimeout(() => setStatusError(null), 6000)
+    } finally { setUpdatingStatusId(null) }
   }
 
   return (
@@ -3003,6 +3030,14 @@ function ScheduleTab({ cohortId }: { cohortId: string }) {
           Add session
         </button>
       </div>
+
+      {/* Status-change error banner */}
+      {statusError && (
+        <div className="mb-4 flex items-start gap-2.5 px-4 py-3 bg-[#fef2f2] border border-[#fecaca] rounded-[8px]">
+          <AlertCircleIcon size={15} color="#d51520" strokeWidth={1.5} className="flex-shrink-0 mt-0.5" />
+          <p className="text-[13px] text-[#b91c1c] font-body leading-snug">{statusError}</p>
+        </div>
+      )}
 
       {/* Loading */}
       {loading && (
@@ -3047,7 +3082,10 @@ function ScheduleTab({ cohortId }: { cohortId: string }) {
             </thead>
             <tbody>
               {schedules.map((s, i) => (
-                <tr key={s.id} className="border-b border-[#f7f8fa] last:border-0 hover:bg-[#fafafa]">
+                <tr key={s.id}
+                  className="border-b border-[#f7f8fa] last:border-0 hover:bg-[#fafafa] cursor-pointer"
+                  onClick={() => setViewingSchedule(s)}
+                >
                   <td className="px-4 py-3.5 text-[12px] text-[#9ca3af] font-body">{i + 1}</td>
                   <td className="px-4 py-3.5 max-w-[220px]">
                     <p className="text-[13px] font-semibold text-[#111827] font-display truncate">{s.title}</p>
@@ -3060,21 +3098,21 @@ function ScheduleTab({ cohortId }: { cohortId: string }) {
                   </td>
                   <td className="px-4 py-3.5 text-[12px] text-[#374151] font-body whitespace-nowrap">{formatScheduleDateTime(s.start_datetime, s.timezone)}</td>
                   <td className="px-4 py-3.5 text-[12px] text-[#374151] font-body whitespace-nowrap">{formatScheduleDateTime(s.end_datetime, s.timezone)}</td>
-                  <td className="px-4 py-3.5">
+                  <td className="px-4 py-3.5" onClick={e => e.stopPropagation()}>
                     <div className="relative inline-flex items-center">
                       <select
                         value={s.status ?? 'SCHEDULED'}
                         onChange={e => updateStatus(s.id, e.target.value)}
                         disabled={updatingStatusId === s.id}
-                        className={`appearance-none text-[11px] font-semibold font-display px-2 py-0.5 pr-5 rounded-full border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#d51520]/30 disabled:opacity-60 ${schedStatusStyle(s.status ?? '')}`}
+                        className={`appearance-none text-[11px] font-semibold font-display pl-2.5 py-0.5 pr-7 rounded-full border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#d51520]/30 disabled:opacity-60 ${schedStatusStyle(s.status ?? '')}`}
                       >
                         {SCHED_STATUSES.map(st => (
                           <option key={st} value={st}>{st}</option>
                         ))}
                       </select>
                       {updatingStatusId === s.id
-                        ? <Loading01Icon size={10} className="animate-spin absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none" />
-                        : <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[8px] pointer-events-none opacity-60">▾</span>
+                        ? <Loading01Icon size={10} className="animate-spin absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        : <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[8px] pointer-events-none opacity-60">▾</span>
                       }
                     </div>
                   </td>
@@ -3092,7 +3130,7 @@ function ScheduleTab({ cohortId }: { cohortId: string }) {
                       {s.attendance_enabled ? 'On' : 'Off'}
                     </span>
                   </td>
-                  <td className="px-4 py-3.5">
+                  <td className="px-4 py-3.5" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center gap-1.5 justify-end">
                       <button onClick={() => { setEditing(s); setShowModal(true) }}
                         className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#f3f4f6]">
@@ -3109,6 +3147,106 @@ function ScheduleTab({ cohortId }: { cohortId: string }) {
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* Detail panel */}
+      {viewingSchedule && !showModal && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setViewingSchedule(null)} />
+          <div className="fixed right-0 top-0 h-screen w-[400px] z-50 bg-white shadow-2xl flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-[#f3f4f6] flex-shrink-0">
+              <div>
+                <h2 className="text-[16px] font-bold text-[#111827] font-display">Session Details</h2>
+                <p className="text-[12px] text-[#4b5563] font-body mt-0.5">#{viewingSchedule.id}</p>
+              </div>
+              <button onClick={() => setViewingSchedule(null)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f3f4f6] transition-colors">
+                <Cancel01Icon size={16} color="#4b5563" strokeWidth={1.5} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+              {/* Status */}
+              <div className="flex items-center justify-between">
+                <span className="text-[12px] text-[#4b5563] font-body">Status</span>
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold font-display ${schedStatusStyle(viewingSchedule.status ?? '')}`}>
+                  {viewingSchedule.status ?? '—'}
+                </span>
+              </div>
+              <div className="h-px bg-[#f3f4f6]" />
+              {/* Title & description */}
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-[#4b5563] font-display mb-2">Session</p>
+                <p className="text-[15px] font-bold text-[#111827] font-display">{viewingSchedule.title}</p>
+                {viewingSchedule.description && (
+                  <p className="text-[13px] text-[#4b5563] font-body mt-1 leading-relaxed">{viewingSchedule.description}</p>
+                )}
+              </div>
+              <div className="h-px bg-[#f3f4f6]" />
+              {/* Time */}
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-[#4b5563] font-display mb-2">Time</p>
+                <div className="space-y-1.5">
+                  <div className="flex justify-between">
+                    <span className="text-[12px] text-[#4b5563] font-body">Start</span>
+                    <span className="text-[12px] font-medium text-[#111827] font-body text-right">{formatScheduleDateTime(viewingSchedule.start_datetime, viewingSchedule.timezone)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[12px] text-[#4b5563] font-body">End</span>
+                    <span className="text-[12px] font-medium text-[#111827] font-body text-right">{formatScheduleDateTime(viewingSchedule.end_datetime, viewingSchedule.timezone)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[12px] text-[#4b5563] font-body">Timezone</span>
+                    <span className="text-[12px] font-medium text-[#111827] font-body">{viewingSchedule.timezone ?? '—'}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="h-px bg-[#f3f4f6]" />
+              {/* Details */}
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-[#4b5563] font-display mb-2">Details</p>
+                <div className="space-y-1.5">
+                  <div className="flex justify-between">
+                    <span className="text-[12px] text-[#4b5563] font-body">Type</span>
+                    <span className="text-[12px] font-medium text-[#111827] font-body">{(viewingSchedule.session_type ?? '—').replace(/_/g, ' ')}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[12px] text-[#4b5563] font-body">Visibility</span>
+                    <span className="text-[12px] font-medium text-[#111827] font-body">{viewingSchedule.visibility_status ?? '—'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[12px] text-[#4b5563] font-body">Attendance</span>
+                    <span className={`text-[11px] font-semibold font-display px-2 py-0.5 rounded-full ${viewingSchedule.attendance_enabled ? 'bg-[#ecfdf3] text-[#15803d]' : 'bg-[#f3f4f6] text-[#4b5563]'}`}>
+                      {viewingSchedule.attendance_enabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                  </div>
+                  {viewingSchedule.meeting_link && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-[12px] text-[#4b5563] font-body">Meeting link</span>
+                      <a href={viewingSchedule.meeting_link} target="_blank" rel="noopener noreferrer"
+                        className="text-[12px] text-[#d51520] font-body hover:underline max-w-[200px] truncate">
+                        {viewingSchedule.meeting_provider || 'Join'}
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-[#f3f4f6] flex gap-2">
+              <button
+                onClick={() => { setEditing(viewingSchedule); setViewingSchedule(null); setShowModal(true) }}
+                className="flex-1 flex items-center justify-center gap-2 h-9 bg-[#d51520] hover:bg-[#b81119] text-white text-[13px] font-semibold font-display rounded-[8px] transition-colors"
+              >
+                <PencilEdit01Icon size={13} strokeWidth={1.5} />
+                Edit session
+              </button>
+              <button
+                onClick={() => { setDeleteId(viewingSchedule.id); setViewingSchedule(null) }}
+                className="h-9 w-9 flex items-center justify-center border border-[#fecaca] rounded-[8px] hover:bg-[#fef2f2] transition-colors"
+              >
+                <Delete01Icon size={14} color="#d51520" strokeWidth={1.5} />
+              </button>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Create / edit modal */}
