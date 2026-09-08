@@ -24,6 +24,7 @@ import {
   CheckmarkCircle01Icon,
   MessageQuestionIcon,
   AlertCircleIcon,
+  LockIcon,
 } from 'hugeicons-react'
 import { getApiError } from '@/lib/api-client'
 import TeamFeature from '@/components/teams/TeamFeature'
@@ -31,7 +32,10 @@ import TeamFeature from '@/components/teams/TeamFeature'
 // ── API shapes — programmes (secondary lookup for header) ─────────────────────
 interface ApiCohortSummary {
   cohortId?: number
+  cohort_id?: number
   cohortTitle?: string
+  membership_status?: string
+  membershipStatus?: string
 }
 interface ApiProgram {
   id: number
@@ -1160,6 +1164,7 @@ export default function CourseDetailPage() {
   const [showReview, setShowReview]     = useState(false)
   const [isTeamLead, setIsTeamLead]     = useState(false)
   const [teamSeats, setTeamSeats]       = useState<{ used: number; total: number } | null>(null)
+  const [accessLocked, setAccessLocked] = useState(false)
 
   // Set default selected item once modules load
   useEffect(() => {
@@ -1208,6 +1213,13 @@ export default function CourseDetailPage() {
             setProgramTitle(program.title)
             resolvedProgramId = program.id
             const cohortRow = rm(program).find((c) => String(rc(c)) === String(cohortId))
+            // Gate: check cohort membership status
+            const memberStatus = (
+              cohortRow?.membership_status ?? cohortRow?.membershipStatus ?? 'ACTIVE'
+            ).toUpperCase()
+            if (memberStatus !== 'ACTIVE') {
+              setAccessLocked(true)
+            }
             const enrollment = readEnrollment(cohortRow)
             if (enrollment?.enrollmentType === 'TEAM') {
               setIsTeamLead(true)
@@ -1309,6 +1321,39 @@ export default function CourseDetailPage() {
           <button
             onClick={() => router.push('/student/programs')}
             className="mt-2 text-[13px] text-[#d51520] font-medium hover:underline"
+          >
+            ← Back to My Programs
+          </button>
+        </div>
+      </>
+    )
+  }
+
+  // ── Access locked ──
+  if (accessLocked) {
+    return (
+      <>
+        <TopNav title={programTitle || 'Course'} breadcrumbs={['My Programs']} />
+        <div className="flex flex-col items-center justify-center h-[70vh] gap-4 text-center px-6">
+          <div className="w-16 h-16 rounded-[16px] bg-[#fef2f2] flex items-center justify-center">
+            <LockIcon size={28} color="#d51520" strokeWidth={1.5} />
+          </div>
+          <div>
+            <p className="text-[20px] font-bold text-[#111827] font-display mb-2">Access Suspended</p>
+            <p className="text-[14px] text-[#4b5563] font-body max-w-[400px] leading-relaxed">
+              Your access to <span className="font-semibold text-[#111827]">{programTitle || 'this programme'}</span> has been suspended.
+              This is usually due to an outstanding payment. Please complete your payment to restore access.
+            </p>
+          </div>
+          <button
+            onClick={() => router.push('/student/finance')}
+            className="mt-2 h-10 px-6 bg-[#d51520] hover:bg-[#b91c1c] text-white text-[14px] font-semibold font-display rounded-[8px] transition-colors"
+          >
+            Go to Finance
+          </button>
+          <button
+            onClick={() => router.push('/student/programs')}
+            className="text-[13px] text-[#4b5563] font-body hover:text-[#111827] hover:underline"
           >
             ← Back to My Programs
           </button>
