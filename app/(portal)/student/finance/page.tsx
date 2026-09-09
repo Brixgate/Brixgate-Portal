@@ -319,17 +319,21 @@ function PayButton({ plan, installment, onSuccess }: {
     setLoading(true)
     setError(null)
     try {
-      // Payload per API spec (camelCase). For FIXED_INSTALLMENT omit partAmount —
-      // backend automatically applies payment to the earliest unpaid installment.
+      if (!plan.pricingPlanId) {
+        setError('Payment plan data is incomplete. Please refresh the page and try again.')
+        setLoading(false)
+        return
+      }
+      // Backend expects snake_case request body (global Jackson SNAKE_CASE strategy).
       const payload: Record<string, unknown> = {
-        paymentType:             'ENROLLMENT',
-        paymentMethod:           'PAYSTACK',
-        entityId:                plan.cohortId,
-        pricingPlanId:           plan.pricingPlanId,
-        enrollmentPaymentPlanId: plan.id,
+        payment_type:               'ENROLLMENT',
+        payment_method:             'PAYSTACK',
+        entity_id:                  plan.cohortId,
+        pricing_plan_id:            plan.pricingPlanId,
+        enrollment_payment_plan_id: plan.id,
       }
       if (isFlexible) {
-        payload.partAmount = Number(partAmount.replace(/[^0-9.]/g, ''))
+        payload.part_amount = Number(partAmount.replace(/[^0-9.]/g, ''))
       }
 
       const axiosRes = await apiClient.post('/payments/initiate', payload)

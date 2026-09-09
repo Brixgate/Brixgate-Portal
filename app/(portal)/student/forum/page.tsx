@@ -221,6 +221,7 @@ function PostPanel({
   const [editSaving,    setEditSaving]    = useState(false)
   const [localTitle,    setLocalTitle]    = useState(post.title)
   const [localBody,     setLocalBody]     = useState(post.body)
+  const [commentCount,  setCommentCount]  = useState(post.comment_count)
   const commentRef = useRef<HTMLTextAreaElement>(null)
 
   const loadComments = useCallback(async () => {
@@ -241,6 +242,7 @@ function PostPanel({
     try {
       await apiClient.post(`/forum/posts/${post.id}/comments`, { body: commentBody.trim(), parent_comment_id: null })
       setCommentBody('')
+      setCommentCount(prev => prev + 1)
       await loadComments()
     } catch (e) {
       setError(getApiError(e))
@@ -254,6 +256,7 @@ function PostPanel({
     try {
       await apiClient.delete(`/forum/comments/${id}`)
       setComments(prev => prev.filter(c => c.id !== id))
+      setCommentCount(prev => Math.max(0, prev - 1))
     } catch { /* ignore */ } finally { setDeletingCid(null) }
   }
 
@@ -386,7 +389,7 @@ function PostPanel({
           {/* Comments */}
           <div className="px-5 py-4">
             <p className="text-[12px] font-bold uppercase tracking-wider text-[#9ca3af] font-display mb-3">
-              {post.comment_count} Comment{post.comment_count !== 1 ? 's' : ''}
+              {commentCount} Comment{commentCount !== 1 ? 's' : ''}
             </p>
             {commentsLoading ? (
               <div className="flex items-center justify-center py-8">
