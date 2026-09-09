@@ -142,6 +142,14 @@ export function getApiError(error: unknown): string {
 
     const data = error.response?.data as Record<string, unknown> | undefined
     if (data) {
+      // Field-level validation errors (object keyed by field name) — most specific, show first
+      if (data.errors && typeof data.errors === 'object' && !Array.isArray(data.errors)) {
+        const msgs = Object.values(data.errors as Record<string, unknown>)
+          .flatMap(v => Array.isArray(v) ? v : [v])
+          .filter(Boolean)
+          .map(String)
+        if (msgs.length > 0) return msgs.join(' ')
+      }
       // Surface the API's own message directly — it knows best
       if (typeof data.message === 'string' && data.message) return data.message
       if (typeof data.error === 'string' && data.error)     return data.error

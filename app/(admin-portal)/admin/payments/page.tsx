@@ -24,6 +24,7 @@ interface Pagination { totalElements?: number; total_elements?: number; total?: 
 interface PaymentIntent {
   id: number
   user?: AnyUser & { id?: number }
+  provider_amount?: number
   total_amount?: number
   original_amount?: number
   discount_amount?: number
@@ -75,7 +76,7 @@ function resolveAmount(p: Payment): string {
   return `${cur === 'USD' ? '$' : '₦'}${amt.toLocaleString('en-NG')}`
 }
 function intentAmount(i: PaymentIntent): string {
-  const amt = i.total_amount ?? i.original_amount
+  const amt = i.provider_amount ?? i.total_amount ?? i.original_amount
   if (amt == null) return '—'
   const cur = i.currency ?? 'NGN'
   return `${cur === 'USD' ? '$' : '₦'}${amt.toLocaleString('en-NG')}`
