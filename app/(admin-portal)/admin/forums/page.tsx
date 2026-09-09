@@ -43,21 +43,27 @@ interface UserSearchResult {
 
 interface ForumPost {
   id: number
-  content: string
+  title?: string
+  body?: string
+  content?: string
+  post_type?: string
   scope?: string
-  forum_group_id?: number
+  forum_group_id?: number; forumGroupId?: number
   author_name?: string; authorName?: string
-  author_id?: number; authorId?: number
+  author_user_id?: number; author_id?: number; authorId?: number
+  comment_count?: number; commentCount?: number
+  status?: string
   created_at: string
   updated_at?: string
 }
 
 interface ForumComment {
   id: number
-  content: string
+  body?: string
+  content?: string
   post_id?: number
   author_name?: string; authorName?: string
-  author_id?: number; authorId?: number
+  author_user_id?: number; author_id?: number; authorId?: number
   created_at: string
 }
 
@@ -96,6 +102,14 @@ function formatTimeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })
 }
 
+function postInitials(name: string): string {
+  return name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?'
+}
+
+function postTitle(p: ForumPost): string { return p.title ?? '' }
+function postBody(p: ForumPost): string  { return p.body ?? p.content ?? '' }
+function commentBody(c: ForumComment): string { return c.body ?? c.content ?? '' }
+
 const STATUS_STYLE: Record<string, string> = {
   ACTIVE:   'bg-[#ecfdf3] text-[#027a48]',
   ARCHIVED: 'bg-[#f3f4f6] text-[#4b5563]',
@@ -103,6 +117,282 @@ const STATUS_STYLE: Record<string, string> = {
 const VISIBILITY_STYLE: Record<string, string> = {
   PRIVATE: 'bg-[#eff6ff] text-[#1d4ed8]',
   PUBLIC:  'bg-[#f0fdfa] text-[#0f766e]',
+}
+
+// ── Admin posts full page ─────────────────────────────────────────────────────
+function AdminPostsFeed({ groups }: { groups: ForumGroup[] }) {
+  const [scope,           setScope]          = useState<'GENERAL' | number>('GENERAL')
+  const [posts,           setPosts]          = useState<ForumPost[]>([])
+  const [loading,         setLoading]        = useState(true)
+  const [expandedId,      setExpandedId]     = useState<number | null>(null)
+  const [commentMap,      setCommentMap]     = useState<Record<number, ForumComment[]>>({})
+  const [commentLoading,  setCommentLoading] = useState<number | null>(null)
+  const [commentInput,    setCommentInput]   = useState<Record<number, string>>({})
+  const [deletingPostId,  setDeletingPostId] = useState<number | null>(null)
+  const [deletingCid,     setDeletingCid]    = useState<number | null>(null)
+  const [submittingCid,   setSubmittingCid]  = useState<number | null>(null)
+
+  const loadPosts = useCallback(async () => {
+    setLoading(true)
+    setExpandedId(null)
+    setCommentMap({})
+    try {
+      const url = scope === 'GENERAL'
+        ? '/forum/posts?scope=GENERAL&size=100'
+        : `/forum/posts?scope=GROUP&groupId=${scope}&size=100`
+      const res = await apiClient.get(url)
+      const raw = unwrap<{ posts?: ForumPost[]; content?: ForumPost[] } | ForumPost[]>(res.data)
+      const list: ForumPost[] = Array.isArray(raw) ? raw : (raw as { posts?: ForumPost[] })?.posts ?? (raw as { content?: ForumPost[] })?.content ?? []
+      setPosts([...list].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()))
+    } catch { setPosts([]) } finally { setLoading(false) }
+  }, [scope])
+
+  useEffect(() => { loadPosts() }, [loadPosts])
+
+  async function loadComments(postId: number) {
+    if (commentMap[postId] !== undefined) return
+    setCommentLoading(postId)
+    try {
+      const res = await apiClient.get(`/forum/posts/${postId}/comments?size=100`)
+      const raw = unwrap<{ comments?: ForumComment[]; content?: ForumComment[] } | ForumComment[]>(res.data)
+      const list: ForumComment[] = Array.isArray(raw) ? raw : (raw as { comments?: ForumComment[] })?.comments ?? (raw as { content?: ForumComment[] })?.content ?? []
+      setCommentMap(prev => ({ ...prev, [postId]: list }))
+    } catch { setCommentMap(prev => ({ ...prev, [postId]: [] })) } finally { setCommentLoading(null) }
+  }
+
+  function togglePost(postId: number) {
+    if (expandedId === postId) { setExpandedId(null); return }
+    setExpandedId(postId)
+    loadComments(postId)
+  }
+
+  async function deletePost(postId: number) {
+    setDeletingPostId(postId)
+    try {
+      await apiClient.delete(`/forum/posts/${postId}`)
+      setPosts(prev => prev.filter(p => p.id !== postId))
+      if (expandedId === postId) setExpandedId(null)
+    } catch { /* ignore */ } finally { setDeletingPostId(null) }
+  }
+
+  async function deleteComment(postId: number, commentId: number) {
+    setDeletingCid(commentId)
+    try {
+      await apiClient.delete(`/forum/comments/${commentId}`)
+      setCommentMap(prev => ({ ...prev, [postId]: (prev[postId] ?? []).filter(c => c.id !== commentId) }))
+    } catch { /* ignore */ } finally { setDeletingCid(null) }
+  }
+
+  async function submitComment(postId: number) {
+    const body = (commentInput[postId] ?? '').trim()
+    if (!body) return
+    setSubmittingCid(postId)
+    try {
+      await apiClient.post(`/forum/posts/${postId}/comments`, { body })
+      setCommentInput(prev => ({ ...prev, [postId]: '' }))
+      setCommentMap(prev => { const n = { ...prev }; delete n[postId]; return n })
+      await loadComments(postId)
+    } catch { /* ignore */ } finally { setSubmittingCid(null) }
+  }
+
+  const activeGroup = typeof scope === 'number' ? groups.find(g => g.id === scope) : null
+
+  return (
+    <div className="flex gap-6 min-h-0">
+      {/* Left: scope selector */}
+      <div className="w-[220px] flex-shrink-0">
+        <div className="bg-white rounded-[10px] border border-[#eaecf0] overflow-hidden">
+          <div className="px-4 py-3 border-b border-[#f3f4f6]">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-[#9ca3af] font-display">View</p>
+          </div>
+          <div className="py-1">
+            <button
+              onClick={() => setScope('GENERAL')}
+              className={`w-full text-left px-4 py-2.5 text-[13px] font-display transition-colors flex items-center gap-2 ${
+                scope === 'GENERAL'
+                  ? 'bg-[#fef2f2] text-[#d51520] font-semibold'
+                  : 'text-[#374151] hover:bg-[#f9fafb] font-medium'
+              }`}
+            >
+              <BubbleChatIcon size={14} strokeWidth={1.5} />
+              General
+            </button>
+            {groups.length > 0 && (
+              <div className="mx-4 my-1 border-t border-[#f3f4f6]" />
+            )}
+            {groups.map(g => (
+              <button
+                key={g.id}
+                onClick={() => setScope(g.id)}
+                className={`w-full text-left px-4 py-2.5 text-[13px] font-display transition-colors flex items-center gap-2 ${
+                  scope === g.id
+                    ? 'bg-[#fef2f2] text-[#d51520] font-semibold'
+                    : 'text-[#374151] hover:bg-[#f9fafb] font-medium'
+                }`}
+              >
+                <UserGroup02Icon size={14} strokeWidth={1.5} />
+                <span className="truncate">{g.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Right: post feed */}
+      <div className="flex-1 min-w-0">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-[16px] font-bold text-[#111827] font-display">
+              {scope === 'GENERAL' ? 'General Posts' : (activeGroup?.name ?? 'Group Posts')}
+            </h2>
+            <p className="text-[12px] text-[#6b7280] font-body mt-0.5">
+              {scope === 'GENERAL' ? 'Non-group posts visible to all alumni' : `Posts within this group`}
+            </p>
+          </div>
+          <button
+            onClick={loadPosts}
+            className="h-8 px-3 rounded-[8px] border border-[#e5e7eb] text-[12px] font-semibold text-[#374151] font-display hover:bg-[#f9fafb] transition-colors"
+          >
+            Refresh
+          </button>
+        </div>
+
+        {/* Posts */}
+        <div className="bg-white rounded-[10px] border border-[#eaecf0] overflow-hidden">
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loading01Icon size={22} className="animate-spin text-[#d51520]" />
+            </div>
+          ) : posts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="w-12 h-12 rounded-[10px] bg-[#f3f4f6] flex items-center justify-center mb-3">
+                <BubbleChatIcon size={22} color="#9ca3af" strokeWidth={1.5} />
+              </div>
+              <p className="text-[14px] font-semibold text-[#111827] font-display mb-1">No posts yet</p>
+              <p className="text-[12px] text-[#6b7280] font-body">No posts have been made in this section.</p>
+            </div>
+          ) : (
+            posts.map(post => {
+              const title = postTitle(post)
+              const body  = postBody(post)
+              const author = post.author_name ?? post.authorName ?? 'Unknown'
+              const count  = post.comment_count ?? post.commentCount ?? 0
+              const isExpanded = expandedId === post.id
+              return (
+                <div key={post.id} className="border-b border-[#f3f4f6] last:border-b-0">
+                  {/* Post row */}
+                  <div
+                    className="px-5 py-4 hover:bg-[#f9fafb] cursor-pointer"
+                    onClick={() => togglePost(post.id)}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-full bg-[#d51520] flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span className="text-[10px] font-bold text-white font-display">{postInitials(author)}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <p className="text-[13px] font-semibold text-[#111827] font-display">{author}</p>
+                          <span className="text-[11px] text-[#9ca3af] font-body">{formatTimeAgo(post.created_at)}</span>
+                          {post.post_type && (
+                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold font-display ${
+                              post.post_type === 'ARTICLE' ? 'bg-[#eff6ff] text-[#1d4ed8]' : 'bg-[#f0fdfa] text-[#0f766e]'
+                            }`}>{post.post_type}</span>
+                          )}
+                        </div>
+                        {title && <p className="text-[14px] font-bold text-[#111827] font-display mb-1 leading-snug">{title}</p>}
+                        <p className="text-[13px] text-[#4b5563] font-body leading-relaxed line-clamp-2">{body}</p>
+                        <div className="flex items-center gap-1 mt-2 text-[12px] text-[#9ca3af] font-body">
+                          <BubbleChatIcon size={12} strokeWidth={1.5} />
+                          {count} comment{count !== 1 ? 's' : ''}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          onClick={e => { e.stopPropagation(); deletePost(post.id) }}
+                          disabled={deletingPostId === post.id}
+                          title="Delete post"
+                          className="w-7 h-7 flex items-center justify-center rounded-[6px] text-[#9ca3af] hover:text-[#d51520] hover:bg-[#fef2f2] transition-colors"
+                        >
+                          {deletingPostId === post.id
+                            ? <Loading01Icon size={13} className="animate-spin" />
+                            : <Delete01Icon size={13} strokeWidth={1.5} />}
+                        </button>
+                        {isExpanded ? <ArrowUp01Icon size={14} color="#9ca3af" strokeWidth={1.5} /> : <ArrowDown01Icon size={14} color="#9ca3af" strokeWidth={1.5} />}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Comments drawer */}
+                  {isExpanded && (
+                    <div className="bg-[#fafafa] border-t border-[#f3f4f6] px-5 py-4">
+                      {commentLoading === post.id ? (
+                        <div className="flex items-center justify-center py-6">
+                          <Loading01Icon size={18} className="animate-spin text-[#d51520]" />
+                        </div>
+                      ) : (commentMap[post.id] ?? []).length === 0 ? (
+                        <p className="text-[12px] text-[#9ca3af] font-body pb-3">No comments yet.</p>
+                      ) : (
+                        <div className="space-y-2 mb-3">
+                          {(commentMap[post.id] ?? []).map(c => (
+                            <div key={c.id} className="flex items-start gap-2">
+                              <div className="w-6 h-6 rounded-full bg-[#e5e7eb] flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <span className="text-[9px] font-bold text-[#374151] font-display">
+                                  {postInitials(c.author_name ?? c.authorName ?? '?')}
+                                </span>
+                              </div>
+                              <div className="flex-1 min-w-0 bg-white rounded-[8px] px-3 py-2.5 border border-[#f3f4f6]">
+                                <div className="flex items-center justify-between mb-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <p className="text-[12px] font-semibold text-[#111827] font-display">
+                                      {c.author_name ?? c.authorName ?? 'Unknown'}
+                                    </p>
+                                    <span className="text-[11px] text-[#9ca3af] font-body">{formatTimeAgo(c.created_at)}</span>
+                                  </div>
+                                  <button
+                                    onClick={() => deleteComment(post.id, c.id)}
+                                    disabled={deletingCid === c.id}
+                                    className="text-[#d1d5db] hover:text-[#d51520] transition-colors"
+                                  >
+                                    {deletingCid === c.id
+                                      ? <Loading01Icon size={11} className="animate-spin" />
+                                      : <Delete01Icon size={11} strokeWidth={1.5} />}
+                                  </button>
+                                </div>
+                                <p className="text-[13px] text-[#374151] font-body leading-relaxed">{commentBody(c)}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {/* Comment input */}
+                      <div className="flex items-center gap-2">
+                        <input
+                          value={commentInput[post.id] ?? ''}
+                          onChange={e => setCommentInput(prev => ({ ...prev, [post.id]: e.target.value }))}
+                          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitComment(post.id) } }}
+                          placeholder="Add a comment…"
+                          className="flex-1 h-8 px-3 rounded-[6px] border border-[#e5e7eb] text-[12px] font-body focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520]"
+                        />
+                        <button
+                          onClick={() => submitComment(post.id)}
+                          disabled={submittingCid === post.id || !(commentInput[post.id] ?? '').trim()}
+                          className="h-8 px-3 rounded-[6px] bg-[#d51520] text-white text-[12px] font-semibold font-display hover:bg-[#b91219] transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                        >
+                          {submittingCid === post.id && <Loading01Icon size={11} className="animate-spin" />}
+                          Send
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // ── Create/Edit modal ─────────────────────────────────────────────────────────
@@ -659,6 +949,7 @@ function GroupDetailPanel({
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function ForumGroupsPage() {
+  const [pageTab,       setPageTab]     = useState<'groups' | 'posts'>('groups')
   const [groups,        setGroups]      = useState<ForumGroup[]>([])
   const [loading,       setLoading]     = useState(true)
   const [search,        setSearch]      = useState('')
@@ -702,18 +993,44 @@ export default function ForumGroupsPage() {
       {/* Page header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-[22px] font-bold text-[#111827] font-display">Forum Groups</h1>
-          <p className="text-[13px] text-[#4b5563] font-body mt-0.5">Manage community forum groups</p>
+          <h1 className="text-[22px] font-bold text-[#111827] font-display">Forum</h1>
+          <p className="text-[13px] text-[#4b5563] font-body mt-0.5">Manage groups and browse all posts</p>
         </div>
-        <button
-          onClick={() => { setEditTarget(null); setShowModal(true) }}
-          className="flex items-center gap-2 h-9 px-4 rounded-[8px] bg-[#d51520] text-white text-[13px] font-semibold font-display hover:bg-[#b91219] transition-colors"
-        >
-          <Add01Icon size={15} strokeWidth={2} />
-          Create Group
-        </button>
+        {pageTab === 'groups' && (
+          <button
+            onClick={() => { setEditTarget(null); setShowModal(true) }}
+            className="flex items-center gap-2 h-9 px-4 rounded-[8px] bg-[#d51520] text-white text-[13px] font-semibold font-display hover:bg-[#b91219] transition-colors"
+          >
+            <Add01Icon size={15} strokeWidth={2} />
+            Create Group
+          </button>
+        )}
       </div>
 
+      {/* Tab bar */}
+      <div className="flex border-b border-[#eaecf0] mb-6 gap-1">
+        {(['groups', 'posts'] as const).map(tab => (
+          <button
+            key={tab}
+            onClick={() => setPageTab(tab)}
+            className={`flex items-center gap-2 px-4 py-2.5 text-[13px] font-semibold font-display transition-colors border-b-2 -mb-px ${
+              pageTab === tab
+                ? 'text-[#d51520] border-[#d51520]'
+                : 'text-[#6b7280] border-transparent hover:text-[#374151]'
+            }`}
+          >
+            {tab === 'groups' ? <UserGroup02Icon size={14} strokeWidth={1.5} /> : <BubbleChatIcon size={14} strokeWidth={1.5} />}
+            {tab === 'groups' ? 'Groups' : 'Posts'}
+          </button>
+        ))}
+      </div>
+
+      {/* Posts tab */}
+      {pageTab === 'posts' && (
+        <AdminPostsFeed groups={groups} />
+      )}
+
+      {pageTab === 'groups' && <>
       {error && (
         <div className="flex items-center gap-2 px-4 py-3 rounded-[8px] bg-[#fef2f2] text-[#d51520] text-[13px] mb-4">
           <AlertCircleIcon size={14} strokeWidth={1.5} />
@@ -856,6 +1173,7 @@ export default function ForumGroupsPage() {
           </div>
         </div>
       )}
+      </>}
     </div>
   )
 }
