@@ -137,13 +137,18 @@ function AdminPostsFeed({ groups }: { groups: ForumGroup[] }) {
     setExpandedId(null)
     setCommentMap({})
     try {
+      // General = all posts across all groups; specific group = filter by groupId
       const url = scope === 'GENERAL'
-        ? '/forum/posts?scope=GENERAL&size=100'
+        ? '/forum/posts?size=100'
         : `/forum/posts?scope=GROUP&groupId=${scope}&size=100`
       const res = await apiClient.get(url)
       const raw = unwrap<{ posts?: ForumPost[]; content?: ForumPost[] } | ForumPost[]>(res.data)
       const list: ForumPost[] = Array.isArray(raw) ? raw : (raw as { posts?: ForumPost[] })?.posts ?? (raw as { content?: ForumPost[] })?.content ?? []
-      setPosts([...list].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()))
+      // Client-side filter for group scope as a fallback for backend filter inconsistencies
+      const filtered = typeof scope === 'number'
+        ? list.filter(p => (p.forum_group_id ?? p.forumGroupId) === scope)
+        : list
+      setPosts([...filtered].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()))
     } catch { setPosts([]) } finally { setLoading(false) }
   }, [scope])
 
@@ -197,6 +202,18 @@ function AdminPostsFeed({ groups }: { groups: ForumGroup[] }) {
 
   const activeGroup = typeof scope === 'number' ? groups.find(g => g.id === scope) : null
 
+  function groupBadge(post: ForumPost) {
+    const gid = post.forum_group_id ?? post.forumGroupId
+    if (!gid) return null
+    const g = groups.find(x => x.id === gid)
+    if (!g) return null
+    return (
+      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold font-display bg-[#fef2f2] text-[#d51520]">
+        {g.name}
+      </span>
+    )
+  }
+
   return (
     <div className="flex gap-6 min-h-0">
       {/* Left: scope selector */}
@@ -247,7 +264,7 @@ function AdminPostsFeed({ groups }: { groups: ForumGroup[] }) {
               {scope === 'GENERAL' ? 'General Posts' : (activeGroup?.name ?? 'Group Posts')}
             </h2>
             <p className="text-[12px] text-[#6b7280] font-body mt-0.5">
-              {scope === 'GENERAL' ? 'Non-group posts visible to all alumni' : `Posts within this group`}
+              {scope === 'GENERAL' ? 'All posts across every group and the alumni community' : `Posts within this group`}
             </p>
           </div>
           <button
@@ -299,6 +316,7 @@ function AdminPostsFeed({ groups }: { groups: ForumGroup[] }) {
                               post.post_type === 'ARTICLE' ? 'bg-[#eff6ff] text-[#1d4ed8]' : 'bg-[#f0fdfa] text-[#0f766e]'
                             }`}>{post.post_type}</span>
                           )}
+                          {scope === 'GENERAL' && groupBadge(post)}
                         </div>
                         {title && <p className="text-[14px] font-bold text-[#111827] font-display mb-1 leading-snug">{title}</p>}
                         <p className="text-[13px] text-[#4b5563] font-body leading-relaxed line-clamp-2">{body}</p>
@@ -900,47 +918,31 @@ function PostsContent({ group }: { group: ForumGroup }) {
   )
 }
 
-// ── Group detail panel (Members + Posts tabs) ─────────────────────────────────
+// ── Group detail panel (Members only — Posts live in the Posts tab on the main page) ──
 function GroupDetailPanel({
   group, onClose,
 }: {
   group: ForumGroup
   onClose: () => void
 }) {
-  const [activeTab, setActiveTab] = useState<'members' | 'posts'>('members')
-
   return (
     <div className="fixed inset-0 z-50 flex">
       <div className="flex-1 bg-black/40" onClick={onClose} />
       <div className="w-[520px] bg-white h-full flex flex-col shadow-xl">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#f3f4f6] flex-shrink-0">
-          <h2 className="text-[15px] font-bold text-[#111827] font-display">{group.name}</h2>
+          <div>
+            <h2 className="text-[15px] font-bold text-[#111827] font-display">{group.name}</h2>
+            <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">Group members</p>
+          </div>
           <button onClick={onClose} className="text-[#4b5563] hover:text-[#111827] transition-colors">
             <Cancel01Icon size={18} strokeWidth={1.5} />
           </button>
         </div>
 
-        {/* Tab bar */}
-        <div className="flex border-b border-[#f3f4f6] flex-shrink-0">
-          {(['members', 'posts'] as const).map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`flex-1 py-3 text-[13px] font-semibold font-display transition-colors ${
-                activeTab === tab
-                  ? 'text-[#d51520] border-b-2 border-[#d51520]'
-                  : 'text-[#6b7280] hover:text-[#374151]'
-              }`}
-            >
-              {tab === 'members' ? 'Members' : 'Posts'}
-            </button>
-          ))}
-        </div>
-
-        {/* Tab content */}
+        {/* Members content */}
         <div className="flex-1 flex flex-col min-h-0">
-          {activeTab === 'members' ? <MembersContent group={group} /> : <PostsContent group={group} />}
+          <MembersContent group={group} />
         </div>
       </div>
     </div>

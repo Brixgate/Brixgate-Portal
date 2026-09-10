@@ -512,9 +512,9 @@ export default function ForumPage() {
 
   const [isAlumnus,    setIsAlumnus]    = useState<boolean | null>(null)
   const [groups,       setGroups]       = useState<ForumGroup[]>([])
-  const [posts,        setPosts]        = useState<ForumPost[]>([])
+  const [allPosts,     setAllPosts]     = useState<ForumPost[]>([])
   const [postsLoading, setPostsLoading] = useState(true)
-  const [activeScope,  setActiveScope]  = useState<'ALL' | 'GENERAL' | number>('ALL')
+  const [activeScope,  setActiveScope]  = useState<'GENERAL' | number>('GENERAL')
   const [showWrite,    setShowWrite]    = useState(false)
   const [activePost,   setActivePost]   = useState<ForumPost | null>(null)
 
@@ -536,23 +536,24 @@ export default function ForumPage() {
   const loadPosts = useCallback(async () => {
     setPostsLoading(true)
     try {
-      let url = '/forum/posts?size=30&page=1'
-      if (activeScope === 'GENERAL') url += '&scope=GENERAL'
-      else if (typeof activeScope === 'number') url += `&scope=GROUP&groupId=${activeScope}`
-      const res = await apiClient.get(url)
+      // Always fetch all posts — client-side filter for group views
+      // This avoids backend GROUP+groupId filter inconsistencies
+      const res = await apiClient.get('/forum/posts?size=100')
       const raw = unwrap<{ posts?: ForumPost[]; content?: ForumPost[] } | ForumPost[]>(res.data)
       const list: ForumPost[] = Array.isArray(raw) ? raw : raw?.posts ?? (raw as { content?: ForumPost[] })?.content ?? []
-      setPosts(list.filter(p => p.status === 'PUBLISHED' || p.status === 'EDITED'))
+      setAllPosts(list.filter(p => p.status === 'PUBLISHED' || p.status === 'EDITED'))
     } catch {
-      setPosts([])
+      setAllPosts([])
     } finally {
       setPostsLoading(false)
     }
-  }, [activeScope])
+  }, [])
 
   useEffect(() => {
     if (isAlumnus) loadPosts()
   }, [isAlumnus, loadPosts])
+
+  // Re-filter is purely derived from allPosts + activeScope — no reload needed
 
   // Not yet loaded
   if (isAlumnus === null) {
@@ -580,6 +581,11 @@ export default function ForumPage() {
     )
   }
 
+  // Client-side filter: General = all posts; group = only that group's posts
+  const posts = typeof activeScope === 'number'
+    ? allPosts.filter(p => p.forum_group_id === activeScope)
+    : allPosts
+
   const activeGroupName = typeof activeScope === 'number'
     ? groups.find(g => g.id === activeScope)?.name ?? 'Group'
     : null
@@ -589,15 +595,6 @@ export default function ForumPage() {
       {/* Left panel — group navigation */}
       <div className="w-[220px] flex-shrink-0 border-r border-[#f3f4f6] flex flex-col py-4 px-3 gap-1 bg-white overflow-y-auto">
         <p className="text-[10px] font-bold uppercase tracking-widest text-[#9ca3af] font-display px-3 mb-1">Feed</p>
-        <button
-          onClick={() => setActiveScope('ALL')}
-          className={`flex items-center gap-2.5 px-3 py-2.5 rounded-[8px] text-[13px] font-semibold font-display w-full text-left transition-colors ${
-            activeScope === 'ALL' ? 'bg-[#fef2f2] text-[#d51520]' : 'text-[#374151] hover:bg-[#f9fafb]'
-          }`}
-        >
-          <GlobeIcon size={15} strokeWidth={1.5} />
-          All Posts
-        </button>
         <button
           onClick={() => setActiveScope('GENERAL')}
           className={`flex items-center gap-2.5 px-3 py-2.5 rounded-[8px] text-[13px] font-semibold font-display w-full text-left transition-colors ${
@@ -635,14 +632,12 @@ export default function ForumPage() {
           <div className="flex items-center justify-between mb-5">
             <div>
               <h1 className="text-[18px] font-bold text-[#111827] font-display">
-                {activeScope === 'ALL'     ? 'All Posts'
-                  : activeScope === 'GENERAL' ? 'General Feed'
-                  : activeGroupName ?? 'Group'}
+                {activeScope === 'GENERAL' ? 'General' : activeGroupName ?? 'Group'}
               </h1>
               <p className="text-[12px] text-[#9ca3af] font-body mt-0.5">
-                {activeScope === 'ALL' ? 'Posts from your groups and the general alumni feed' :
-                 activeScope === 'GENERAL' ? 'Open to all Brixgate alumni' :
-                 'Posts from this group'}
+                {activeScope === 'GENERAL'
+                  ? 'All posts from your groups and the alumni community'
+                  : `Posts within ${activeGroupName ?? 'this group'}`}
               </p>
             </div>
             <button

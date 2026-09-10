@@ -3536,6 +3536,9 @@ function ClosureTab({ cohortId, cohortStatus, onCohortClosed }: { cohortId: stri
       // Pre-select certificates marked as required
       const requiredIds = new Set(data.issuable_certificates.filter(c => c.is_required).map(c => c.id))
       setSelectedCerts(requiredIds)
+      // Lock already-graduated students into Include — they were processed in a prior run
+      const prevGraduated = new Set(data.participants.filter(p => p.already_graduated).map(p => p.user_id))
+      if (prevGraduated.size > 0) setManualIncludes(prevGraduated)
     } catch (e) {
       setPreviewError(getApiError(e))
     } finally {
@@ -3724,9 +3727,14 @@ function ClosureTab({ cohortId, cohortStatus, onCohortClosed }: { cohortId: stri
                 const isExcluded = manualExcludes.has(p.user_id)
                 const effectiveOutcome = isIncluded ? 'GRADUATED' : isExcluded ? 'INCOMPLETE' : p.proposed_outcome
                 return (
-                  <div key={p.user_id} className="grid grid-cols-[1fr_80px_120px_88px_88px] items-center px-3 py-2.5 border-b border-[#f3f4f6] last:border-b-0 hover:bg-[#f9fafb]">
+                  <div key={p.user_id} className={`grid grid-cols-[1fr_80px_120px_88px_88px] items-center px-3 py-2.5 border-b border-[#f3f4f6] last:border-b-0 ${p.already_graduated ? 'bg-[#f0fdf4]' : 'hover:bg-[#f9fafb]'}`}>
                     <div className="min-w-0">
-                      <p className="text-[13px] font-semibold text-[#111827] font-display truncate">{p.user_name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-[13px] font-semibold text-[#111827] font-display truncate">{p.user_name}</p>
+                        {p.already_graduated && (
+                          <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full text-[9px] font-bold font-display bg-[#dcfce7] text-[#15803d]">Graduated</span>
+                        )}
+                      </div>
                       <p className="text-[11px] text-[#6b7280] font-body truncate">{p.user_email}</p>
                     </div>
                     <p className="text-[13px] text-[#374151] font-body">{p.completion_percent}%</p>
@@ -3737,16 +3745,18 @@ function ClosureTab({ cohortId, cohortStatus, onCohortClosed }: { cohortId: stri
                       <input
                         type="checkbox"
                         checked={isIncluded}
-                        onChange={() => toggleManualInclude(p.user_id)}
-                        className="w-4 h-4 rounded accent-[#d51520] cursor-pointer"
+                        disabled={p.already_graduated}
+                        onChange={() => !p.already_graduated && toggleManualInclude(p.user_id)}
+                        className={`w-4 h-4 rounded accent-[#d51520] ${p.already_graduated ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
                       />
                     </div>
                     <div className="flex items-center">
                       <input
                         type="checkbox"
                         checked={isExcluded}
-                        onChange={() => toggleManualExclude(p.user_id)}
-                        className="w-4 h-4 rounded accent-[#374151] cursor-pointer"
+                        disabled={p.already_graduated}
+                        onChange={() => !p.already_graduated && toggleManualExclude(p.user_id)}
+                        className={`w-4 h-4 rounded accent-[#374151] ${p.already_graduated ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
                       />
                     </div>
                   </div>
@@ -3907,7 +3917,8 @@ export default function CohortDetailPage() {
     async function loadCohort() {
       try {
         const res = await apiClient.get(`/admin/cohorts/${cohortId}`)
-        const c   = unwrap<Cohort>(res.data)
+        const raw = unwrap<Record<string, unknown>>(res.data)
+        const c   = (raw && typeof raw === 'object' && 'cohort' in raw && raw.cohort && typeof raw.cohort === 'object' ? raw.cohort : raw) as Cohort
         setCohort(c)
 
         // Supplement dates from the program cohorts list if the single endpoint doesn't return them
