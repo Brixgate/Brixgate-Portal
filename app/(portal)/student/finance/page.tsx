@@ -133,6 +133,7 @@ interface PaymentPlan {
   installments: Installment[]
   payments: PlanPayment[]
   pricingPlanId: number | null
+  pricingBreakdownId: number | null
   paymentOptionId: number | null
   currency: string
 }
@@ -220,6 +221,7 @@ function normalisePlan(r: ApiPaymentPlan, programTitles?: Map<number, string>): 
     installments,
     payments,
     pricingPlanId:        r.pricing_plan_id ?? r.pricingPlanId ?? null,
+    pricingBreakdownId:   r.pricing_breakdown_id ?? null,
     paymentOptionId:      r.payment_option_id ?? r.paymentOptionId ?? null,
     currency:             r.currency ?? 'NGN',
   }
@@ -319,21 +321,24 @@ function PayButton({ plan, installment, onSuccess }: {
     setLoading(true)
     setError(null)
     try {
-      if (!plan.pricingPlanId) {
-        setError('Payment plan data is incomplete. Please refresh the page and try again.')
-        setLoading(false)
-        return
-      }
-      // Backend expects snake_case request body (global Jackson SNAKE_CASE strategy).
+      const resolvedPricingPlanId = plan.pricingPlanId ?? plan.pricingBreakdownId ?? null
+      // Send both camelCase and snake_case so the backend reads whichever it expects.
       const payload: Record<string, unknown> = {
-        payment_type:               'ENROLLMENT',
-        payment_method:             'PAYSTACK',
-        entity_id:                  plan.cohortId,
-        pricing_plan_id:            plan.pricingPlanId,
+        paymentType:               'ENROLLMENT',
+        payment_type:              'ENROLLMENT',
+        paymentMethod:             'PAYSTACK',
+        payment_method:            'PAYSTACK',
+        entityId:                  plan.cohortId || plan.id,
+        entity_id:                 plan.cohortId || plan.id,
+        pricingPlanId:             resolvedPricingPlanId,
+        pricing_plan_id:           resolvedPricingPlanId,
+        enrollmentPaymentPlanId:   plan.id,
         enrollment_payment_plan_id: plan.id,
       }
       if (isFlexible) {
-        payload.part_amount = Number(partAmount.replace(/[^0-9.]/g, ''))
+        const amt = Number(partAmount.replace(/[^0-9.]/g, ''))
+        payload.partAmount  = amt
+        payload.part_amount = amt
       }
 
       const axiosRes = await apiClient.post('/payments/initiate', payload)
@@ -916,10 +921,9 @@ export default function FinancePage() {
           const body  = dig(d.value.data)
           const inner = dig(body.data ?? body)
           const plan  = (inner.enrollment_payment_plan ?? inner) as ApiPaymentPlan
-          if (!plan.installments && !plan.payment_schedule) {
-            return normalisePlan({ ...list[i], ...plan }, programTitles)
-          }
-          return normalisePlan(plan, programTitles)
+          // Always merge list item with detail — list may carry fields (pricing_plan_id,
+          // cohort_id) that the detail endpoint omits.
+          return normalisePlan({ ...list[i], ...plan }, programTitles)
         }
         return normalisePlan(list[i], programTitles)
       })
