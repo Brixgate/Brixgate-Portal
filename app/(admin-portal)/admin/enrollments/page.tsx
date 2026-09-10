@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { File01Icon } from 'hugeicons-react'
 import { apiClient, unwrap } from '@/lib/api-client'
 
@@ -75,6 +75,10 @@ export default function AdminEnrollmentsPage() {
   const [cohortId, setCohortId]       = useState('')
   const [loading, setLoading]         = useState(true)
 
+  // Cohort name cache: id → title, for rows where the API only returns cohort_id
+  const [cohortNames, setCohortNames] = useState<Record<number, string>>({})
+  const fetchingCohortIds             = useRef<Set<number>>(new Set())
+
   // Program + cohort options for filters
   const [programs, setPrograms]       = useState<ProgramOption[]>([])
   const [cohorts, setCohorts]         = useState<CohortOption[]>([])
@@ -115,9 +119,25 @@ export default function AdminEnrollmentsPage() {
       const res = await apiClient.get(`/admin/cohort-enrollments?${p}`)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const raw = unwrap<any>(res.data)
-      setEnrollments(extractList<Enrollment>(raw))
+      const list = extractList<Enrollment>(raw)
+      setEnrollments(list)
       const pg = extractPagination(raw)
       if (pg) setPagination(pg)
+
+      // Fetch cohort titles for any enrollment that only has an id, not a nested title
+      const missing = list
+        .map(en => en.cohortId ?? en.cohort_id)
+        .filter((cid): cid is number => !!cid && !cohortNames[cid] && !fetchingCohortIds.current.has(cid))
+        .filter((cid, idx, arr) => arr.indexOf(cid) === idx)
+      missing.forEach(cid => fetchingCohortIds.current.add(cid))
+      await Promise.all(missing.map(async cid => {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const r = unwrap<any>((await apiClient.get(`/admin/cohorts/${cid}`)).data)
+          const title = r?.cohort?.title ?? r?.title ?? null
+          if (title) setCohortNames(prev => ({ ...prev, [cid]: title }))
+        } catch { /* leave as id */ } finally { fetchingCohortIds.current.delete(cid) }
+      }))
     } catch {
       setEnrollments([])
     } finally {
@@ -207,7 +227,8 @@ export default function AdminEnrollmentsPage() {
                 const seats = e.seatsPurchased  ?? e.seats_purchased  ?? '—'
                 const comp  = e.completionStatus ?? e.completion_status ?? 'NOT_STARTED'
                 const plan  = e.pricingPlan?.title ?? e.pricing_plan?.title ?? '—'
-                const cohortTitle = e.cohort?.title ?? '—'
+                const cid   = e.cohortId ?? e.cohort_id
+                const cohortTitle = e.cohort?.title ?? (cid ? (cohortNames[cid] ?? `Cohort #${cid}`) : '—')
                 return (
                   <tr key={e.id} className="border-b border-[#f3f4f6] hover:bg-[#fafafa]">
                     <td className="px-4 py-3.5">
