@@ -2204,8 +2204,13 @@ function CohortsTab({ programId }: { programId: string }) {
             <div>
               <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Status</label>
               <select value={form.status} onChange={e => setF('status', e.target.value)} className={clsInput}>
-                {['UPCOMING', 'OPEN', 'CLOSED'].map(s => <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</option>)}
+                {(isEdit ? ['UPCOMING', 'OPEN'] : ['UPCOMING', 'OPEN', 'CLOSED']).map(s => (
+                  <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</option>
+                ))}
               </select>
+              {isEdit && (
+                <p className="mt-1 text-[11px] text-[#9ca3af] font-body">To close a cohort, use the Closure tab on the cohort page.</p>
+              )}
             </div>
             <div>
               <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Max Students</label>
