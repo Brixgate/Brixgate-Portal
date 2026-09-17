@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   UserGroup02Icon, Add01Icon, Loading01Icon, Cancel01Icon,
   AlertCircleIcon, Search01Icon, RefreshIcon, Download01Icon,
+  UserBlock01Icon, CheckmarkCircle01Icon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 import AdminPageLoader from '@/components/admin/AdminPageLoader'
@@ -12,13 +13,15 @@ import AdminPageLoader from '@/components/admin/AdminPageLoader'
 interface ApiUser {
   id: number
   name?: string
+  full_name?: string
   first_name?: string; last_name?: string
   firstName?: string; lastName?: string
   email: string
-  phone?: string; phone_number?: string; phoneNumber?: string; full_phone_number?: string
+  phone?: string; phone_number?: string; phoneNumber?: string; full_phone_number?: string; fullPhoneNumber?: string
   role?: string
-  status?: string
+  status?: number | string   // API returns 1 (active) or 0 (suspended)
   created_at?: string; createdAt?: string
+  last_login_at?: string; lastLoginAt?: string
 }
 
 interface Pagination { page?: number; size?: number; totalElements?: number; total_elements?: number; total?: number; totalPages?: number; total_pages?: number; hasNext?: boolean; has_next?: boolean }
@@ -37,16 +40,33 @@ const ROLE_STYLE: Record<string, string> = {
   EMPLOYER:   'bg-[#f0f9ff] text-[#0369a1]',
 }
 
+function isActive(u: ApiUser): boolean {
+  // API returns numeric 1/0; older records may return string 'ACTIVE'/'INACTIVE'
+  if (u.status === 1 || u.status === '1' || u.status === 'ACTIVE') return true
+  if (u.status === 0 || u.status === '0' || u.status === 'SUSPENDED' || u.status === 'INACTIVE') return false
+  return true // default to active if unknown
+}
+
 function userName(u: ApiUser): string {
-  if (u.name) return u.name
+  if (u.name || u.full_name) return (u.name ?? u.full_name)!
   const f = u.firstName ?? u.first_name ?? ''
   const l = u.lastName  ?? u.last_name  ?? ''
   return `${f} ${l}`.trim() || u.email
 }
 
+function userPhone(u: ApiUser): string | null {
+  return u.full_phone_number ?? u.fullPhoneNumber ?? u.phone ?? u.phone_number ?? u.phoneNumber ?? null
+}
+
 function formatDate(d?: string) {
   if (!d) return '—'
   return new Date(d).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/)
+  if (parts.length === 1) return (parts[0][0] ?? '?').toUpperCase()
+  return ((parts[0][0] ?? '') + (parts[parts.length - 1][0] ?? '')).toUpperCase()
 }
 
 function RoleBadge({ role }: { role: string }) {
@@ -58,44 +78,181 @@ function RoleBadge({ role }: { role: string }) {
   )
 }
 
-// ── CSV export helpers ────────────────────────────────────────────────────────
-async function fetchAllUsersForExport(role?: string): Promise<ApiUser[]> {
-  const all: ApiUser[] = []
-  let pg = 1
-  while (true) {
-    const params = new URLSearchParams({ page: String(pg), size: '20' })
-    if (role) params.set('role', role)
-    const res  = await apiClient.get(`/admin/users?${params}`)
-    const data = unwrap<{ users?: ApiUser[]; content?: ApiUser[]; data?: ApiUser[]; pagination?: Pagination } | ApiUser[]>(res.data)
-    const batch: ApiUser[] = Array.isArray(data)
-      ? data
-      : ((data as { users?: ApiUser[] })?.users
-         ?? (data as { content?: ApiUser[] })?.content
-         ?? (data as { data?: ApiUser[] })?.data
-         ?? [])
-    all.push(...batch)
-    const pag = Array.isArray(data) ? null : (data as { pagination?: Pagination })?.pagination ?? null
-    const hasNext = pag?.hasNext ?? pag?.has_next ?? false
-    if (!hasNext || batch.length === 0) break
-    pg++
+// ── User detail sidebar ────────────────────────────────────────────────────────
+function UserSidebar({
+  userId, onClose, onStatusChanged,
+}: { userId: number; onClose: () => void; onStatusChanged: (id: number, active: boolean) => void }) {
+  const [user, setUser]           = useState<ApiUser | null>(null)
+  const [loading, setLoading]     = useState(true)
+  const [toggling, setToggling]   = useState(false)
+  const [error, setError]         = useState('')
+  const [confirm, setConfirm]     = useState(false)
+
+  useEffect(() => {
+    setLoading(true); setError('')
+    apiClient.get(`/admin/users/${userId}`)
+      .then(res => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const raw = unwrap<any>(res.data)
+        const u   = raw?.user ?? raw
+        setUser(u)
+      })
+      .catch(() => setError('Could not load user details.'))
+      .finally(() => setLoading(false))
+  }, [userId])
+
+  async function toggleStatus() {
+    if (!user) return
+    const newStatus = isActive(user) ? 0 : 1
+    setToggling(true); setError(''); setConfirm(false)
+    try {
+      await apiClient.patch(`/admin/users/${user.id}`, { status: newStatus })
+      const updated = { ...user, status: newStatus }
+      setUser(updated)
+      onStatusChanged(user.id, newStatus === 1)
+    } catch (err) { setError(getApiError(err)) } finally { setToggling(false) }
   }
-  return all
+
+  const active = user ? isActive(user) : true
+  const name   = user ? userName(user) : '—'
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div className="fixed inset-0 z-40 bg-black/20" onClick={onClose} />
+
+      {/* Panel */}
+      <div className="fixed right-0 top-0 h-full w-[400px] z-50 bg-white shadow-2xl flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[#f3f4f6]">
+          <h2 className="text-[15px] font-bold text-[#111827] font-display">User Details</h2>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f3f4f6]">
+            <Cancel01Icon size={15} color="#4b5563" strokeWidth={1.5} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-5 py-5">
+          {loading ? (
+            <div className="flex flex-col gap-3">
+              {[140, 200, 160, 120, 180, 100].map((w, i) => (
+                <div key={i} className="h-4 bg-[#f3f4f6] rounded animate-pulse" style={{ width: w }} />
+              ))}
+            </div>
+          ) : error && !user ? (
+            <div className="flex items-center gap-2 text-[13px] text-[#d51520] font-body">
+              <AlertCircleIcon size={14} color="#d51520" strokeWidth={1.5} /> {error}
+            </div>
+          ) : user ? (
+            <div className="flex flex-col gap-5">
+              {/* Avatar + name */}
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-[#f3f4f6] flex items-center justify-center flex-shrink-0">
+                  <span className="text-[16px] font-bold text-[#374151] font-display">{initials(name)}</span>
+                </div>
+                <div>
+                  <p className="text-[15px] font-bold text-[#111827] font-display">{name}</p>
+                  <p className="text-[12px] text-[#4b5563] font-body">{user.email}</p>
+                </div>
+                <div className="ml-auto">
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold font-display ${
+                    active ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#fef2f2] text-[#d51520]'
+                  }`}>
+                    {active ? 'Active' : 'Suspended'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Info rows */}
+              <div className="rounded-[10px] border border-[#f3f4f6] overflow-hidden">
+                {[
+                  { label: 'Role',         value: user.role ? <RoleBadge role={user.role} /> : '—' },
+                  { label: 'Phone',        value: userPhone(user) ?? '—' },
+                  { label: 'Date Joined',  value: formatDate(user.createdAt ?? user.created_at) },
+                  { label: 'Last Login',   value: formatDate(user.lastLoginAt ?? user.last_login_at) },
+                  { label: 'User ID',      value: <span className="text-[12px] font-mono text-[#4b5563]">#{user.id}</span> },
+                ].map(({ label, value }, i, arr) => (
+                  <div key={label} className={`flex items-center justify-between px-4 py-3 ${i < arr.length - 1 ? 'border-b border-[#f3f4f6]' : ''}`}>
+                    <span className="text-[12px] text-[#6b7280] font-body">{label}</span>
+                    <span className="text-[13px] font-medium text-[#111827] font-body text-right">{value}</span>
+                  </div>
+                ))}
+              </div>
+
+              {error && (
+                <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body">
+                  <AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} /> {error}
+                </p>
+              )}
+
+              {/* Confirm step */}
+              {confirm && (
+                <div className={`rounded-[10px] border p-4 flex flex-col gap-3 ${active ? 'border-[#fecdca] bg-[#fef2f2]' : 'border-[#bbf7d0] bg-[#ecfdf3]'}`}>
+                  <p className="text-[13px] font-semibold text-[#111827] font-display">
+                    {active ? `Suspend ${name}?` : `Reactivate ${name}?`}
+                  </p>
+                  <p className="text-[12px] text-[#4b5563] font-body leading-relaxed">
+                    {active
+                      ? 'They will lose access to the portal immediately. You can reactivate them at any time.'
+                      : 'Their account will be restored and they can log in again.'}
+                  </p>
+                  <div className="flex gap-2">
+                    <button onClick={() => setConfirm(false)}
+                      className="flex-1 h-9 rounded-[8px] border border-[#e5e7eb] text-[12px] font-medium font-body hover:bg-white transition-colors">
+                      Cancel
+                    </button>
+                    <button onClick={toggleStatus} disabled={toggling}
+                      className={`flex-1 h-9 rounded-[8px] text-[12px] font-semibold text-white font-display disabled:opacity-60 flex items-center justify-center gap-1.5 transition-colors ${
+                        active ? 'bg-[#d51520] hover:bg-[#b81119]' : 'bg-[#027a48] hover:bg-[#065f46]'
+                      }`}>
+                      {toggling && <Loading01Icon size={12} className="animate-spin" strokeWidth={2} />}
+                      {active ? 'Yes, Suspend' : 'Yes, Reactivate'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : null}
+        </div>
+
+        {/* Footer action */}
+        {user && !confirm && (
+          <div className="px-5 py-4 border-t border-[#f3f4f6]">
+            <button
+              onClick={() => setConfirm(true)}
+              className={`w-full h-10 rounded-[8px] text-[13px] font-semibold font-display flex items-center justify-center gap-2 transition-colors ${
+                active
+                  ? 'border border-[#fecdca] bg-[#fef2f2] text-[#d51520] hover:bg-[#fee2e2]'
+                  : 'border border-[#bbf7d0] bg-[#ecfdf3] text-[#027a48] hover:bg-[#d1fae5]'
+              }`}
+            >
+              {active
+                ? <><UserBlock01Icon size={15} strokeWidth={1.5} /> Suspend Account</>
+                : <><CheckmarkCircle01Icon size={15} strokeWidth={1.5} /> Reactivate Account</>
+              }
+            </button>
+          </div>
+        )}
+      </div>
+    </>
+  )
 }
 
+// ── CSV export helpers ────────────────────────────────────────────────────────
 function downloadCSV(rows: ApiUser[], filename: string) {
   const esc = (s: string) => `"${(String(s ?? '')).replace(/"/g, '""')}"`
   const lines = [
-    ['Name', 'Email', 'Role', 'Status', 'Date Joined'].join(','),
+    ['Name', 'Email', 'Phone', 'Role', 'Status', 'Date Joined'].join(','),
     ...rows.map(u => [
       esc(userName(u)),
       esc(u.email ?? ''),
+      esc(userPhone(u) ?? ''),
       esc(u.role ?? ''),
-      esc(u.status ?? ''),
+      esc(isActive(u) ? 'Active' : 'Suspended'),
       esc(formatDate(u.createdAt ?? u.created_at)),
     ].join(',')),
   ]
-  // Use data URI instead of blob URL to avoid CSP restrictions in production
-  const csv = '﻿' + lines.join('\n') // BOM prefix for Excel UTF-8 compatibility
+  const csv = '﻿' + lines.join('\n')
   const a   = document.createElement('a')
   a.href    = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv)
   a.download = filename
@@ -196,6 +353,7 @@ export default function AdminUsersPage() {
   const [showExport, setShowExport] = useState(false)
   const [exporting, setExporting]   = useState(false)
   const [exportError, setExportError] = useState('')
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null)
   const exportRef                   = useRef<HTMLDivElement>(null)
 
   const fetchUsers = useCallback(async () => {
@@ -227,13 +385,24 @@ export default function AdminUsersPage() {
     setShowExport(false); setExporting(true); setExportError('')
     try {
       const role = exportAll ? '' : roleFilter
-      const rows = await fetchAllUsersForExport(role || undefined)
+      // Fetch a large page in one shot — avoids the pagination loop that can fail mid-way
+      const params = new URLSearchParams({ page: '1', size: '1000' })
+      if (role) params.set('role', role)
+      const res  = await apiClient.get(`/admin/users?${params}`)
+      const data = unwrap<{ users?: ApiUser[]; content?: ApiUser[] }>(res.data)
+      const rows: ApiUser[] = Array.isArray(data)
+        ? data
+        : (data?.users ?? (data as { content?: ApiUser[] })?.content ?? [])
       if (rows.length === 0) { setExportError('No users found to export.'); return }
       const label = role ? (ROLE_LABELS[role] ?? role).toLowerCase() : 'all'
       downloadCSV(rows, `brixgate-users-${label}-${new Date().toISOString().slice(0, 10)}.csv`)
     } catch (err) {
       setExportError(getApiError(err))
     } finally { setExporting(false) }
+  }
+
+  function handleStatusChanged(id: number, active: boolean) {
+    setUsers(prev => prev.map(u => u.id === id ? { ...u, status: active ? 1 : 0 } : u))
   }
 
   const filtered = search.trim()
@@ -363,36 +532,43 @@ export default function AdminUsersPage() {
                   </td>
                 </tr>
               ) : (
-                filtered.map(u => (
-                  <tr key={u.id} className="border-b border-[#f3f4f6] hover:bg-[#fafafa] transition-colors">
-                    <td className="px-4 py-3.5">
-                      <p className="text-[13px] font-medium text-[#111827] font-body">{userName(u)}</p>
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <p className="text-[13px] text-[#4b5563] font-body">{u.email}</p>
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <p className="text-[13px] text-[#4b5563] font-body">
-                        {u.full_phone_number ?? u.phone ?? u.phone_number ?? u.phoneNumber ?? <span className="text-[#d1d5db]">—</span>}
-                      </p>
-                    </td>
-                    <td className="px-4 py-3.5">
-                      {u.role ? <RoleBadge role={u.role} /> : <span className="text-[#d1d5db]">—</span>}
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold font-display ${
-                        u.status === 'ACTIVE' ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#f3f4f6] text-[#4b5563]'
-                      }`}>
-                        {u.status ?? 'Active'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <p className="text-[12px] text-[#4b5563] font-body">
-                        {formatDate(u.createdAt ?? u.created_at)}
-                      </p>
-                    </td>
-                  </tr>
-                ))
+                filtered.map(u => {
+                  const active = isActive(u)
+                  return (
+                    <tr
+                      key={u.id}
+                      onClick={() => setSelectedUserId(u.id)}
+                      className="border-b border-[#f3f4f6] hover:bg-[#fafafa] transition-colors cursor-pointer"
+                    >
+                      <td className="px-4 py-3.5">
+                        <p className="text-[13px] font-medium text-[#111827] font-body">{userName(u)}</p>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <p className="text-[13px] text-[#4b5563] font-body">{u.email}</p>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <p className="text-[13px] text-[#4b5563] font-body">
+                          {userPhone(u) ?? <span className="text-[#d1d5db]">—</span>}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        {u.role ? <RoleBadge role={u.role} /> : <span className="text-[#d1d5db]">—</span>}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold font-display ${
+                          active ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#fef2f2] text-[#d51520]'
+                        }`}>
+                          {active ? 'Active' : 'Suspended'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <p className="text-[12px] text-[#4b5563] font-body">
+                          {formatDate(u.createdAt ?? u.created_at)}
+                        </p>
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>
@@ -428,6 +604,17 @@ export default function AdminUsersPage() {
         <CreateUserModal
           onClose={() => setShowCreate(false)}
           onCreated={() => { setShowCreate(false); fetchUsers() }}
+        />
+      )}
+
+      {selectedUserId != null && (
+        <UserSidebar
+          userId={selectedUserId}
+          onClose={() => setSelectedUserId(null)}
+          onStatusChanged={(id, active) => {
+            handleStatusChanged(id, active)
+            setSelectedUserId(null)
+          }}
         />
       )}
     </div>
