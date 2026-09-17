@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import {
   UserGroup02Icon, Add01Icon, Loading01Icon, Cancel01Icon,
   AlertCircleIcon, Search01Icon, RefreshIcon, Download01Icon,
-  UserBlock01Icon, CheckmarkCircle01Icon,
+  UserBlock01Icon, CheckmarkCircle01Icon, Linkedin01Icon,
+  NewTwitterIcon, GlobalIcon, Mail01Icon, Call02Icon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 import AdminPageLoader from '@/components/admin/AdminPageLoader'
@@ -12,8 +13,7 @@ import AdminPageLoader from '@/components/admin/AdminPageLoader'
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface ApiUser {
   id: number
-  name?: string
-  full_name?: string
+  name?: string; full_name?: string
   first_name?: string; last_name?: string
   firstName?: string; lastName?: string
   email: string
@@ -22,6 +22,17 @@ interface ApiUser {
   status?: number | string   // API returns 1 (active) or 0 (suspended)
   created_at?: string; createdAt?: string
   last_login_at?: string; lastLoginAt?: string
+  // Profile fields
+  title?: string                          // current job title / role
+  biography?: string; bio?: string
+  expertise?: string
+  years_of_experience?: number; yearsOfExperience?: number
+  location?: string; city?: string; country?: string
+  organization?: string; company?: string; employer?: string
+  profile_image_url?: string; profileImageUrl?: string; profile_photo_url?: string; avatar_url?: string
+  linkedin_url?: string; linkedinUrl?: string
+  twitter_url?: string; twitterUrl?: string
+  website_url?: string; websiteUrl?: string; website?: string; portfolio_url?: string
 }
 
 interface Pagination { page?: number; size?: number; totalElements?: number; total_elements?: number; total?: number; totalPages?: number; total_pages?: number; hasNext?: boolean; has_next?: boolean }
@@ -82,11 +93,11 @@ function RoleBadge({ role }: { role: string }) {
 function UserSidebar({
   userId, onClose, onStatusChanged,
 }: { userId: number; onClose: () => void; onStatusChanged: (id: number, active: boolean) => void }) {
-  const [user, setUser]           = useState<ApiUser | null>(null)
-  const [loading, setLoading]     = useState(true)
-  const [toggling, setToggling]   = useState(false)
-  const [error, setError]         = useState('')
-  const [confirm, setConfirm]     = useState(false)
+  const [user, setUser]         = useState<ApiUser | null>(null)
+  const [loading, setLoading]   = useState(true)
+  const [toggling, setToggling] = useState(false)
+  const [error, setError]       = useState('')
+  const [confirm, setConfirm]   = useState(false)
 
   useEffect(() => {
     setLoading(true); setError('')
@@ -94,8 +105,7 @@ function UserSidebar({
       .then(res => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const raw = unwrap<any>(res.data)
-        const u   = raw?.user ?? raw
-        setUser(u)
+        setUser(raw?.user ?? raw)
       })
       .catch(() => setError('Could not load user details.'))
       .finally(() => setLoading(false))
@@ -107,22 +117,30 @@ function UserSidebar({
     setToggling(true); setError(''); setConfirm(false)
     try {
       await apiClient.patch(`/admin/users/${user.id}`, { status: newStatus })
-      const updated = { ...user, status: newStatus }
-      setUser(updated)
+      setUser(u => u ? { ...u, status: newStatus } : u)
       onStatusChanged(user.id, newStatus === 1)
     } catch (err) { setError(getApiError(err)) } finally { setToggling(false) }
   }
 
-  const active = user ? isActive(user) : true
-  const name   = user ? userName(user) : '—'
+  const active    = user ? isActive(user) : true
+  const name      = user ? userName(user) : '—'
+  const avatarUrl = user?.profileImageUrl ?? user?.profile_image_url ?? user?.profile_photo_url ?? user?.avatar_url ?? null
+  const location  = user?.location ?? user?.city ?? (user?.city && user?.country ? `${user.city}, ${user.country}` : user?.country) ?? null
+  const org       = user?.organization ?? user?.company ?? user?.employer ?? null
+  const linkedin  = user?.linkedin_url ?? user?.linkedinUrl ?? null
+  const twitter   = user?.twitter_url ?? user?.twitterUrl ?? null
+  const website   = user?.website_url ?? user?.websiteUrl ?? user?.website ?? user?.portfolio_url ?? null
+  const bio       = user?.biography ?? user?.bio ?? null
+
+  function urlLabel(url: string) {
+    try { return new URL(url).hostname.replace(/^www\./, '') } catch { return url }
+  }
 
   return (
     <>
-      {/* Backdrop */}
       <div className="fixed inset-0 z-40 bg-black/20" onClick={onClose} />
+      <div className="fixed right-0 top-0 h-full w-[420px] z-50 bg-white shadow-2xl flex flex-col">
 
-      {/* Panel */}
-      <div className="fixed right-0 top-0 h-full w-[400px] z-50 bg-white shadow-2xl flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[#f3f4f6]">
           <h2 className="text-[15px] font-bold text-[#111827] font-display">User Details</h2>
@@ -132,90 +150,147 @@ function UserSidebar({
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-5 py-5">
+        <div className="flex-1 overflow-y-auto">
           {loading ? (
-            <div className="flex flex-col gap-3">
-              {[140, 200, 160, 120, 180, 100].map((w, i) => (
+            <div className="px-5 py-5 flex flex-col gap-3">
+              {[140, 200, 160, 120, 180, 100, 160].map((w, i) => (
                 <div key={i} className="h-4 bg-[#f3f4f6] rounded animate-pulse" style={{ width: w }} />
               ))}
             </div>
           ) : error && !user ? (
-            <div className="flex items-center gap-2 text-[13px] text-[#d51520] font-body">
+            <div className="px-5 py-5 flex items-center gap-2 text-[13px] text-[#d51520] font-body">
               <AlertCircleIcon size={14} color="#d51520" strokeWidth={1.5} /> {error}
             </div>
           ) : user ? (
-            <div className="flex flex-col gap-5">
-              {/* Avatar + name */}
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-[#f3f4f6] flex items-center justify-center flex-shrink-0">
-                  <span className="text-[16px] font-bold text-[#374151] font-display">{initials(name)}</span>
+            <>
+              {/* Profile hero */}
+              <div className="px-5 py-5 flex items-start gap-4 border-b border-[#f3f4f6]">
+                <div className="w-14 h-14 rounded-full bg-[#f3f4f6] flex items-center justify-center flex-shrink-0 overflow-hidden">
+                  {avatarUrl
+                    ? <img src={avatarUrl} alt={name} className="w-full h-full object-cover" />
+                    : <span className="text-[18px] font-bold text-[#374151] font-display">{initials(name)}</span>
+                  }
                 </div>
-                <div>
-                  <p className="text-[15px] font-bold text-[#111827] font-display">{name}</p>
-                  <p className="text-[12px] text-[#4b5563] font-body">{user.email}</p>
-                </div>
-                <div className="ml-auto">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold font-display ${
-                    active ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#fef2f2] text-[#d51520]'
-                  }`}>
-                    {active ? 'Active' : 'Suspended'}
-                  </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-[15px] font-bold text-[#111827] font-display leading-tight">{name}</p>
+                      {user.title && <p className="text-[12px] text-[#4b5563] font-body mt-0.5">{user.title}</p>}
+                    </div>
+                    <span className={`flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold font-display ${
+                      active ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#fef2f2] text-[#d51520]'
+                    }`}>
+                      {active ? 'Active' : 'Suspended'}
+                    </span>
+                  </div>
+                  {org && <p className="text-[12px] text-[#6b7280] font-body mt-1">{org}</p>}
+                  {location && <p className="text-[12px] text-[#6b7280] font-body mt-0.5">{location}</p>}
+                  {bio && <p className="text-[12px] text-[#4b5563] font-body mt-2 leading-relaxed line-clamp-3">{bio}</p>}
                 </div>
               </div>
 
-              {/* Info rows */}
-              <div className="rounded-[10px] border border-[#f3f4f6] overflow-hidden">
-                {[
-                  { label: 'Role',         value: user.role ? <RoleBadge role={user.role} /> : '—' },
-                  { label: 'Phone',        value: userPhone(user) ?? '—' },
-                  { label: 'Date Joined',  value: formatDate(user.createdAt ?? user.created_at) },
-                  { label: 'Last Login',   value: formatDate(user.lastLoginAt ?? user.last_login_at) },
-                  { label: 'User ID',      value: <span className="text-[12px] font-mono text-[#4b5563]">#{user.id}</span> },
-                ].map(({ label, value }, i, arr) => (
-                  <div key={label} className={`flex items-center justify-between px-4 py-3 ${i < arr.length - 1 ? 'border-b border-[#f3f4f6]' : ''}`}>
-                    <span className="text-[12px] text-[#6b7280] font-body">{label}</span>
-                    <span className="text-[13px] font-medium text-[#111827] font-body text-right">{value}</span>
+              {/* Contact */}
+              <div className="px-5 py-4 border-b border-[#f3f4f6]">
+                <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[#9ca3af] font-display mb-3">Contact</p>
+                <div className="flex flex-col gap-2.5">
+                  <div className="flex items-center gap-2.5">
+                    <Mail01Icon size={14} color="#6b7280" strokeWidth={1.5} className="flex-shrink-0" />
+                    <span className="text-[13px] text-[#374151] font-body truncate">{user.email}</span>
                   </div>
-                ))}
+                  {userPhone(user) && (
+                    <div className="flex items-center gap-2.5">
+                      <Call02Icon size={14} color="#6b7280" strokeWidth={1.5} className="flex-shrink-0" />
+                      <span className="text-[13px] text-[#374151] font-body">{userPhone(user)}</span>
+                    </div>
+                  )}
+                  {linkedin && (
+                    <div className="flex items-center gap-2.5">
+                      <Linkedin01Icon size={14} color="#0369a1" strokeWidth={1.5} className="flex-shrink-0" />
+                      <a href={linkedin} target="_blank" rel="noreferrer"
+                        className="text-[13px] text-[#0369a1] font-body hover:underline truncate">{urlLabel(linkedin)}</a>
+                    </div>
+                  )}
+                  {twitter && (
+                    <div className="flex items-center gap-2.5">
+                      <NewTwitterIcon size={14} color="#374151" strokeWidth={1.5} className="flex-shrink-0" />
+                      <a href={twitter} target="_blank" rel="noreferrer"
+                        className="text-[13px] text-[#374151] font-body hover:underline truncate">{urlLabel(twitter)}</a>
+                    </div>
+                  )}
+                  {website && (
+                    <div className="flex items-center gap-2.5">
+                      <GlobalIcon size={14} color="#6b7280" strokeWidth={1.5} className="flex-shrink-0" />
+                      <a href={website} target="_blank" rel="noreferrer"
+                        className="text-[13px] text-[#374151] font-body hover:underline truncate">{urlLabel(website)}</a>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Account details */}
+              <div className="px-5 py-4 border-b border-[#f3f4f6]">
+                <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[#9ca3af] font-display mb-3">Account</p>
+                <div className="rounded-[8px] border border-[#f3f4f6] overflow-hidden">
+                  {([
+                    { label: 'Role',        value: user.role ? <RoleBadge role={user.role} /> : <span className="text-[#d1d5db]">—</span> },
+                    { label: 'Expertise',   value: user.expertise ?? null },
+                    { label: 'Experience',  value: (user.yearsOfExperience ?? user.years_of_experience) != null ? `${user.yearsOfExperience ?? user.years_of_experience} yrs` : null },
+                    { label: 'Date Joined', value: formatDate(user.createdAt ?? user.created_at) },
+                    { label: 'Last Login',  value: formatDate(user.lastLoginAt ?? user.last_login_at) },
+                    { label: 'User ID',     value: <span className="text-[12px] font-mono text-[#6b7280]">#{user.id}</span> },
+                  ] as { label: string; value: React.ReactNode }[])
+                    .filter(row => row.value !== null && row.value !== undefined && row.value !== '—')
+                    .map(({ label, value }, i, arr) => (
+                      <div key={label} className={`flex items-center justify-between px-3 py-2.5 ${i < arr.length - 1 ? 'border-b border-[#f3f4f6]' : ''}`}>
+                        <span className="text-[12px] text-[#6b7280] font-body">{label}</span>
+                        <span className="text-[12px] font-medium text-[#111827] font-body text-right max-w-[200px] truncate">{value}</span>
+                      </div>
+                    ))
+                  }
+                </div>
               </div>
 
               {error && (
-                <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body">
-                  <AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} /> {error}
-                </p>
+                <div className="px-5 pt-3">
+                  <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body">
+                    <AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} /> {error}
+                  </p>
+                </div>
               )}
 
               {/* Confirm step */}
               {confirm && (
-                <div className={`rounded-[10px] border p-4 flex flex-col gap-3 ${active ? 'border-[#fecdca] bg-[#fef2f2]' : 'border-[#bbf7d0] bg-[#ecfdf3]'}`}>
-                  <p className="text-[13px] font-semibold text-[#111827] font-display">
-                    {active ? `Suspend ${name}?` : `Reactivate ${name}?`}
-                  </p>
-                  <p className="text-[12px] text-[#4b5563] font-body leading-relaxed">
-                    {active
-                      ? 'They will lose access to the portal immediately. You can reactivate them at any time.'
-                      : 'Their account will be restored and they can log in again.'}
-                  </p>
-                  <div className="flex gap-2">
-                    <button onClick={() => setConfirm(false)}
-                      className="flex-1 h-9 rounded-[8px] border border-[#e5e7eb] text-[12px] font-medium font-body hover:bg-white transition-colors">
-                      Cancel
-                    </button>
-                    <button onClick={toggleStatus} disabled={toggling}
-                      className={`flex-1 h-9 rounded-[8px] text-[12px] font-semibold text-white font-display disabled:opacity-60 flex items-center justify-center gap-1.5 transition-colors ${
-                        active ? 'bg-[#d51520] hover:bg-[#b81119]' : 'bg-[#027a48] hover:bg-[#065f46]'
-                      }`}>
-                      {toggling && <Loading01Icon size={12} className="animate-spin" strokeWidth={2} />}
-                      {active ? 'Yes, Suspend' : 'Yes, Reactivate'}
-                    </button>
+                <div className="px-5 py-4">
+                  <div className={`rounded-[10px] border p-4 flex flex-col gap-3 ${active ? 'border-[#fecdca] bg-[#fef2f2]' : 'border-[#bbf7d0] bg-[#ecfdf3]'}`}>
+                    <p className="text-[13px] font-semibold text-[#111827] font-display">
+                      {active ? `Suspend ${name}?` : `Reactivate ${name}?`}
+                    </p>
+                    <p className="text-[12px] text-[#4b5563] font-body leading-relaxed">
+                      {active
+                        ? 'They will lose access to the portal immediately. You can reactivate them at any time.'
+                        : 'Their account will be restored and they can log in again.'}
+                    </p>
+                    <div className="flex gap-2">
+                      <button onClick={() => setConfirm(false)}
+                        className="flex-1 h-9 rounded-[8px] border border-[#e5e7eb] text-[12px] font-medium font-body hover:bg-white transition-colors">
+                        Cancel
+                      </button>
+                      <button onClick={toggleStatus} disabled={toggling}
+                        className={`flex-1 h-9 rounded-[8px] text-[12px] font-semibold text-white font-display disabled:opacity-60 flex items-center justify-center gap-1.5 transition-colors ${
+                          active ? 'bg-[#d51520] hover:bg-[#b81119]' : 'bg-[#027a48] hover:bg-[#065f46]'
+                        }`}>
+                        {toggling && <Loading01Icon size={12} className="animate-spin" strokeWidth={2} />}
+                        {active ? 'Yes, Suspend' : 'Yes, Reactivate'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
-            </div>
+            </>
           ) : null}
         </div>
 
-        {/* Footer action */}
+        {/* Footer */}
         {user && !confirm && (
           <div className="px-5 py-4 border-t border-[#f3f4f6]">
             <button
