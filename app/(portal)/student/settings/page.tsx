@@ -114,6 +114,33 @@ function FormField({
   )
 }
 
+function FormTextarea({
+  label,
+  value,
+  onChange,
+  placeholder,
+  rows = 4,
+}: {
+  label: string
+  value: string
+  onChange?: (v: string) => void
+  placeholder?: string
+  rows?: number
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-[13px] font-medium text-[#374151] font-body">{label}</label>
+      <textarea
+        value={value}
+        onChange={e => onChange?.(e.target.value)}
+        placeholder={placeholder}
+        rows={rows}
+        className="px-3.5 py-2.5 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] placeholder:text-[#4b5563] outline-none resize-none transition-all focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 bg-white"
+      />
+    </div>
+  )
+}
+
 // ── Password strength (kept for future use) ───────────────────────────────────
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function getPasswordStrength(pw: string): { level: number; label: string; color: string } {
@@ -211,6 +238,19 @@ export default function SettingsPage() {
   const [email, setEmail]         = useState('')
   const [phone, setPhone]         = useState('')
 
+  // Professional profile fields
+  const [title, setTitle]                   = useState('')
+  const [currentRole, setCurrentRole]       = useState('')
+  const [occupation, setOccupation]         = useState('')
+  const [organization, setOrganization]     = useState('')
+  const [primaryField, setPrimaryField]     = useState('')
+  const [location, setLocation]             = useState('')
+  const [yearsOfExperience, setYearsOfExperience] = useState('')
+  const [expertise, setExpertise]           = useState('')
+  const [biography, setBiography]           = useState('')
+  const [savingProfessional, setSavingProfessional] = useState(false)
+  const [isProfessionalEditing, setIsProfessionalEditing] = useState(false)
+
   // Account details — fetched from /users/me/programs
   const [programme, setProgramme]             = useState('—')
   const [programmeStatus, setProgrammeStatus] = useState('')
@@ -226,15 +266,24 @@ export default function SettingsPage() {
       setLastName(user.lastName)
       setEmail(user.email)
       // Strip country code prefix precisely — e.g. "+2349022247010" → "9022247010"
-      // Use the known country codes list; fall back to stripping any +XXX prefix
       const knownCodes = ['+234','+1','+44','+91','+27','+233','+254','+255','+256','+260','+263']
       const raw = user.phone ?? ''
       const matchedCode = knownCodes.find(c => raw.startsWith(c)) ?? ''
       const local = matchedCode ? raw.slice(matchedCode.length) : raw.replace(/^\+\d{1,3}/, '')
       setPhone(local)
       if (matchedCode) setCountryCode(matchedCode)
+      // Professional fields
+      setTitle(user.title ?? '')
+      setCurrentRole(user.currentRole ?? '')
+      setOccupation(user.occupation ?? '')
+      setOrganization(user.organization ?? '')
+      setPrimaryField(user.primaryField ?? '')
+      setLocation(user.location ?? '')
+      setYearsOfExperience(user.yearsOfExperience != null ? String(user.yearsOfExperience) : '')
+      setExpertise(user.expertise ?? '')
+      setBiography(user.biography ?? '')
     }
-  }, [user?.id, user?.phone]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch programme / cohort details
   useEffect(() => {
@@ -397,6 +446,42 @@ export default function SettingsPage() {
       showToast(getApiError(err), 'error')
     } finally {
       setSavingProfile(false)
+    }
+  }
+
+  // ── Professional profile save ──
+  async function handleSaveProfessional() {
+    setSavingProfessional(true)
+    try {
+      const yoe = yearsOfExperience.trim() ? parseInt(yearsOfExperience, 10) : undefined
+      await apiClient.put('/users/me', {
+        title:              title.trim()        || undefined,
+        current_role:       currentRole.trim()  || undefined,
+        occupation:         occupation.trim()   || undefined,
+        organization:       organization.trim() || undefined,
+        primary_field:      primaryField.trim() || undefined,
+        location:           location.trim()     || undefined,
+        years_of_experience: (!isNaN(yoe as number) && yoe !== undefined) ? yoe : undefined,
+        expertise:          expertise.trim()    || undefined,
+        biography:          biography.trim()    || undefined,
+      })
+      updateUser({
+        title:             title.trim()        || undefined,
+        currentRole:       currentRole.trim()  || undefined,
+        occupation:        occupation.trim()   || undefined,
+        organization:      organization.trim() || undefined,
+        primaryField:      primaryField.trim() || undefined,
+        location:          location.trim()     || undefined,
+        yearsOfExperience: (!isNaN(yoe as number) && yoe !== undefined) ? yoe : undefined,
+        expertise:         expertise.trim()    || undefined,
+        biography:         biography.trim()    || undefined,
+      })
+      setIsProfessionalEditing(false)
+      showToast('Professional profile saved.', 'success')
+    } catch (err) {
+      showToast(getApiError(err), 'error')
+    } finally {
+      setSavingProfessional(false)
     }
   }
 
@@ -663,6 +748,91 @@ export default function SettingsPage() {
                   }`}
                 >
                   {savingProfile ? 'Saving…' : isEditing ? 'Save Changes' : 'Edit Profile'}
+                </button>
+              </div>
+            </SectionCard>
+
+            {/* Professional Profile */}
+            <SectionCard
+              title="Professional Profile"
+              description="Help us understand your background so we can personalise your learning experience."
+            >
+              <div className="flex flex-col gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormField
+                    label="Current Role / Title"
+                    value={title}
+                    onChange={v => { setTitle(v); setIsProfessionalEditing(true) }}
+                    placeholder="e.g. Data Analyst"
+                  />
+                  <FormField
+                    label="Occupation"
+                    value={occupation}
+                    onChange={v => { setOccupation(v); setIsProfessionalEditing(true) }}
+                    placeholder="e.g. Software Engineer"
+                  />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormField
+                    label="Organisation / Company"
+                    value={organization}
+                    onChange={v => { setOrganization(v); setIsProfessionalEditing(true) }}
+                    placeholder="e.g. Access Bank"
+                  />
+                  <FormField
+                    label="Primary Field"
+                    value={primaryField}
+                    onChange={v => { setPrimaryField(v); setIsProfessionalEditing(true) }}
+                    placeholder="e.g. Machine Learning"
+                  />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormField
+                    label="Current Role (Detailed)"
+                    value={currentRole}
+                    onChange={v => { setCurrentRole(v); setIsProfessionalEditing(true) }}
+                    placeholder="e.g. Senior Product Manager"
+                  />
+                  <FormField
+                    label="Location"
+                    value={location}
+                    onChange={v => { setLocation(v); setIsProfessionalEditing(true) }}
+                    placeholder="e.g. Lagos, Nigeria"
+                  />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormField
+                    label="Years of Experience"
+                    value={yearsOfExperience}
+                    onChange={v => { setYearsOfExperience(v.replace(/\D/g, '')); setIsProfessionalEditing(true) }}
+                    placeholder="e.g. 3"
+                  />
+                  <FormField
+                    label="Area of Expertise"
+                    value={expertise}
+                    onChange={v => { setExpertise(v); setIsProfessionalEditing(true) }}
+                    placeholder="e.g. NLP, Computer Vision"
+                  />
+                </div>
+                <FormTextarea
+                  label="Bio / About You"
+                  value={biography}
+                  onChange={v => { setBiography(v); setIsProfessionalEditing(true) }}
+                  placeholder="A short paragraph about your background, interests, and goals…"
+                  rows={4}
+                />
+              </div>
+              <div className="mt-5 flex justify-end">
+                <button
+                  onClick={isProfessionalEditing ? handleSaveProfessional : () => setIsProfessionalEditing(true)}
+                  disabled={savingProfessional}
+                  className={`inline-flex items-center gap-2 text-[13px] font-medium font-display px-5 py-2.5 rounded-[8px] transition-colors disabled:opacity-70 disabled:cursor-not-allowed ${
+                    isProfessionalEditing
+                      ? 'bg-[#d51520] text-white hover:bg-[#b81119]'
+                      : 'bg-white border border-[#e5e7eb] text-[#374151] hover:bg-[#f9fafb]'
+                  }`}
+                >
+                  {savingProfessional ? 'Saving…' : isProfessionalEditing ? 'Save Changes' : 'Edit Profile'}
                 </button>
               </div>
             </SectionCard>

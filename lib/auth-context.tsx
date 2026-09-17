@@ -30,6 +30,13 @@ export interface ApiUser {
   biography?: string
   expertise?: string
   years_of_experience?: number
+  location?: string
+  primary_field?: string
+  primaryField?: string
+  current_role?: string
+  currentRole?: string
+  occupation?: string
+  organization?: string
   profile_image_url?: string
   profile_photo_url?: string
   linkedin_url?: string
@@ -49,6 +56,11 @@ export interface AuthUser {
   biography?: string
   expertise?: string
   yearsOfExperience?: number
+  location?: string
+  primaryField?: string
+  currentRole?: string
+  occupation?: string
+  organization?: string
   profileImageUrl?: string
   linkedinUrl?: string
   twitterUrl?: string
@@ -88,6 +100,11 @@ function mapUser(u: ApiUser): AuthUser {
     biography: u.biography,
     expertise: u.expertise,
     yearsOfExperience: u.years_of_experience,
+    location: u.location,
+    primaryField: u.primary_field ?? u.primaryField,
+    currentRole: u.current_role ?? u.currentRole,
+    occupation: u.occupation,
+    organization: u.organization,
     profileImageUrl: u.profile_image_url ?? u.profile_photo_url,
     linkedinUrl: u.linkedin_url,
     twitterUrl: u.twitter_url,
