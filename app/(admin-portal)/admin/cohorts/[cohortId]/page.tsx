@@ -10,7 +10,7 @@ import {
   PencilEdit01Icon, Cancel01Icon, Building01Icon, UserAdd01Icon,
   Certificate01Icon, Payment01Icon, Invoice01Icon,
   MessageQuestionIcon, Add01Icon, Delete01Icon,
-  BarChartIcon, Mortarboard01Icon,
+  BarChartIcon, Mortarboard01Icon, UserBlock01Icon, RefreshIcon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 import { useSidebar } from '@/lib/sidebar-context'
@@ -3331,23 +3331,184 @@ const PAY_STATUS: Record<string, string> = {
   FAILED:    'bg-[#fef2f2] text-[#d51520]',
 }
 
-function PaymentsTab({ cohortId }: { cohortId: string }) {
-  const [overview, setOverview]   = useState<PaymentOverview | null>(null)
-  const [loading,  setLoading]    = useState(true)
-  const [error,    setError]      = useState<string | null>(null)
-  const router                    = useRouter()
+// ── Payment student sidebar ────────────────────────────────────────────────────
+function PaymentStudentSidebar({
+  student, onClose,
+}: { student: PaymentOverviewStudent; onClose: () => void }) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [userDetail, setUserDetail]   = useState<any>(null)
+  const [loadingUser, setLoadingUser] = useState(false)
+  const [toggling, setToggling]       = useState(false)
+  const [confirm, setConfirm]         = useState(false)
+  const [actionError, setActionError] = useState('')
+
+  const uid = student.user_id ?? student.userId
 
   useEffect(() => {
-    async function load() {
-      setLoading(true); setError(null)
-      try {
-        const res = await apiClient.get(`/admin/cohorts/${cohortId}/payment-overview`)
-        const raw = res.data
-        setOverview((raw?.data ?? raw) as PaymentOverview)
-      } catch (e) { setError(getApiError(e)) } finally { setLoading(false) }
-    }
-    load()
+    if (!uid) return
+    setLoadingUser(true)
+    apiClient.get(`/admin/users/${uid}`)
+      .then(res => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const raw = unwrap<any>(res.data)
+        setUserDetail(raw?.user ?? raw)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingUser(false))
+  }, [uid])
+
+  const accountActive: boolean = userDetail
+    ? (userDetail.status === 1 || userDetail.status === '1' || userDetail.status === 'ACTIVE')
+    : true
+
+  async function toggleAccount() {
+    if (!uid) return
+    const newStatus = accountActive ? 0 : 1
+    setToggling(true); setActionError(''); setConfirm(false)
+    try {
+      await apiClient.patch(`/admin/users/${uid}`, { status: newStatus })
+      setUserDetail((prev: Record<string, unknown>) => prev ? { ...prev, status: newStatus } : prev)
+    } catch (err) { setActionError(getApiError(err)) } finally { setToggling(false) }
+  }
+
+  const payStatus    = student.status ?? student.plan_status ?? student.planStatus ?? null
+  const outstanding  = student.outstanding_amount ?? student.amount_outstanding ?? student.amountOutstanding ?? 0
+  const nextDue      = student.next_due_date ?? student.nextDueDate
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/20" onClick={onClose} />
+      <div className="fixed right-0 top-0 h-full w-[400px] z-50 bg-white shadow-2xl flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[#f3f4f6]">
+          <h2 className="text-[15px] font-bold text-[#111827] font-display">Student Payment</h2>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f3f4f6]">
+            <Cancel01Icon size={15} color="#4b5563" strokeWidth={1.5} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-5">
+          {/* Student identity */}
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-full bg-[#f3f4f6] flex items-center justify-center flex-shrink-0">
+              <span className="text-[14px] font-bold text-[#374151] font-display">
+                {(student.name ?? student.email ?? '?').slice(0, 2).toUpperCase()}
+              </span>
+            </div>
+            <div className="min-w-0">
+              <p className="text-[14px] font-bold text-[#111827] font-display truncate">{student.name ?? '—'}</p>
+              <p className="text-[12px] text-[#4b5563] font-body truncate">{student.email ?? '—'}</p>
+            </div>
+            {/* Account status chip — loaded async */}
+            {!loadingUser && userDetail && (
+              <span className={`ml-auto flex-shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold font-display ${
+                accountActive ? 'bg-[#ecfdf3] text-[#027a48]' : 'bg-[#fef2f2] text-[#d51520]'
+              }`}>
+                {accountActive ? 'Active' : 'Suspended'}
+              </span>
+            )}
+          </div>
+
+          {/* Payment details */}
+          <div className="rounded-[10px] border border-[#f3f4f6] overflow-hidden">
+            <div className="px-4 py-2.5 bg-[#f9fafb] border-b border-[#f3f4f6]">
+              <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[#6b7280] font-display">Payment Details</p>
+            </div>
+            {[
+              { label: 'Payment Status',   value: payStatus
+                  ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display ${PAY_STATUS[payStatus.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#4b5563]'}`}>{payStatus}</span>
+                  : <span className="text-[#d1d5db]">—</span> },
+              { label: 'Enrollment Status', value: student.enrollment_status
+                  ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display bg-[#eff6ff] text-[#1d4ed8]">{student.enrollment_status}</span>
+                  : <span className="text-[#d1d5db]">—</span> },
+              { label: 'Payment Mode',     value: (student.payment_mode ?? student.paymentMode ?? 'FULL').replace(/_/g, ' ') },
+              { label: 'Amount Paid',      value: <span className="font-semibold text-[#027a48]">{fmt(student.amount_paid ?? student.amountPaid ?? 0)}</span> },
+              { label: 'Outstanding',      value: <span className={`font-semibold ${outstanding > 0 ? 'text-[#d51520]' : 'text-[#9ca3af]'}`}>{fmt(outstanding)}</span> },
+              { label: 'Next Due Date',    value: nextDue ? new Date(nextDue).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' }) : '—' },
+              { label: 'Currency',         value: student.currency ?? '—' },
+            ].map(({ label, value }, i, arr) => (
+              <div key={label} className={`flex items-center justify-between px-4 py-3 ${i < arr.length - 1 ? 'border-b border-[#f3f4f6]' : ''}`}>
+                <span className="text-[12px] text-[#6b7280] font-body">{label}</span>
+                <span className="text-[13px] font-medium text-[#111827] font-body text-right">{value}</span>
+              </div>
+            ))}
+          </div>
+
+          {actionError && (
+            <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body">
+              <AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} /> {actionError}
+            </p>
+          )}
+
+          {/* Confirm suspend/reactivate */}
+          {confirm && (
+            <div className={`rounded-[10px] border p-4 flex flex-col gap-3 ${accountActive ? 'border-[#fecdca] bg-[#fef2f2]' : 'border-[#bbf7d0] bg-[#ecfdf3]'}`}>
+              <p className="text-[13px] font-semibold text-[#111827] font-display">
+                {accountActive ? `Suspend ${student.name ?? 'this student'}?` : `Reactivate ${student.name ?? 'this student'}?`}
+              </p>
+              <p className="text-[12px] text-[#4b5563] font-body leading-relaxed">
+                {accountActive
+                  ? 'They will lose access to the portal immediately. You can reactivate them once their payment is settled.'
+                  : 'Their account will be restored and they can log in again.'}
+              </p>
+              <div className="flex gap-2">
+                <button onClick={() => setConfirm(false)}
+                  className="flex-1 h-9 rounded-[8px] border border-[#e5e7eb] text-[12px] font-medium font-body hover:bg-white transition-colors">
+                  Cancel
+                </button>
+                <button onClick={toggleAccount} disabled={toggling}
+                  className={`flex-1 h-9 rounded-[8px] text-[12px] font-semibold text-white font-display disabled:opacity-60 flex items-center justify-center gap-1.5 transition-colors ${
+                    accountActive ? 'bg-[#d51520] hover:bg-[#b81119]' : 'bg-[#027a48] hover:bg-[#065f46]'
+                  }`}>
+                  {toggling && <Loading01Icon size={12} className="animate-spin" strokeWidth={2} />}
+                  {accountActive ? 'Yes, Suspend' : 'Yes, Reactivate'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer — only show if we have the user's account details */}
+        {!loadingUser && uid && !confirm && (
+          <div className="px-5 py-4 border-t border-[#f3f4f6]">
+            <button
+              onClick={() => setConfirm(true)}
+              className={`w-full h-10 rounded-[8px] text-[13px] font-semibold font-display flex items-center justify-center gap-2 transition-colors ${
+                accountActive
+                  ? 'border border-[#fecdca] bg-[#fef2f2] text-[#d51520] hover:bg-[#fee2e2]'
+                  : 'border border-[#bbf7d0] bg-[#ecfdf3] text-[#027a48] hover:bg-[#d1fae5]'
+              }`}
+            >
+              {accountActive
+                ? <><UserBlock01Icon size={15} strokeWidth={1.5} /> Suspend Account</>
+                : <><CheckmarkCircle01Icon size={15} strokeWidth={1.5} /> Reactivate Account</>
+              }
+            </button>
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
+function PaymentsTab({ cohortId }: { cohortId: string }) {
+  const [overview, setOverview]           = useState<PaymentOverview | null>(null)
+  const [loading,  setLoading]            = useState(true)
+  const [error,    setError]              = useState<string | null>(null)
+  const [refreshing, setRefreshing]       = useState(false)
+  const [selected, setSelected]           = useState<PaymentOverviewStudent | null>(null)
+
+  const load = useCallback(async (silent = false) => {
+    if (silent) setRefreshing(true); else setLoading(true)
+    setError(null)
+    try {
+      const res = await apiClient.get(`/admin/cohorts/${cohortId}/payment-overview`)
+      const raw = res.data
+      setOverview((raw?.data ?? raw) as PaymentOverview)
+    } catch (e) { setError(getApiError(e)) } finally { setLoading(false); setRefreshing(false) }
   }, [cohortId])
+
+  useEffect(() => { load() }, [load])
 
   if (loading) return (
     <div className="flex items-center justify-center py-20">
@@ -3372,97 +3533,110 @@ function PaymentsTab({ cohortId }: { cohortId: string }) {
   const totalOutstanding = totals?.outstanding ?? overview.total_outstanding ?? overview.totalOutstanding ?? 0
 
   return (
-    <div className="px-6 py-5">
-      {/* Summary stat row */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        {[
-          { label: 'Total Students',    value: String(totalEnrolled),    icon: <Invoice01Icon   size={18} color="#7c3aed" strokeWidth={1.5} />, tint: '#f5f3ff' },
-          { label: 'Expected',          value: fmt(totalExpected),       icon: <Payment01Icon   size={18} color="#0369a1" strokeWidth={1.5} />, tint: '#f0f9ff' },
-          { label: 'Collected',         value: fmt(totalRevenue),        icon: <Payment01Icon   size={18} color="#0d9488" strokeWidth={1.5} />, tint: '#f0fdfa' },
-          { label: 'Outstanding',       value: fmt(totalOutstanding),    icon: <AlertCircleIcon size={18} color="#d97706" strokeWidth={1.5} />, tint: '#fffbeb' },
-        ].map(({ label, value, icon, tint }) => (
-          <div key={label} className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] p-4">
-            <div className="flex items-start justify-between mb-3">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">{label}</p>
-              <div className="w-8 h-8 rounded-[8px] flex items-center justify-center flex-shrink-0" style={{ background: tint }}>
-                {icon}
+    <>
+      <div className="px-6 py-5">
+        {/* Summary stat row */}
+        <div className="grid grid-cols-4 gap-4 mb-6">
+          {[
+            { label: 'Total Students',    value: String(totalEnrolled),    icon: <Invoice01Icon   size={18} color="#7c3aed" strokeWidth={1.5} />, tint: '#f5f3ff' },
+            { label: 'Expected',          value: fmt(totalExpected),       icon: <Payment01Icon   size={18} color="#0369a1" strokeWidth={1.5} />, tint: '#f0f9ff' },
+            { label: 'Collected',         value: fmt(totalRevenue),        icon: <Payment01Icon   size={18} color="#0d9488" strokeWidth={1.5} />, tint: '#f0fdfa' },
+            { label: 'Outstanding',       value: fmt(totalOutstanding),    icon: <AlertCircleIcon size={18} color="#d97706" strokeWidth={1.5} />, tint: '#fffbeb' },
+          ].map(({ label, value, icon, tint }) => (
+            <div key={label} className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] p-4">
+              <div className="flex items-start justify-between mb-3">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">{label}</p>
+                <div className="w-8 h-8 rounded-[8px] flex items-center justify-center flex-shrink-0" style={{ background: tint }}>
+                  {icon}
+                </div>
               </div>
+              <p className="text-[22px] font-bold text-[#111827] font-display leading-none">{value}</p>
             </div>
-            <p className="text-[22px] font-bold text-[#111827] font-display leading-none">{value}</p>
+          ))}
+        </div>
+
+        {/* Student payment table */}
+        <div className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-[#f3f4f6] flex items-center justify-between">
+            <p className="text-[13px] font-semibold text-[#111827] font-display">Per-Student Breakdown</p>
+            <button
+              onClick={() => load(true)}
+              disabled={refreshing}
+              className="flex items-center gap-1.5 h-8 px-3 border border-[#e5e7eb] rounded-[6px] text-[12px] font-body text-[#374151] hover:bg-[#f9fafb] transition-colors disabled:opacity-60"
+            >
+              <RefreshIcon size={13} color="#4b5563" strokeWidth={1.5} className={refreshing ? 'animate-spin' : ''} />
+              Refresh
+            </button>
           </div>
-        ))}
+          {students.length === 0 ? (
+            <div className="py-14 flex flex-col items-center text-center">
+              <div className="w-12 h-12 rounded-[10px] bg-[#f3f4f6] flex items-center justify-center mb-3">
+                <Payment01Icon size={22} color="#9ca3af" strokeWidth={1.5} />
+              </div>
+              <p className="text-[14px] font-semibold text-[#374151] font-display mb-1">No payment data yet</p>
+              <p className="text-[12px] text-[#9ca3af] font-body">Payment data will appear once students complete a payment.</p>
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead>
+                <tr className="bg-[#f9fafb]">
+                  {['Student', 'Payment Mode', 'Status', 'Paid', 'Outstanding', 'Next Due'].map(h => (
+                    <th key={h} className={`px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display ${
+                      h === 'Paid' || h === 'Outstanding' ? 'text-right' : 'text-left'
+                    }`}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {students.map((s, i) => {
+                  const status = s.status ?? s.plan_status ?? s.planStatus ?? '—'
+                  const outstanding = s.outstanding_amount ?? s.amount_outstanding ?? s.amountOutstanding ?? 0
+                  return (
+                    <tr
+                      key={i}
+                      onClick={() => setSelected(s)}
+                      className="border-b border-[#f3f4f6] transition-colors cursor-pointer hover:bg-[#fafafa]"
+                    >
+                      <td className="px-4 py-3.5">
+                        <p className="text-[13px] font-semibold text-[#111827] font-display">{s.name ?? '—'}</p>
+                        {s.email && <p className="text-[11px] text-[#6b7280] font-body mt-0.5">{s.email}</p>}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <span className="text-[12px] text-[#374151] font-body">{(s.payment_mode ?? s.paymentMode ?? 'FULL').replace(/_/g, ' ')}</span>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        {status !== '—'
+                          ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display ${PAY_STATUS[status.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#4b5563]'}`}>{status}</span>
+                          : <span className="text-[12px] text-[#d1d5db] font-body">—</span>}
+                      </td>
+                      <td className="px-4 py-3.5 text-right">
+                        <span className="text-[13px] font-semibold text-[#111827] font-display">{fmt(s.amount_paid ?? s.amountPaid ?? 0)}</span>
+                      </td>
+                      <td className="px-4 py-3.5 text-right">
+                        <span className={`text-[13px] font-semibold font-display ${outstanding > 0 ? 'text-[#d51520]' : 'text-[#9ca3af]'}`}>
+                          {fmt(outstanding)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <span className="text-[12px] text-[#6b7280] font-body">
+                          {(s.next_due_date ?? s.nextDueDate)
+                            ? new Date((s.next_due_date ?? s.nextDueDate)!).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })
+                            : '—'}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
 
-      {/* Student payment table */}
-      <div className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-[#f3f4f6]">
-          <p className="text-[13px] font-semibold text-[#111827] font-display">Per-Student Breakdown</p>
-        </div>
-        {students.length === 0 ? (
-          <div className="py-14 flex flex-col items-center text-center">
-            <div className="w-12 h-12 rounded-[10px] bg-[#f3f4f6] flex items-center justify-center mb-3">
-              <Payment01Icon size={22} color="#9ca3af" strokeWidth={1.5} />
-            </div>
-            <p className="text-[14px] font-semibold text-[#374151] font-display mb-1">No payment data yet</p>
-            <p className="text-[12px] text-[#9ca3af] font-body">Payment data will appear once students complete a payment.</p>
-          </div>
-        ) : (
-          <table className="w-full">
-            <thead>
-              <tr className="bg-[#f9fafb]">
-                {['Student', 'Payment Mode', 'Status', 'Paid', 'Outstanding', 'Next Due'].map(h => (
-                  <th key={h} className={`px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-[#4b5563] font-display ${
-                    h === 'Paid' || h === 'Outstanding' ? 'text-right' : 'text-left'
-                  }`}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {students.map((s, i) => {
-                const uid = s.user_id ?? s.userId
-                const status = s.status ?? s.plan_status ?? s.planStatus ?? '—'
-                const outstanding = s.outstanding_amount ?? s.amount_outstanding ?? s.amountOutstanding ?? 0
-                return (
-                  <tr
-                    key={i}
-                    onClick={() => uid && router.push(`/admin/users/${uid}`)}
-                    className={`border-b border-[#f3f4f6] transition-colors ${uid ? 'cursor-pointer hover:bg-[#fafafa]' : ''}`}
-                  >
-                    <td className="px-4 py-3.5">
-                      <p className="text-[13px] font-semibold text-[#111827] font-display">{s.name ?? '—'}</p>
-                      {s.email && <p className="text-[11px] text-[#6b7280] font-body mt-0.5">{s.email}</p>}
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <span className="text-[12px] text-[#374151] font-body">{(s.payment_mode ?? s.paymentMode ?? 'FULL').replace(/_/g, ' ')}</span>
-                    </td>
-                    <td className="px-4 py-3.5">
-                      {status !== '—'
-                        ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display ${PAY_STATUS[status.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#4b5563]'}`}>{status}</span>
-                        : <span className="text-[12px] text-[#d1d5db] font-body">—</span>}
-                    </td>
-                    <td className="px-4 py-3.5 text-right">
-                      <span className="text-[13px] font-semibold text-[#111827] font-display">{fmt(s.amount_paid ?? s.amountPaid ?? 0)}</span>
-                    </td>
-                    <td className="px-4 py-3.5 text-right">
-                      <span className={`text-[13px] font-semibold font-display ${outstanding > 0 ? 'text-[#d51520]' : 'text-[#9ca3af]'}`}>
-                        {fmt(outstanding)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <span className="text-[12px] text-[#6b7280] font-body">
-                        {(s.next_due_date ?? s.nextDueDate)
-                          ? new Date((s.next_due_date ?? s.nextDueDate)!).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })
-                          : '—'}
-                      </span>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </div>
+      {selected && (
+        <PaymentStudentSidebar student={selected} onClose={() => setSelected(null)} />
+      )}
+    </>
   )
 }
 
