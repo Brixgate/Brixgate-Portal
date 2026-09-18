@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   BookOpen01Icon, Add01Icon, Loading01Icon, Cancel01Icon,
@@ -475,6 +475,9 @@ export default function AdminProgramsPage() {
   const [page, setPage]               = useState(1)
   const [loading, setLoading]         = useState(true)
   const [statusFilter, setStatusFilter] = useState('')
+  const [search, setSearch]             = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [showCreate, setShowCreate]       = useState(false)
   const [editProgram, setEditProgram]     = useState<ApiProgram | null>(null)
   const [deleteProgram, setDeleteProgram] = useState<ApiProgram | null>(null)
@@ -484,18 +487,28 @@ export default function AdminProgramsPage() {
     try {
       const params = new URLSearchParams({ page: String(page), size: '20' })
       if (statusFilter) params.set('status', statusFilter)
+      if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim())
       const res  = await apiClient.get(`/admin/programs?${params.toString()}`)
       const data = unwrap<{ programs?: ApiProgram[]; pagination?: Pagination }>(res.data)
       setPrograms(Array.isArray(data?.programs) ? data.programs : [])
       if (data?.pagination) setPagination(data.pagination)
     } catch { setPrograms([]) } finally { setLoading(false) }
-  }, [page, statusFilter])
+  }, [page, statusFilter, debouncedSearch])
 
   useEffect(() => { fetchPrograms() }, [fetchPrograms])
 
   function handleStatusFilter(v: string) {
     setStatusFilter(v)
     setPage(1)
+  }
+
+  function handleSearch(v: string) {
+    setSearch(v)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      setDebouncedSearch(v)
+      setPage(1)
+    }, 350)
   }
 
   function handleEdited(updated: ApiProgram) {
@@ -531,6 +544,18 @@ export default function AdminProgramsPage() {
       <div className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] overflow-hidden">
         {/* Filter bar */}
         <div className="px-4 py-3 border-b border-[#f3f4f6] flex items-center gap-3">
+          <div className="relative">
+            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#9ca3af]" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+            </svg>
+            <input
+              type="text"
+              value={search}
+              onChange={e => handleSearch(e.target.value)}
+              placeholder="Search programmes…"
+              className="h-8 pl-8 pr-3 w-[220px] border border-[#e5e7eb] rounded-[6px] text-[12px] font-body text-[#374151] placeholder-[#9ca3af] bg-white outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10"
+            />
+          </div>
           <select
             value={statusFilter}
             onChange={e => handleStatusFilter(e.target.value)}
@@ -541,9 +566,9 @@ export default function AdminProgramsPage() {
             <option value="DRAFT">Draft</option>
             <option value="ARCHIVED">Archived</option>
           </select>
-          {statusFilter && (
+          {(statusFilter || search) && (
             <button
-              onClick={() => handleStatusFilter('')}
+              onClick={() => { handleStatusFilter(''); handleSearch('') }}
               className="text-[12px] text-[#d51520] font-body hover:underline"
             >
               Clear
@@ -577,10 +602,10 @@ export default function AdminProgramsPage() {
                   <td colSpan={6} className="px-4 py-16 text-center">
                     <BookOpen01Icon size={32} color="#d1d5db" strokeWidth={1.5} className="mx-auto mb-3" />
                     <p className="text-[14px] font-semibold text-[#111827] font-display">
-                      {statusFilter ? `No ${statusFilter.toLowerCase()} programmes` : 'No programmes yet'}
+                      {(search || statusFilter) ? 'No matching programmes' : 'No programmes yet'}
                     </p>
                     <p className="text-[13px] text-[#4b5563] font-body mt-1">
-                      {statusFilter ? 'Try a different status filter' : 'Create your first programme to get started'}
+                      {(search || statusFilter) ? 'Try adjusting your search or filter' : 'Create your first programme to get started'}
                     </p>
                   </td>
                 </tr>
