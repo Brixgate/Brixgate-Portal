@@ -474,6 +474,7 @@ export default function AdminProgramsPage() {
   const [pagination, setPagination]   = useState<Pagination | null>(null)
   const [page, setPage]               = useState(1)
   const [loading, setLoading]         = useState(true)
+  const [statusFilter, setStatusFilter] = useState('')
   const [showCreate, setShowCreate]       = useState(false)
   const [editProgram, setEditProgram]     = useState<ApiProgram | null>(null)
   const [deleteProgram, setDeleteProgram] = useState<ApiProgram | null>(null)
@@ -481,14 +482,21 @@ export default function AdminProgramsPage() {
   const fetchPrograms = useCallback(async () => {
     setLoading(true)
     try {
-      const res  = await apiClient.get(`/admin/programs?page=${page}&size=20`)
+      const params = new URLSearchParams({ page: String(page), size: '20' })
+      if (statusFilter) params.set('status', statusFilter)
+      const res  = await apiClient.get(`/admin/programs?${params.toString()}`)
       const data = unwrap<{ programs?: ApiProgram[]; pagination?: Pagination }>(res.data)
       setPrograms(Array.isArray(data?.programs) ? data.programs : [])
       if (data?.pagination) setPagination(data.pagination)
     } catch { setPrograms([]) } finally { setLoading(false) }
-  }, [page])
+  }, [page, statusFilter])
 
   useEffect(() => { fetchPrograms() }, [fetchPrograms])
+
+  function handleStatusFilter(v: string) {
+    setStatusFilter(v)
+    setPage(1)
+  }
 
   function handleEdited(updated: ApiProgram) {
     setPrograms(prev => prev.map(p => p.id === updated.id ? { ...p, ...updated } : p))
@@ -521,6 +529,27 @@ export default function AdminProgramsPage() {
 
       {/* Table */}
       <div className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] overflow-hidden">
+        {/* Filter bar */}
+        <div className="px-4 py-3 border-b border-[#f3f4f6] flex items-center gap-3">
+          <select
+            value={statusFilter}
+            onChange={e => handleStatusFilter(e.target.value)}
+            className="h-8 pl-3 pr-8 border border-[#e5e7eb] rounded-[6px] text-[12px] font-body text-[#374151] bg-white outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 cursor-pointer"
+          >
+            <option value="">All statuses</option>
+            <option value="PUBLISHED">Published</option>
+            <option value="DRAFT">Draft</option>
+            <option value="ARCHIVED">Archived</option>
+          </select>
+          {statusFilter && (
+            <button
+              onClick={() => handleStatusFilter('')}
+              className="text-[12px] text-[#d51520] font-body hover:underline"
+            >
+              Clear
+            </button>
+          )}
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -547,8 +576,12 @@ export default function AdminProgramsPage() {
                 <tr>
                   <td colSpan={6} className="px-4 py-16 text-center">
                     <BookOpen01Icon size={32} color="#d1d5db" strokeWidth={1.5} className="mx-auto mb-3" />
-                    <p className="text-[14px] font-semibold text-[#111827] font-display">No programmes yet</p>
-                    <p className="text-[13px] text-[#4b5563] font-body mt-1">Create your first programme to get started</p>
+                    <p className="text-[14px] font-semibold text-[#111827] font-display">
+                      {statusFilter ? `No ${statusFilter.toLowerCase()} programmes` : 'No programmes yet'}
+                    </p>
+                    <p className="text-[13px] text-[#4b5563] font-body mt-1">
+                      {statusFilter ? 'Try a different status filter' : 'Create your first programme to get started'}
+                    </p>
                   </td>
                 </tr>
               ) : (
