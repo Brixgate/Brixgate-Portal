@@ -38,10 +38,30 @@ function CreateCohortModal({
     title: '', start_date: '', end_date: '',
     status: 'UPCOMING', max_students: '30',
   })
+  const [durationWeeks, setDurationWeeks] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState('')
 
   function set(k: string, v: string) { setForm(p => ({ ...p, [k]: v })) }
+
+  function handleStartDate(v: string) {
+    set('start_date', v)
+    if (v && durationWeeks && parseInt(durationWeeks) > 0) {
+      const end = new Date(v)
+      end.setDate(end.getDate() + parseInt(durationWeeks) * 7)
+      set('end_date', end.toISOString().slice(0, 10))
+    }
+  }
+
+  function handleDurationWeeks(v: string) {
+    const w = v.replace(/\D/g, '')
+    setDurationWeeks(w)
+    if (form.start_date && w && parseInt(w) > 0) {
+      const end = new Date(form.start_date)
+      end.setDate(end.getDate() + parseInt(w) * 7)
+      set('end_date', end.toISOString().slice(0, 10))
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setError('')
@@ -86,13 +106,33 @@ function CreateCohortModal({
             <input value={form.title} onChange={e => set('title', e.target.value)}
               placeholder="Software Engineering — Cohort 3" className={inputCls} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-[1fr_88px_1fr] gap-3 items-end">
             <div>
               <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Start Date</label>
-              <input type="date" value={form.start_date} onChange={e => set('start_date', e.target.value)} className={inputCls} />
+              <input type="date" value={form.start_date} onChange={e => handleStartDate(e.target.value)} className={inputCls} />
             </div>
             <div>
-              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">End Date</label>
+              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5 whitespace-nowrap">Weeks</label>
+              <div className="relative">
+                <input
+                  type="text" inputMode="numeric"
+                  value={durationWeeks}
+                  onChange={e => handleDurationWeeks(e.target.value)}
+                  placeholder="12"
+                  className={`${inputCls} pr-7 text-center`}
+                />
+                {durationWeeks && (
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[#9ca3af] font-body pointer-events-none">wk</span>
+                )}
+              </div>
+            </div>
+            <div>
+              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5 flex items-center gap-1.5">
+                End Date
+                {durationWeeks && form.end_date && (
+                  <span className="text-[10px] font-normal text-[#027a48] bg-[#ecfdf3] px-1.5 py-0.5 rounded-full">auto</span>
+                )}
+              </label>
               <input type="date" value={form.end_date} onChange={e => set('end_date', e.target.value)} className={inputCls} />
             </div>
           </div>
