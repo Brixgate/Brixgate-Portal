@@ -90,6 +90,10 @@ function resolvePayRef(p: Payment): string {
 function resolveBrixRef(p: Payment): string {
   return p.brixgate_reference ?? p.brixgateReference ?? '—'
 }
+function truncRef(ref: string, len = 20): string {
+  if (!ref || ref === '—') return '—'
+  return ref.length > len ? ref.slice(0, len) + '…' : ref
+}
 
 // ── Status configs ────────────────────────────────────────────────────────────
 const STATUS_STYLE: Record<string, string> = {
@@ -616,8 +620,10 @@ function PaymentIntentsTab() {
                   <td className="px-4 py-3.5">
                     <span className="text-[13px] font-semibold text-[#111827] font-display">{intentAmount(intent)}</span>
                   </td>
-                  <td className="px-4 py-3.5">
-                    <span className="text-[11px] font-mono text-[#4b5563] font-body tracking-wide">{intent.brixgate_reference ?? '—'}</span>
+                  <td className="px-4 py-3.5 max-w-[160px]">
+                    <span className="text-[11px] font-mono text-[#4b5563] font-body tracking-wide" title={intent.brixgate_reference ?? '—'}>
+                      {truncRef(intent.brixgate_reference ?? '—')}
+                    </span>
                   </td>
                   <td className="px-4 py-3.5">
                     <span className="text-[12px] text-[#4b5563] font-body">{intent.payment_mode ?? '—'}</span>
@@ -768,7 +774,11 @@ export default function AdminPaymentsPage() {
                         {p.user?.email && <p className="text-[11px] text-[#4b5563] font-body">{p.user.email}</p>}
                       </td>
                       <td className="px-4 py-3.5"><span className="text-[13px] font-semibold text-[#111827] font-display">{resolveAmount(p)}</span></td>
-                      <td className="px-4 py-3.5"><span className="text-[11px] font-mono text-[#4b5563] font-body tracking-wide">{resolvePayRef(p)}</span></td>
+                      <td className="px-4 py-3.5 max-w-[160px]">
+                        <span className="text-[11px] font-mono text-[#4b5563] font-body tracking-wide" title={resolvePayRef(p)}>
+                          {truncRef(resolvePayRef(p))}
+                        </span>
+                      </td>
                       <td className="px-4 py-3.5"><span className="text-[12px] text-[#4b5563] font-body">{p.paymentType ?? p.payment_type ?? '—'}</span></td>
                       <td className="px-4 py-3.5">
                         {p.coupon?.code
