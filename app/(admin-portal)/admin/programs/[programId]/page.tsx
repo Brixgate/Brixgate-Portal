@@ -997,15 +997,31 @@ function PricingPlanModal({
         })
         planId = plan!.id
       } else {
-        const res   = await apiClient.post('/admin/pricing-plans', {
+        const res = await apiClient.post('/admin/pricing-plans', {
           program_id: parseInt(programId), title: form.title.trim(),
           plan_type: form.planType, status: form.status, billing_cycle: 'ONEOFF',
         })
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const raw   = res.data as any
-        const inner = raw?.data ?? raw?.pricingPlan ?? raw?.pricing_plan ?? raw
-        planId = inner?.id as number
-        // If we can't extract the ID, skip breakdown creation and let onSaved refresh the list
+        const raw  = res.data as any
+        const lvl1 = raw?.data ?? raw
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const lvl2 = (lvl1?.pricingPlan ?? lvl1?.pricing_plan ?? lvl1?.plan ?? lvl1) as any
+        planId = typeof lvl2?.id === 'number' ? lvl2.id : (lvl2?.id as number)
+
+        // Fallback: ID not in response — fetch the plans list and match by title
+        if (!planId) {
+          try {
+            const fb  = await apiClient.get(`/admin/pricing-plans?program_id=${programId}&size=50`)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const fd  = (fb.data as any)?.data ?? fb.data
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const lst: any[] = fd?.pricingPlans ?? fd?.pricing_plans ?? fd?.content ?? (Array.isArray(fd) ? fd : [])
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const hit = lst.find((p: any) => p.title === form.title.trim())
+            planId = hit?.id as number
+          } catch { /* ignore — bail below if still nothing */ }
+        }
+
         if (!planId) { onSaved(); return }
       }
 
