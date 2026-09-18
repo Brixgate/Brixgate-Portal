@@ -7,6 +7,7 @@ import {
   AlertCircleIcon, PencilEdit01Icon, Delete01Icon, CheckmarkCircle01Icon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
+import PriceInput from '@/components/admin/PriceInput'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface ApiProgram {
@@ -228,14 +229,14 @@ function EditProgramModal({
               <Field label="Original Price">
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] font-medium text-[#4b5563] pointer-events-none">₦</span>
-                  <input type="number" min="0" step="any" value={form.main_price} onChange={e => set('main_price', e.target.value)}
+                  <PriceInput value={String(form.main_price)} onChange={v => set('main_price', v)}
                     placeholder="150000" className={`${CLS_I} pl-7`} />
                 </div>
               </Field>
               <Field label="Final Price" hint="What students actually pay">
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] font-medium text-[#4b5563] pointer-events-none">₦</span>
-                  <input type="number" min="0" step="any" value={form.final_price} onChange={e => set('final_price', e.target.value)}
+                  <PriceInput value={String(form.final_price)} onChange={v => set('final_price', v)}
                     placeholder="120000" className={`${CLS_I} pl-7`} />
                 </div>
               </Field>
@@ -413,14 +414,14 @@ function CreateProgramModal({ onClose, onCreated }: { onClose: () => void; onCre
             <Field label="Original Price">
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] font-medium text-[#4b5563] pointer-events-none">₦</span>
-                <input type="number" min="0" step="any" value={form.main_price} onChange={e => set('main_price', e.target.value)}
+                <PriceInput value={form.main_price} onChange={v => set('main_price', v)}
                   placeholder="150000" className={`${CLS_I} pl-7`} />
               </div>
             </Field>
             <Field label="Final Price" hint="What students actually pay">
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] font-medium text-[#4b5563] pointer-events-none">₦</span>
-                <input type="number" min="0" step="any" value={form.final_price} onChange={e => set('final_price', e.target.value)}
+                <PriceInput value={form.final_price} onChange={v => set('final_price', v)}
                   placeholder="120000" className={`${CLS_I} pl-7`} />
               </div>
             </Field>

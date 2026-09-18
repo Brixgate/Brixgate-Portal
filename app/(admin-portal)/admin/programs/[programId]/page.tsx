@@ -13,6 +13,7 @@ import {
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 import { useToast, ToastContainer } from '@/components/shared/Toast'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
+import PriceInput from '@/components/admin/PriceInput'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Resource { id: number; title: string; type: string; link: string; status?: string }
@@ -1072,12 +1073,12 @@ function PricingPlanModal({
                     <span className="text-[12px] font-semibold text-[#111827] font-body">{c.label}</span>
                   </div>
                   <div className="border-l border-[#e5e7eb] px-2 py-1.5">
-                    <input type="number" min="0" value={form[c.bk]} onChange={e => setF(c.bk, e.target.value)}
-                      placeholder="0.00" className="w-full h-8 px-2 text-[12px] font-body text-[#111827] outline-none rounded-[4px] bg-transparent focus:bg-[#f9fafb]" />
+                    <PriceInput value={String(form[c.bk] ?? '')} onChange={v => setF(c.bk, v)}
+                      placeholder="0" className="w-full h-8 px-2 text-[12px] font-body text-[#111827] outline-none rounded-[4px] bg-transparent focus:bg-[#f9fafb]" />
                   </div>
                   <div className="border-l border-[#e5e7eb] px-2 py-1.5">
-                    <input type="number" min="0" value={form[c.fk]} onChange={e => setF(c.fk, e.target.value)}
-                      placeholder="0.00" className="w-full h-8 px-2 text-[12px] font-body text-[#111827] outline-none rounded-[4px] bg-transparent focus:bg-[#f9fafb]" />
+                    <PriceInput value={String(form[c.fk] ?? '')} onChange={v => setF(c.fk, v)}
+                      placeholder="0" className="w-full h-8 px-2 text-[12px] font-body text-[#111827] outline-none rounded-[4px] bg-transparent focus:bg-[#f9fafb]" />
                   </div>
                 </div>
               ))}
@@ -1513,7 +1514,7 @@ function PaymentOptionsModal({ planId, breakdown, planTitle, onClose }: {
                                 <option value="FIXED_AMOUNT">₦ Fixed</option>
                                 <option value="PERCENTAGE">%</option>
                               </select>
-                              <input type="number" min="0" value={row.amount_value} onChange={e => updateCustomRow(i, 'amount_value', e.target.value)}
+                              <PriceInput value={String(row.amount_value ?? '')} onChange={v => updateCustomRow(i, 'amount_value', v)}
                                 placeholder={row.amount_type === 'PERCENTAGE' ? '30' : '50000'}
                                 className="flex-1 h-8 px-2 border border-[#e5e7eb] rounded-[6px] text-[12px] font-body text-[#111827] focus:outline-none focus:border-[#d51520]" />
                               <input type="number" min="0" value={row.due_offset_days} onChange={e => updateCustomRow(i, 'due_offset_days', e.target.value)}

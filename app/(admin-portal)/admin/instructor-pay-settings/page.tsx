@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { apiClient, getApiError } from '@/lib/api-client'
+import PriceInput from '@/components/admin/PriceInput'
 import {
   PlusSignIcon,
   Delete01Icon,
@@ -176,7 +177,7 @@ function SettingModal({
             </div>
             <div>
               <label className="block text-[13px] font-medium text-[#374151] mb-1.5 font-body">Min Flat Fee (₦)</label>
-              <input type="number" min={0} value={form.min_flat_fee} onChange={e => set('min_flat_fee', e.target.value)}
+              <PriceInput value={String(form.min_flat_fee ?? '')} onChange={v => set('min_flat_fee', v)}
                 className="w-full h-[44px] px-3 rounded-[6px] border border-[#d1d5db] text-[14px] text-[#111827] font-body outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520]" />
             </div>
           </div>
