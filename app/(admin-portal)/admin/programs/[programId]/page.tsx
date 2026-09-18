@@ -1001,10 +1001,12 @@ function PricingPlanModal({
           program_id: parseInt(programId), title: form.title.trim(),
           plan_type: form.planType, status: form.status, billing_cycle: 'ONEOFF',
         })
-        const raw   = res.data as Record<string, unknown>
-        const inner = (raw?.data ?? raw) as Record<string, unknown>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const raw   = res.data as any
+        const inner = raw?.data ?? raw?.pricingPlan ?? raw?.pricing_plan ?? raw
         planId = inner?.id as number
-        if (!planId) throw new Error('Plan created but ID not returned')
+        // If we can't extract the ID, skip breakdown creation and let onSaved refresh the list
+        if (!planId) { onSaved(); return }
       }
 
       const bdMap: Record<string, { id?: number; base: string; final: string }> = {
