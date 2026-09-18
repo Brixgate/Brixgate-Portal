@@ -17,7 +17,12 @@ interface ApiProgram {
   level?: string
   format?: string
   status?: string
+  subtitle?: string
   description?: string
+  duration?: string
+  skills?: string
+  outcomes?: string
+  audience?: string
   main_price?: number; mainPrice?: number
   final_price?: number; finalPrice?: number
   modules_count?: number
@@ -41,21 +46,46 @@ const STATUS_STYLE: Record<string, string> = {
   ARCHIVED:  'bg-[#f3f4f6] text-[#4b5563]',
 }
 
+// ── Shared field/textarea helpers ─────────────────────────────────────────────
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-[13px] font-medium text-[#374151] font-body">{label}</label>
+      {children}
+      {hint && <p className="text-[11px] text-[#9ca3af] font-body">{hint}</p>}
+    </div>
+  )
+}
+
+const CLS_I = 'w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 bg-white placeholder:text-[#9ca3af]'
+const CLS_T = 'w-full px-3 py-2 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 resize-none bg-white placeholder:text-[#9ca3af]'
+const CLS_S = `${CLS_I}`
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#9ca3af] font-display pt-1">{children}</p>
+}
+
 // ── Edit programme modal ───────────────────────────────────────────────────────
 function EditProgramModal({
   program, onClose, onSaved,
 }: { program: ApiProgram; onClose: () => void; onSaved: (updated: ApiProgram) => void }) {
   const [form, setForm] = useState({
     title:       program.title ?? '',
+    subtitle:    program.subtitle ?? '',
     description: program.description ?? '',
+    duration:    program.duration ?? '',
     level:       program.level ?? 'BEGINNER',
     type:        program.type ?? 'BOOTCAMP',
     status:      program.status ?? 'DRAFT',
+    main_price:  program.mainPrice ?? program.main_price ?? ('' as number | string),
+    final_price: program.finalPrice ?? program.final_price ?? ('' as number | string),
+    skills:      program.skills ?? '',
+    outcomes:    program.outcomes ?? '',
+    audience:    program.audience ?? '',
   })
-  const [saving, setSaving]       = useState(false)
-  const [error,  setError]        = useState('')
-  // Confirmation step when status changes in a significant way
-  const [confirming, setConfirming] = useState<'publish' | 'offline' | null>(null)
+  const [saving, setSaving]           = useState(false)
+  const [error,  setError]            = useState('')
+  const [confirming, setConfirming]   = useState<'publish' | 'offline' | null>(null)
 
   function set(k: string, v: string) { setForm(p => ({ ...p, [k]: v })) }
 
@@ -71,20 +101,45 @@ function EditProgramModal({
   async function doSave() {
     setSaving(true); setConfirming(null); setError('')
     try {
+      const mp = String(form.main_price).trim()
+      const fp = String(form.final_price).trim()
       await apiClient.patch(`/admin/programs/${program.id}`, {
         title:       form.title.trim(),
+        subtitle:    form.subtitle.trim()    || undefined,
         description: form.description.trim() || undefined,
+        duration:    form.duration.trim()    || undefined,
         level:       form.level,
         type:        form.type,
         status:      form.status,
+        main_price:  mp  ? parseFloat(mp)  : undefined,
+        final_price: fp  ? parseFloat(fp)  : undefined,
+        skills:      form.skills.trim()   || undefined,
+        outcomes:    form.outcomes.trim() || undefined,
+        audience:    form.audience.trim() || undefined,
       })
-      onSaved({ ...program, ...form })
+      onSaved({
+        ...program,
+        title:       form.title.trim(),
+        subtitle:    form.subtitle.trim()    || undefined,
+        description: form.description.trim() || undefined,
+        duration:    form.duration.trim()    || undefined,
+        level:       form.level,
+        type:        form.type,
+        status:      form.status,
+        mainPrice:   mp ? parseFloat(mp) : undefined,
+        finalPrice:  fp ? parseFloat(fp) : undefined,
+        skills:      form.skills.trim()   || undefined,
+        outcomes:    form.outcomes.trim() || undefined,
+        audience:    form.audience.trim() || undefined,
+      })
     } catch (err) { setError(getApiError(err)) } finally { setSaving(false) }
   }
 
   return (
     <div className="fixed inset-0 z-[999] flex items-start justify-center bg-black/40 px-4 overflow-y-auto py-10" onClick={onClose}>
-      <div className="bg-white rounded-[14px] shadow-xl w-full max-w-[520px] my-auto" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-[14px] shadow-xl w-full max-w-[580px] my-auto" onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-[#f3f4f6]">
           <h2 className="text-[15px] font-bold text-[#111827] font-display">Edit Programme</h2>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f3f4f6]">
@@ -92,7 +147,7 @@ function EditProgramModal({
           </button>
         </div>
 
-        {/* ── Confirmation step ── */}
+        {/* Confirmation step */}
         {confirming && (
           <div className="px-6 py-6 flex flex-col gap-4">
             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${confirming === 'publish' ? 'bg-[#ecfdf3]' : 'bg-[#fffaeb]'}`}>
@@ -106,15 +161,11 @@ function EditProgramModal({
               </h3>
               <p className="text-[13px] text-[#4b5563] font-body leading-[1.6]">
                 {confirming === 'publish'
-                  ? <><span className="font-semibold text-[#374151]">{form.title}</span> will go live on the website. Students will be able to see and enrol.</>
-                  : <><span className="font-semibold text-[#374151]">{form.title}</span> will be set back to Draft and hidden from the website. Existing enrolments are not affected.</>}
+                  ? <><span className="font-semibold text-[#374151]">{form.title}</span> will go live and students will be able to enrol.</>
+                  : <><span className="font-semibold text-[#374151]">{form.title}</span> will be set back to Draft. Existing enrolments are not affected.</>}
               </p>
             </div>
-            {error && (
-              <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body">
-                <AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} /> {error}
-              </p>
-            )}
+            {error && <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body"><AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} /> {error}</p>}
             <div className="flex gap-2 pt-1">
               <button type="button" onClick={() => setConfirming(null)}
                 className="flex-1 h-10 rounded-[8px] border border-[#e5e7eb] text-[13px] font-medium font-body hover:bg-[#f9fafb] transition-colors">
@@ -131,67 +182,100 @@ function EditProgramModal({
           </div>
         )}
 
-        {/* ── Main form ── */}
+        {/* Main form */}
         {!confirming && (
-        <form onSubmit={handleSubmit} className="px-6 py-5 flex flex-col gap-4">
-          <div>
-            <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Programme Title</label>
-            <input value={form.title} onChange={e => set('title', e.target.value)}
-              placeholder="AI in Software Engineering"
-              className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10" />
-          </div>
-          <div>
-            <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Description</label>
-            <textarea value={form.description} onChange={e => set('description', e.target.value)}
-              rows={3} placeholder="Brief description of the programme…"
-              className="w-full px-3 py-2 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 resize-none" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Level</label>
-              <select value={form.level} onChange={e => set('level', e.target.value)}
-                className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body outline-none focus:border-[#d51520] bg-white">
-                {LEVELS.map(l => <option key={l} value={l}>{l.charAt(0) + l.slice(1).toLowerCase()}</option>)}
-              </select>
+          <form onSubmit={handleSubmit} className="px-6 py-5 flex flex-col gap-4">
+
+            <SectionLabel>Basics</SectionLabel>
+            <Field label="Programme Title">
+              <input value={form.title} onChange={e => set('title', e.target.value)}
+                placeholder="AI in Software Engineering" className={CLS_I} />
+            </Field>
+            <Field label="Subtitle" hint="Short tagline shown on the programme card">
+              <input value={form.subtitle} onChange={e => set('subtitle', e.target.value)}
+                placeholder="Master production-ready AI skills in 12 weeks" className={CLS_I} />
+            </Field>
+            <div className="grid grid-cols-3 gap-3">
+              <Field label="Level">
+                <select value={form.level} onChange={e => set('level', e.target.value)} className={CLS_S}>
+                  {LEVELS.map(l => <option key={l} value={l}>{l.charAt(0) + l.slice(1).toLowerCase()}</option>)}
+                </select>
+              </Field>
+              <Field label="Format">
+                <select value={form.type} onChange={e => set('type', e.target.value)} className={CLS_S}>
+                  {TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </Field>
+              <Field label="Duration">
+                <input value={form.duration} onChange={e => set('duration', e.target.value)}
+                  placeholder="12 weeks" className={CLS_I} />
+              </Field>
             </div>
-            <div>
-              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Format</label>
-              <select value={form.type} onChange={e => set('type', e.target.value)}
-                className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body outline-none focus:border-[#d51520] bg-white">
-                {TYPES.map(t => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
+            <Field label="Status">
+              <select value={form.status} onChange={e => set('status', e.target.value)} className={CLS_S}>
+                {STATUSES.map(s => <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</option>)}
               </select>
+              {form.status !== (program.status ?? 'DRAFT') && (
+                <p className="text-[11px] text-[#b45309] font-body flex items-center gap-1 mt-1">
+                  <AlertCircleIcon size={11} color="#b45309" strokeWidth={1.5} />
+                  Status changes from {(program.status ?? 'DRAFT').toLowerCase()} to {form.status.toLowerCase()} — you&apos;ll confirm below.
+                </p>
+              )}
+            </Field>
+
+            <SectionLabel>Pricing</SectionLabel>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Original Price">
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] font-medium text-[#4b5563] pointer-events-none">₦</span>
+                  <input type="number" min="0" step="any" value={form.main_price} onChange={e => set('main_price', e.target.value)}
+                    placeholder="150000" className={`${CLS_I} pl-7`} />
+                </div>
+              </Field>
+              <Field label="Final Price" hint="What students actually pay">
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] font-medium text-[#4b5563] pointer-events-none">₦</span>
+                  <input type="number" min="0" step="any" value={form.final_price} onChange={e => set('final_price', e.target.value)}
+                    placeholder="120000" className={`${CLS_I} pl-7`} />
+                </div>
+              </Field>
             </div>
-          </div>
-          <div>
-            <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Status</label>
-            <select value={form.status} onChange={e => set('status', e.target.value)}
-              className="w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body outline-none focus:border-[#d51520] bg-white">
-              {STATUSES.map(s => <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</option>)}
-            </select>
-            {form.status !== (program.status ?? 'DRAFT') && (
-              <p className="text-[11px] text-[#b45309] font-body mt-1.5 flex items-center gap-1">
-                <AlertCircleIcon size={11} color="#b45309" strokeWidth={1.5} />
-                Status will change from {((program.status ?? 'DRAFT').charAt(0) + (program.status ?? 'DRAFT').slice(1).toLowerCase())} to {form.status.charAt(0) + form.status.slice(1).toLowerCase()} — you&apos;ll be asked to confirm.
+
+            <SectionLabel>Content</SectionLabel>
+            <Field label="Description">
+              <textarea value={form.description} onChange={e => set('description', e.target.value)}
+                rows={3} placeholder="What is this programme about?" className={CLS_T} />
+            </Field>
+            <Field label="Skills Covered" hint="Comma-separated or plain text list of skills students will gain">
+              <textarea value={form.skills} onChange={e => set('skills', e.target.value)}
+                rows={2} placeholder="Python, Machine Learning, LLMs, Prompt Engineering…" className={CLS_T} />
+            </Field>
+            <Field label="Learning Outcomes" hint="What students will be able to do on completion">
+              <textarea value={form.outcomes} onChange={e => set('outcomes', e.target.value)}
+                rows={3} placeholder="By the end of this programme, students will be able to…" className={CLS_T} />
+            </Field>
+            <Field label="Target Audience" hint="Who is this programme designed for?">
+              <textarea value={form.audience} onChange={e => set('audience', e.target.value)}
+                rows={2} placeholder="Early-career professionals, final-year students, career switchers…" className={CLS_T} />
+            </Field>
+
+            {error && (
+              <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body">
+                <AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} /> {error}
               </p>
             )}
-          </div>
-          {error && (
-            <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body">
-              <AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} /> {error}
-            </p>
-          )}
-          <div className="flex gap-2 pt-1">
-            <button type="button" onClick={onClose}
-              className="flex-1 h-10 rounded-[8px] border border-[#e5e7eb] text-[13px] font-medium font-body hover:bg-[#f9fafb] transition-colors">
-              Cancel
-            </button>
-            <button type="submit" disabled={saving}
-              className="flex-1 h-10 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-60 flex items-center justify-center gap-2">
-              {saving && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
-              Save Changes
-            </button>
-          </div>
-        </form>
+            <div className="flex gap-2 pt-1">
+              <button type="button" onClick={onClose}
+                className="flex-1 h-10 rounded-[8px] border border-[#e5e7eb] text-[13px] font-medium font-body hover:bg-[#f9fafb] transition-colors">
+                Cancel
+              </button>
+              <button type="submit" disabled={saving}
+                className="flex-1 h-10 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-60 flex items-center justify-center gap-2">
+                {saving && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
+                Save Changes
+              </button>
+            </div>
+          </form>
         )}
       </div>
     </div>
@@ -245,11 +329,12 @@ function DeleteConfirmModal({
 }
 
 
-const CLS_IN  = 'w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10'
-const CLS_SEL = `${CLS_IN} bg-white`
-
 function CreateProgramModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [form, setForm] = useState({ title: '', type: 'BOOTCAMP', level: 'BEGINNER', status: 'DRAFT', description: '', main_price: '', final_price: '' })
+  const [form, setForm] = useState({
+    title: '', subtitle: '', type: 'BOOTCAMP', level: 'BEGINNER', status: 'DRAFT',
+    description: '', duration: '', main_price: '', final_price: '',
+    skills: '', outcomes: '', audience: '',
+  })
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState('')
 
@@ -261,10 +346,18 @@ function CreateProgramModal({ onClose, onCreated }: { onClose: () => void; onCre
     setSaving(true)
     try {
       await apiClient.post('/admin/programs', {
-        title: form.title.trim(), type: form.type, level: form.level,
-        status: form.status, description: form.description.trim() || undefined,
+        title:       form.title.trim(),
+        subtitle:    form.subtitle.trim()    || undefined,
+        type:        form.type,
+        level:       form.level,
+        status:      form.status,
+        description: form.description.trim() || undefined,
+        duration:    form.duration.trim()    || undefined,
         main_price:  form.main_price  ? parseFloat(form.main_price)  : undefined,
         final_price: form.final_price ? parseFloat(form.final_price) : undefined,
+        skills:      form.skills.trim()   || undefined,
+        outcomes:    form.outcomes.trim() || undefined,
+        audience:    form.audience.trim() || undefined,
       })
       onCreated()
     } catch (err) { setError(getApiError(err)) } finally { setSaving(false) }
@@ -272,7 +365,7 @@ function CreateProgramModal({ onClose, onCreated }: { onClose: () => void; onCre
 
   return (
     <div className="fixed inset-0 z-[999] flex items-start justify-center bg-black/40 px-4 overflow-y-auto py-10" onClick={onClose}>
-      <div className="bg-white rounded-[14px] shadow-xl w-full max-w-[520px] my-auto" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-[14px] shadow-xl w-full max-w-[580px] my-auto" onClick={e => e.stopPropagation()}>
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-[#f3f4f6]">
@@ -283,58 +376,74 @@ function CreateProgramModal({ onClose, onCreated }: { onClose: () => void; onCre
         </div>
 
         <form onSubmit={handleSubmit} className="px-6 py-5 flex flex-col gap-4">
-          <div>
-            <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Programme Title</label>
+
+          <SectionLabel>Basics</SectionLabel>
+          <Field label="Programme Title">
             <input value={form.title} onChange={e => set('title', e.target.value)}
-              placeholder="AI in Software Engineering" className={CLS_IN} />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Original Price</label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] font-medium text-[#4b5563] font-body pointer-events-none">₦</span>
-                <input type="number" min="0" step="any"
-                  value={form.main_price} onChange={e => set('main_price', e.target.value)}
-                  placeholder="150000" className={`${CLS_IN} pl-7`} />
-              </div>
-            </div>
-            <div>
-              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Final Price</label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] font-medium text-[#4b5563] font-body pointer-events-none">₦</span>
-                <input type="number" min="0" step="any"
-                  value={form.final_price} onChange={e => set('final_price', e.target.value)}
-                  placeholder="120000" className={`${CLS_IN} pl-7`} />
-              </div>
-              <p className="text-[11px] text-[#9ca3af] mt-1 font-body">What students actually pay</p>
-            </div>
-          </div>
-          <div>
-            <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Description</label>
-            <textarea value={form.description} onChange={e => set('description', e.target.value)}
-              rows={3} placeholder="Brief description of the programme…"
-              className="w-full px-3 py-2 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 resize-none" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Level</label>
-              <select value={form.level} onChange={e => set('level', e.target.value)} className={CLS_SEL}>
+              placeholder="AI in Software Engineering" className={CLS_I} />
+          </Field>
+          <Field label="Subtitle" hint="Short tagline shown on the programme card">
+            <input value={form.subtitle} onChange={e => set('subtitle', e.target.value)}
+              placeholder="Master production-ready AI skills in 12 weeks" className={CLS_I} />
+          </Field>
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="Level">
+              <select value={form.level} onChange={e => set('level', e.target.value)} className={CLS_S}>
                 {LEVELS.map(l => <option key={l} value={l}>{l.charAt(0) + l.slice(1).toLowerCase()}</option>)}
               </select>
-            </div>
-            <div>
-              <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Format</label>
-              <select value={form.type} onChange={e => set('type', e.target.value)} className={CLS_SEL}>
-                {TYPES.map(t => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
+            </Field>
+            <Field label="Format">
+              <select value={form.type} onChange={e => set('type', e.target.value)} className={CLS_S}>
+                {TYPES.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
-            </div>
+            </Field>
+            <Field label="Duration">
+              <input value={form.duration} onChange={e => set('duration', e.target.value)}
+                placeholder="12 weeks" className={CLS_I} />
+            </Field>
           </div>
-          <div>
-            <label className="block text-[13px] font-medium text-[#374151] font-body mb-1.5">Status</label>
-            <select value={form.status} onChange={e => set('status', e.target.value)} className={CLS_SEL}>
+          <Field label="Status">
+            <select value={form.status} onChange={e => set('status', e.target.value)} className={CLS_S}>
               {STATUSES.map(s => <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</option>)}
             </select>
+          </Field>
+
+          <SectionLabel>Pricing</SectionLabel>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Original Price">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] font-medium text-[#4b5563] pointer-events-none">₦</span>
+                <input type="number" min="0" step="any" value={form.main_price} onChange={e => set('main_price', e.target.value)}
+                  placeholder="150000" className={`${CLS_I} pl-7`} />
+              </div>
+            </Field>
+            <Field label="Final Price" hint="What students actually pay">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] font-medium text-[#4b5563] pointer-events-none">₦</span>
+                <input type="number" min="0" step="any" value={form.final_price} onChange={e => set('final_price', e.target.value)}
+                  placeholder="120000" className={`${CLS_I} pl-7`} />
+              </div>
+            </Field>
           </div>
+
+          <SectionLabel>Content</SectionLabel>
+          <Field label="Description">
+            <textarea value={form.description} onChange={e => set('description', e.target.value)}
+              rows={3} placeholder="What is this programme about?" className={CLS_T} />
+          </Field>
+          <Field label="Skills Covered" hint="Comma-separated or plain text list of skills students will gain">
+            <textarea value={form.skills} onChange={e => set('skills', e.target.value)}
+              rows={2} placeholder="Python, Machine Learning, LLMs, Prompt Engineering…" className={CLS_T} />
+          </Field>
+          <Field label="Learning Outcomes" hint="What students will be able to do on completion">
+            <textarea value={form.outcomes} onChange={e => set('outcomes', e.target.value)}
+              rows={3} placeholder="By the end of this programme, students will be able to…" className={CLS_T} />
+          </Field>
+          <Field label="Target Audience" hint="Who is this programme designed for?">
+            <textarea value={form.audience} onChange={e => set('audience', e.target.value)}
+              rows={2} placeholder="Early-career professionals, final-year students, career switchers…" className={CLS_T} />
+          </Field>
+
           {error && (
             <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body">
               <AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} /> {error}
