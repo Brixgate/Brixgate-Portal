@@ -45,6 +45,23 @@ function FormField({
   )
 }
 
+function FormTextarea({ label, value, onChange, placeholder, rows = 3 }: {
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string; rows?: number
+}) {
+  return (
+    <div>
+      <label className="block text-[13px] font-medium text-[#374151] mb-1.5 font-body">{label}</label>
+      <textarea
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        rows={rows}
+        className="w-full px-3 py-2.5 rounded-[6px] border border-[#d1d5db] bg-white text-[14px] text-[#111827] font-body placeholder:text-[#9ca3af] outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520] resize-none transition-all"
+      />
+    </div>
+  )
+}
+
 export default function InstructorSettingsPage() {
   const { user, updateUser } = useAuth()
 
@@ -53,6 +70,19 @@ export default function InstructorSettingsPage() {
   const [phone,     setPhone]       = useState('')
   const [saving,    setSaving]      = useState(false)
   const [saveMsg,   setSaveMsg]     = useState<{ ok: boolean; text: string } | null>(null)
+
+  // Professional profile
+  const [organization,    setOrganization]    = useState('')
+  const [occupation,      setOccupation]      = useState('')
+  const [currentRole,     setCurrentRole]     = useState('')
+  const [primaryField,    setPrimaryField]    = useState('')
+  const [location,        setLocation]        = useState('')
+  const [expertise,       setExpertise]       = useState('')
+  const [biography,       setBiography]       = useState('')
+  const [linkedinUrl,     setLinkedinUrl]     = useState('')
+  const [twitterUrl,      setTwitterUrl]      = useState('')
+  const [savingProf,      setSavingProf]      = useState(false)
+  const [profMsg,         setProfMsg]         = useState<{ ok: boolean; text: string } | null>(null)
 
   const [curPw,  setCurPw]    = useState('')
   const [newPw,  setNewPw]    = useState('')
@@ -68,8 +98,17 @@ export default function InstructorSettingsPage() {
       setLastName(user.lastName)
       const raw = user.phone ?? ''
       setPhone(raw.startsWith('+234') ? raw.slice(4) : raw)
+      setOrganization(user.organization ?? '')
+      setOccupation(user.occupation ?? '')
+      setCurrentRole(user.currentRole ?? '')
+      setPrimaryField(user.primaryField ?? '')
+      setLocation(user.location ?? '')
+      setExpertise(user.expertise ?? '')
+      setBiography(user.biography ?? '')
+      setLinkedinUrl(user.linkedinUrl ?? '')
+      setTwitterUrl(user.twitterUrl ?? '')
     }
-  }, [user])
+  }, [user?.id])
 
   async function handleSave() {
     setSaving(true)
@@ -86,6 +125,30 @@ export default function InstructorSettingsPage() {
       setSaveMsg({ ok: false, text: getApiError(err) })
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleSaveProfessional() {
+    setSavingProf(true)
+    setProfMsg(null)
+    try {
+      await apiClient.put('/users/me', {
+        organization:  organization.trim()  || undefined,
+        occupation:    occupation.trim()    || undefined,
+        current_role:  currentRole.trim()   || undefined,
+        primary_field: primaryField.trim()  || undefined,
+        location:      location.trim()      || undefined,
+        expertise:     expertise.trim()     || undefined,
+        biography:     biography.trim()     || undefined,
+        linkedin_url:  linkedinUrl.trim()   || undefined,
+        twitter_url:   twitterUrl.trim()    || undefined,
+      })
+      updateUser({ organization, occupation, currentRole, primaryField, location, expertise, biography, linkedinUrl, twitterUrl })
+      setProfMsg({ ok: true, text: 'Professional profile saved.' })
+    } catch (err) {
+      setProfMsg({ ok: false, text: getApiError(err) })
+    } finally {
+      setSavingProf(false)
     }
   }
 
@@ -145,6 +208,46 @@ export default function InstructorSettingsPage() {
               className="h-10 px-5 bg-[#d51520] hover:bg-[#b91c1c] text-white text-[14px] font-semibold rounded-[8px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-display"
             >
               {saving ? 'Saving…' : 'Save Changes'}
+            </button>
+          </div>
+        </SectionCard>
+
+        {/* Professional profile */}
+        <SectionCard title="Professional Profile" description="Help students and admins know your background and expertise.">
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="Current Role" value={currentRole} onChange={setCurrentRole} placeholder="e.g. Senior Data Scientist" />
+              <FormField label="Organization" value={organization} onChange={setOrganization} placeholder="e.g. Brixgate" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="Occupation" value={occupation} onChange={setOccupation} placeholder="e.g. Software Engineer" />
+              <FormField label="Primary Field" value={primaryField} onChange={setPrimaryField} placeholder="e.g. Artificial Intelligence" />
+            </div>
+            <FormField label="Location" value={location} onChange={setLocation} placeholder="e.g. Lagos, Nigeria" />
+            <FormField label="Expertise" value={expertise} onChange={setExpertise} placeholder="e.g. Machine Learning, Python, Data Analysis" />
+            <FormTextarea label="Biography" value={biography} onChange={setBiography} placeholder="A short bio that will appear on your profile…" rows={4} />
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="LinkedIn URL" value={linkedinUrl} onChange={setLinkedinUrl} placeholder="https://linkedin.com/in/yourname" />
+              <FormField label="Twitter / X URL" value={twitterUrl} onChange={setTwitterUrl} placeholder="https://twitter.com/yourhandle" />
+            </div>
+          </div>
+
+          {profMsg && (
+            <div className={`mt-4 flex items-center gap-2 text-[13px] font-body ${profMsg.ok ? 'text-green-700' : 'text-red-600'}`}>
+              {profMsg.ok
+                ? <CheckmarkCircle01Icon size={16} color="#16a34a" strokeWidth={1.5} />
+                : <AlertCircleIcon size={16} color="#dc2626" strokeWidth={1.5} />}
+              {profMsg.text}
+            </div>
+          )}
+
+          <div className="mt-6 flex justify-end">
+            <button
+              onClick={handleSaveProfessional}
+              disabled={savingProf}
+              className="h-10 px-5 bg-[#d51520] hover:bg-[#b91c1c] text-white text-[14px] font-semibold rounded-[8px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-display"
+            >
+              {savingProf ? 'Saving…' : 'Save Professional Profile'}
             </button>
           </div>
         </SectionCard>

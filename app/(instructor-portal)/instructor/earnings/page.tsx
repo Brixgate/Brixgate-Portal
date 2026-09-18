@@ -172,21 +172,17 @@ export default function InstructorEarningsPage() {
       </div>
 
       <div className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)]">
-        {/* Filter chips */}
-        <div className="px-6 pt-5 pb-4 border-b border-[#eaecf0] flex items-center gap-2 flex-wrap">
-          {STATUS_FILTERS.map(f => (
-            <button
-              key={f}
-              onClick={() => setActiveFilter(f)}
-              className={`rounded-full px-4 h-8 text-[13px] font-medium transition-colors ${
-                activeFilter === f
-                  ? 'bg-[#d51520] text-white'
-                  : 'bg-white border border-[#eaecf0] text-[#374151] hover:bg-[#f9fafb]'
-              }`}
-            >
-              {f === 'All' ? 'All' : f.charAt(0) + f.slice(1).toLowerCase()}
-            </button>
-          ))}
+        {/* Filter */}
+        <div className="px-6 pt-5 pb-4 border-b border-[#eaecf0]">
+          <select
+            value={activeFilter}
+            onChange={e => setActiveFilter(e.target.value as typeof STATUS_FILTERS[number])}
+            className="h-9 pl-3 pr-8 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body text-[#374151] bg-white outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 cursor-pointer"
+          >
+            {STATUS_FILTERS.map(f => (
+              <option key={f} value={f}>{f === 'All' ? 'All statuses' : f.charAt(0) + f.slice(1).toLowerCase()}</option>
+            ))}
+          </select>
         </div>
 
         {/* Table header */}
