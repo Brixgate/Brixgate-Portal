@@ -1707,6 +1707,9 @@ function PricingTab({ programId }: { programId: string }) {
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display flex-shrink-0 ${PLAN_STATUS_BADGE[st] ?? 'bg-[#f3f4f6] text-[#374151]'}`}>
                         {st.charAt(0) + st.slice(1).toLowerCase()}
                       </span>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-body flex-shrink-0 bg-[#f0f9ff] text-[#0369a1] border border-[#bae6fd]">
+                        Plan ID: {plan.id}
+                      </span>
                     </div>
                     <div className="flex items-center gap-5 flex-wrap">
                       {bds.length === 0 ? (
