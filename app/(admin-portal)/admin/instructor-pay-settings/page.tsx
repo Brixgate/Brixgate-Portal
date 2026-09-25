@@ -11,6 +11,9 @@ import {
   AlertCircleIcon,
 } from 'hugeicons-react'
 
+interface ProgramOption { id: number; name: string; title?: string }
+interface CohortOption  { id: number; name: string; cohort_name?: string; cohort_number?: number }
+
 interface PaySetting {
   id: number
   program_id: number | null
@@ -86,10 +89,42 @@ function SettingModal({
         }
       : EMPTY_FORM
   )
-  const [saving, setSaving] = useState(false)
-  const [err, setErr]       = useState('')
+  const [saving, setSaving]       = useState(false)
+  const [err, setErr]             = useState('')
+  const [programs, setPrograms]   = useState<ProgramOption[]>([])
+  const [cohorts,  setCohorts]    = useState<CohortOption[]>([])
+  const [loadingCohorts, setLoadingCohorts] = useState(false)
+
+  useEffect(() => {
+    apiClient.get('/admin/programs?size=100')
+      .then(res => {
+        const d = res.data?.data ?? res.data
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const arr: any[] = d?.programs ?? d?.content ?? d?.data ?? (Array.isArray(d) ? d : [])
+        setPrograms(arr)
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!form.program_id) { setCohorts([]); return }
+    setLoadingCohorts(true)
+    apiClient.get(`/admin/programs/${form.program_id}/cohorts?size=100`)
+      .then(res => {
+        const d = res.data?.data ?? res.data
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const arr: any[] = d?.cohorts ?? d?.content ?? d?.data ?? (Array.isArray(d) ? d : [])
+        setCohorts(arr)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingCohorts(false))
+  }, [form.program_id])
 
   function set(k: keyof FormState, v: string) { setForm(f => ({ ...f, [k]: v })) }
+
+  function handleProgramChange(v: string) {
+    setForm(f => ({ ...f, program_id: v, cohort_id: '' }))
+  }
 
   async function handleSubmit() {
     if (!form.percentage) { setErr('Percentage is required.'); return }
@@ -123,6 +158,12 @@ function SettingModal({
     : form.cohort_id ? 'COHORT'
     : 'PROGRAM'
 
+  const scopeColors: Record<string, string> = {
+    GLOBAL:  'bg-purple-50 text-purple-700 border border-purple-200',
+    PROGRAM: 'bg-blue-50 text-blue-700 border border-blue-200',
+    COHORT:  'bg-teal-50 text-teal-700 border border-teal-200',
+  }
+
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-[12px] shadow-[0px_12px_40px_rgba(16,24,40,0.15)] w-full max-w-[520px] overflow-hidden">
@@ -133,33 +174,61 @@ function SettingModal({
           <p className="text-[13px] text-[#4b5563] font-body mt-0.5">
             {editing
               ? 'Update the payment rule. Scope cannot be changed after creation.'
-              : 'Leave Program ID and Cohort ID blank for a Global rule.'}
+              : 'Select a programme and optionally a cohort, or leave both blank for a Global rule.'}
           </p>
         </div>
 
         <div className="p-6 space-y-4">
           {!editing && (
-            <div className="grid grid-cols-2 gap-4">
+            <>
               <div>
-                <label className="block text-[13px] font-medium text-[#374151] mb-1.5 font-body">Program ID <span className="text-[#9ca3af]">(optional)</span></label>
-                <input type="number" value={form.program_id} onChange={e => set('program_id', e.target.value)}
-                  placeholder="e.g. 2"
-                  className="w-full h-[44px] px-3 rounded-[6px] border border-[#d1d5db] text-[14px] text-[#111827] font-body outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520]" />
+                <label className="block text-[13px] font-medium text-[#374151] mb-1.5 font-body">
+                  Programme <span className="text-[#9ca3af]">(optional — leave blank for Global)</span>
+                </label>
+                <select
+                  value={form.program_id}
+                  onChange={e => handleProgramChange(e.target.value)}
+                  className="w-full h-[44px] px-3 rounded-[6px] border border-[#d1d5db] text-[14px] text-[#111827] font-body outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520] bg-white"
+                >
+                  <option value="">— Apply to all programmes (Global) —</option>
+                  {programs.map(p => (
+                    <option key={p.id} value={String(p.id)}>
+                      {p.name ?? p.title ?? `Programme #${p.id}`}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <div>
-                <label className="block text-[13px] font-medium text-[#374151] mb-1.5 font-body">Cohort ID <span className="text-[#9ca3af]">(optional)</span></label>
-                <input type="number" value={form.cohort_id} onChange={e => set('cohort_id', e.target.value)}
-                  placeholder="e.g. 5"
-                  className="w-full h-[44px] px-3 rounded-[6px] border border-[#d1d5db] text-[14px] text-[#111827] font-body outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520]" />
-              </div>
-            </div>
-          )}
 
-          {!editing && (
-            <div className="flex items-center gap-2 text-[12px] text-[#6b7280] font-body bg-[#f9fafb] rounded-[6px] px-3 py-2">
-              <AlertCircleIcon size={14} color="#9ca3af" strokeWidth={1.5} />
-              Resolved scope: <strong className="text-[#374151]">{scope}</strong>
-            </div>
+              <div>
+                <label className="block text-[13px] font-medium text-[#374151] mb-1.5 font-body">
+                  Cohort <span className="text-[#9ca3af]">(optional — leave blank to apply to whole programme)</span>
+                </label>
+                <select
+                  value={form.cohort_id}
+                  onChange={e => set('cohort_id', e.target.value)}
+                  disabled={!form.program_id || loadingCohorts}
+                  className="w-full h-[44px] px-3 rounded-[6px] border border-[#d1d5db] text-[14px] text-[#111827] font-body outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520] bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <option value="">
+                    {!form.program_id
+                      ? '— Select a programme first —'
+                      : loadingCohorts
+                        ? 'Loading cohorts…'
+                        : '— Apply to all cohorts in this programme —'}
+                  </option>
+                  {cohorts.map(c => (
+                    <option key={c.id} value={String(c.id)}>
+                      {c.name ?? c.cohort_name ?? `Cohort ${c.cohort_number ?? c.id}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className={`flex items-center gap-2 text-[12px] font-body rounded-[6px] px-3 py-2 ${scopeColors[scope]}`}>
+                <AlertCircleIcon size={14} strokeWidth={1.5} />
+                This rule will apply at: <strong>{scope.charAt(0) + scope.slice(1).toLowerCase()} scope</strong>
+              </div>
+            </>
           )}
 
           <div>
@@ -215,18 +284,50 @@ function SettingModal({
 }
 
 export default function InstructorPaySettingsPage() {
-  const [settings, setSettings] = useState<PaySetting[]>([])
-  const [loading,  setLoading]  = useState(true)
-  const [modal,    setModal]    = useState<'new' | PaySetting | null>(null)
-  const [deleting, setDeleting] = useState<number | null>(null)
+  const [settings,  setSettings]  = useState<PaySetting[]>([])
+  const [loading,   setLoading]   = useState(true)
+  const [modal,     setModal]     = useState<'new' | PaySetting | null>(null)
+  const [deleting,  setDeleting]  = useState<number | null>(null)
+  const [progNames, setProgNames] = useState<Record<number, string>>({})
+  const [cohortNames, setCohortNames] = useState<Record<number, string>>({})
 
   function load() {
     setLoading(true)
-    apiClient.get('/admin/instructor-pay-settings?page=1&size=100')
-      .then(res => {
-        const d = res.data?.data ?? res.data
+    Promise.all([
+      apiClient.get('/admin/instructor-pay-settings?page=1&size=100'),
+      apiClient.get('/admin/programs?size=100'),
+    ])
+      .then(async ([settingsRes, progsRes]) => {
+        const d = settingsRes.data?.data ?? settingsRes.data
         const arr = d?.settings ?? d?.content ?? d?.data ?? (Array.isArray(d) ? d : [])
         setSettings(arr)
+
+        const pd = progsRes.data?.data ?? progsRes.data
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const progs: any[] = pd?.programs ?? pd?.content ?? pd?.data ?? (Array.isArray(pd) ? pd : [])
+        const nameMap: Record<number, string> = {}
+        progs.forEach((p: { id: number; name?: string; title?: string }) => { nameMap[p.id] = p.name ?? p.title ?? `Programme #${p.id}` })
+        setProgNames(nameMap)
+
+        // fetch cohorts for programmes that appear in settings
+        const programIds = [...new Set(arr.filter((s: PaySetting) => s.program_id).map((s: PaySetting) => s.program_id as number))]
+        if (programIds.length > 0) {
+          const cohortResults = await Promise.allSettled(
+            programIds.map((pid: number) => apiClient.get(`/admin/programs/${pid}/cohorts?size=100`))
+          )
+          const cMap: Record<number, string> = {}
+          cohortResults.forEach(r => {
+            if (r.status === 'fulfilled') {
+              const cd = r.value.data?.data ?? r.value.data
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const cohorts: any[] = cd?.cohorts ?? cd?.content ?? cd?.data ?? (Array.isArray(cd) ? cd : [])
+              cohorts.forEach((c: { id: number; name?: string; cohort_name?: string; cohort_number?: number }) => {
+                cMap[c.id] = c.name ?? c.cohort_name ?? `Cohort ${c.cohort_number ?? c.id}`
+              })
+            }
+          })
+          setCohortNames(cMap)
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -289,8 +390,12 @@ export default function InstructorPaySettingsPage() {
               className="grid grid-cols-[80px_100px_100px_90px_110px_110px_90px_80px] px-4 py-3 items-center border-b border-[#eaecf0] last:border-0 hover:bg-[#f9fafb] transition-colors">
               <span className="text-[13px] text-[#374151] font-body">#{s.id}</span>
               <ScopeBadge scope={s.scope ?? (!s.cohort_id && !s.program_id ? 'GLOBAL' : s.cohort_id ? 'COHORT' : 'PROGRAM')} />
-              <span className="text-[13px] text-[#374151] font-body">{s.program_id ?? '—'}</span>
-              <span className="text-[13px] text-[#374151] font-body">{s.cohort_id ?? '—'}</span>
+              <span className="text-[13px] text-[#374151] font-body truncate" title={s.program_id ? String(s.program_id) : undefined}>
+                {s.program_id ? (progNames[s.program_id] ?? `#${s.program_id}`) : '—'}
+              </span>
+              <span className="text-[13px] text-[#374151] font-body truncate" title={s.cohort_id ? String(s.cohort_id) : undefined}>
+                {s.cohort_id ? (cohortNames[s.cohort_id] ?? `#${s.cohort_id}`) : '—'}
+              </span>
               <span className="text-[13px] font-semibold text-[#111827] font-display">{s.percentage}%</span>
               <span className="text-[13px] text-[#374151] font-body">{s.min_flat_fee > 0 ? fmt(s.min_flat_fee) : '—'}</span>
               <StatusBadge status={s.status} />
