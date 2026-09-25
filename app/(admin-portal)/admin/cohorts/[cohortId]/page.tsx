@@ -1261,6 +1261,7 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
   const [loading, setLoading]             = useState(true)
   const [selectedPerson, setSelectedPerson] = useState<PersonRow | null>(null)
   const [showAddFacilitator, setShowAddFacilitator] = useState(false)
+  const [search, setSearch]               = useState('')
 
   const loadPeople = useCallback(async () => {
     setLoading(true)
@@ -1364,9 +1365,20 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
           onAdded={() => { setShowAddFacilitator(false); loadPeople() }}
         />
       )}
-      <div className="px-6 pt-4 pb-2 flex items-center justify-between">
-        <p className="text-[12px] text-[#4b5563] font-body">{rows.length} member{rows.length !== 1 ? 's' : ''} in this cohort</p>
-        <div className="flex items-center gap-2">
+      <div className="px-6 pt-4 pb-3 flex items-center justify-between gap-3">
+        <div className="relative flex-1 max-w-[320px]">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9ca3af]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607z" />
+          </svg>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by name or email…"
+            className="w-full h-9 pl-8 pr-3 rounded-[8px] border border-[#e5e7eb] text-[13px] text-[#111827] font-body outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520]"
+          />
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <p className="text-[12px] text-[#9ca3af] font-body">{rows.length} member{rows.length !== 1 ? 's' : ''}</p>
           <button onClick={() => setShowAddFacilitator(true)}
             className="flex items-center gap-2 h-9 px-4 bg-[#d51520] text-white rounded-[8px] text-[12px] font-semibold font-display hover:bg-[#b81119] transition-colors">
             <UserAdd01Icon size={14} color="white" strokeWidth={1.5} />
@@ -1374,7 +1386,7 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
           </button>
         </div>
       </div>
-      <div className="px-6 py-4 overflow-x-auto">
+      <div className="px-6 pb-4 overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="bg-[#f9fafb] border-b border-[#f3f4f6]">
@@ -1395,7 +1407,11 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
                   No people in this cohort yet
                 </td>
               </tr>
-            ) : rows.map(r => (
+            ) : rows.filter(r => {
+              if (!search.trim()) return true
+              const q = search.toLowerCase()
+              return r.name.toLowerCase().includes(q) || r.email.toLowerCase().includes(q)
+            }).map(r => (
               <tr
                 key={r.key}
                 onClick={() => r.userId ? router.push(`/admin/cohorts/${cohortId}/members/${r.userId}`) : setSelectedPerson(r)}
@@ -2260,7 +2276,7 @@ function ReviewsTab({ cohortId, programId }: { cohortId: string; programId: numb
 
   function loadResponses(formId: number | string) {
     setLoadingRes(true)
-    apiClient.get(`/admin/review-forms/${formId}/responses?page=1&size=100`)
+    apiClient.get(`/admin/review-forms/${formId}/submissions?page=1&size=100`)
       .then(res => {
         const raw   = res.data?.data ?? res.data
         const inner = raw?.data ?? raw
@@ -3617,6 +3633,7 @@ function PaymentsTab({ cohortId }: { cohortId: string }) {
   const [error,    setError]              = useState<string | null>(null)
   const [refreshing, setRefreshing]       = useState(false)
   const [selected, setSelected]           = useState<PaymentOverviewStudent | null>(null)
+  const [search,   setSearch]             = useState('')
 
   const load = useCallback(async (silent = false) => {
     if (silent) setRefreshing(true); else setLoading(true)
@@ -3646,6 +3663,11 @@ function PaymentsTab({ cohortId }: { cohortId: string }) {
   if (!overview) return null
 
   const students         = overview.students ?? overview.enrollments ?? []
+  const filteredStudents = students.filter(s => {
+    if (!search.trim()) return true
+    const q = search.toLowerCase()
+    return (s.name ?? '').toLowerCase().includes(q) || (s.email ?? '').toLowerCase().includes(q)
+  })
   const totals           = overview.totals
   const totalEnrolled    = totals?.students    ?? overview.total_enrolled    ?? overview.totalEnrolled    ?? students.length
   const totalExpected    = totals?.expected    ?? 0
@@ -3677,12 +3699,23 @@ function PaymentsTab({ cohortId }: { cohortId: string }) {
 
         {/* Student payment table */}
         <div className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-[#f3f4f6] flex items-center justify-between">
-            <p className="text-[13px] font-semibold text-[#111827] font-display">Per-Student Breakdown</p>
+          <div className="px-5 py-3.5 border-b border-[#f3f4f6] flex items-center gap-3">
+            <p className="text-[13px] font-semibold text-[#111827] font-display flex-shrink-0">Per-Student Breakdown</p>
+            <div className="relative flex-1 max-w-[280px]">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9ca3af]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607z" />
+              </svg>
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search by name or email…"
+                className="w-full h-8 pl-8 pr-3 rounded-[6px] border border-[#e5e7eb] text-[12px] text-[#111827] font-body outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520]"
+              />
+            </div>
             <button
               onClick={() => load(true)}
               disabled={refreshing}
-              className="flex items-center gap-1.5 h-8 px-3 border border-[#e5e7eb] rounded-[6px] text-[12px] font-body text-[#374151] hover:bg-[#f9fafb] transition-colors disabled:opacity-60"
+              className="ml-auto flex items-center gap-1.5 h-8 px-3 border border-[#e5e7eb] rounded-[6px] text-[12px] font-body text-[#374151] hover:bg-[#f9fafb] transition-colors disabled:opacity-60 flex-shrink-0"
             >
               <RefreshIcon size={13} color="#4b5563" strokeWidth={1.5} className={refreshing ? 'animate-spin' : ''} />
               Refresh
@@ -3708,7 +3741,7 @@ function PaymentsTab({ cohortId }: { cohortId: string }) {
                 </tr>
               </thead>
               <tbody>
-                {students.map((s, i) => {
+                {filteredStudents.map((s, i) => {
                   const status = s.status ?? s.plan_status ?? s.planStatus ?? '—'
                   const outstanding = s.outstanding_amount ?? s.amount_outstanding ?? s.amountOutstanding ?? 0
                   return (
