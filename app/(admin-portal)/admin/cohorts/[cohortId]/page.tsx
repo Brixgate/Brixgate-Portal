@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import {
   ArrowLeft01Icon, Loading01Icon, UserGroup02Icon,
   StarIcon, BookOpen01Icon, CheckmarkCircle01Icon,
@@ -2251,6 +2251,7 @@ function ReviewsTab({ cohortId, programId }: { cohortId: string; programId: numb
   // Responses tab state
   const [responses,     setResponses]     = useState<Record<string, unknown>[]>([])
   const [loadingRes,    setLoadingRes]    = useState(false)
+  const [resError,      setResError]      = useState<string | null>(null)
   const [expandedRes,   setExpandedRes]   = useState<Set<number>>(new Set())
 
   function loadForms() {
@@ -2275,8 +2276,8 @@ function ReviewsTab({ cohortId, programId }: { cohortId: string; programId: numb
   useEffect(() => { loadForms() }, [cohortId, programId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function loadResponses(formId: number | string) {
-    setLoadingRes(true)
-    apiClient.get(`/admin/review-forms/${formId}/submissions?page=1&size=100`)
+    setLoadingRes(true); setResError(null)
+    apiClient.get(`/admin/review-forms/${formId}/submissions?page=0&size=200`)
       .then(res => {
         const raw   = res.data?.data ?? res.data
         const inner = raw?.data ?? raw
@@ -2289,7 +2290,7 @@ function ReviewsTab({ cohortId, programId }: { cohortId: string; programId: numb
           : []
         setResponses(arr)
       })
-      .catch(() => {})
+      .catch(err => { setResError(getApiError(err)) })
       .finally(() => setLoadingRes(false))
   }
 
@@ -2469,7 +2470,7 @@ function ReviewsTab({ cohortId, programId }: { cohortId: string; programId: numb
           <button key={tab}
             onClick={() => {
               setDetailTab(tab)
-              if (tab === 'responses' && responses.length === 0 && selectedForm) loadResponses(selectedForm.id)
+              if (tab === 'responses' && selectedForm) loadResponses(selectedForm.id)
             }}
             className={`py-2.5 mr-5 text-[13px] font-semibold font-display border-b-2 transition-colors capitalize ${
               detailTab === tab ? 'border-[#d51520] text-[#d51520]' : 'border-transparent text-[#4b5563] hover:text-[#374151]'
@@ -2536,6 +2537,11 @@ function ReviewsTab({ cohortId, programId }: { cohortId: string; programId: numb
           {loadingRes ? (
             <div className="flex items-center justify-center py-16">
               <Loading01Icon size={20} className="animate-spin" color="#d51520" strokeWidth={1.5} />
+            </div>
+          ) : resError ? (
+            <div className="m-6 flex items-center gap-3 bg-[#fef2f2] border border-[#fecdca] rounded-[10px] p-4">
+              <AlertCircleIcon size={16} color="#d51520" strokeWidth={1.5} />
+              <p className="text-[13px] text-[#d51520] font-body">{resError}</p>
             </div>
           ) : responses.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center px-6">
@@ -3370,22 +3376,23 @@ function PaymentStudentSidebar({
   const [graceError,   setGraceError]   = useState('')
   const [graceSuccess, setGraceSuccess] = useState(false)
 
-  const uid = student.user_id ?? student.userId
+  const uid            = student.user_id ?? student.userId
+  const enrollmentId   = student.enrollment_id ?? student.enrollmentId
   // member_id from the payment overview may be absent — resolve from the cohort members list
   const [resolvedMemberId, setResolvedMemberId] = useState<number | string | null>(
     student.member_id ?? student.memberId ?? null
   )
-  const memberId = resolvedMemberId ?? student.enrollment_id ?? student.enrollmentId ?? uid
+  // Only use enrollment_id as fallback — NEVER user_id, it's not the cohort member record ID
+  const memberId = resolvedMemberId ?? student.enrollment_id ?? student.enrollmentId ?? null
 
   useEffect(() => {
-    if (!uid) return
     setLoadingUser(true)
     // Fetch user detail and cohort member record in parallel
     Promise.allSettled([
-      apiClient.get(`/admin/users/${uid}`),
-      apiClient.get(`/admin/cohorts/${cohortId}/members?size=200`),
+      uid ? apiClient.get(`/admin/users/${uid}`) : Promise.resolve(null),
+      apiClient.get(`/admin/cohorts/${cohortId}/members?size=500`),
     ]).then(([userRes, membersRes]) => {
-      if (userRes.status === 'fulfilled') {
+      if (userRes.status === 'fulfilled' && userRes.value) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const raw = unwrap<any>(userRes.value.data)
         setUserDetail(raw?.user ?? raw)
@@ -3398,13 +3405,17 @@ function PaymentStudentSidebar({
           : Array.isArray(raw?.content) ? raw.content
           : Array.isArray(raw)          ? raw
           : []
-        const match = members.find((m: { user?: { id?: number }; user_id?: number; userId?: number }) =>
-          String(m.user?.id ?? m.user_id ?? m.userId) === String(uid)
-        )
+        // Match by user ID first, then by enrollment ID as fallback
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const match = members.find((m: any) => {
+          if (uid && String(m.user?.id ?? m.user_id ?? m.userId) === String(uid)) return true
+          if (enrollmentId && String(m.enrollment_id ?? m.enrollmentId) === String(enrollmentId)) return true
+          return false
+        })
         if (match?.id) setResolvedMemberId(match.id)
       }
     }).finally(() => setLoadingUser(false))
-  }, [uid, cohortId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [uid, enrollmentId, cohortId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const accountActive: boolean = userDetail
     ? (userDetail.status === 1 || userDetail.status === '1' || userDetail.status === 'ACTIVE')
@@ -3422,7 +3433,7 @@ function PaymentStudentSidebar({
 
   async function handleGraceExtension() {
     if (!graceDate) { setGraceError('Please select a new deadline date.'); return }
-    if (!memberId)  { setGraceError('Member ID not available — cannot extend grace.'); return }
+    if (!memberId)  { setGraceError('Could not resolve cohort member record — try refreshing the page.'); return }
     // Calculate additional_days from today (or next_due_date) to chosen date
     const baseline   = nextDue ? new Date(nextDue) : new Date()
     const targetDate = new Date(graceDate)
@@ -4225,12 +4236,22 @@ const STATUS_STYLE: Record<string, string> = {
 }
 
 export default function CohortDetailPage() {
-  const params   = useParams()
-  const router   = useRouter()
-  const cohortId = params.cohortId as string
+  const params       = useParams()
+  const router       = useRouter()
+  const searchParams = useSearchParams()
+  const cohortId     = params.cohortId as string
+
+  const initialTab = (() => {
+    const t = searchParams.get('tab')
+    if (t) {
+      const match = TABS.find(tab => tab.toLowerCase() === t.toLowerCase())
+      if (match) return match
+    }
+    return 'Curriculum' as Tab
+  })()
 
   const [cohort, setCohort]       = useState<Cohort | null>(null)
-  const [activeTab, setActiveTab] = useState<Tab>('Curriculum')
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab)
   const [loading, setLoading]     = useState(true)
   const { setCollapsed }          = useSidebar()
 

@@ -120,7 +120,7 @@ const INST_STATUS_STYLE: Record<string, { chip: string; dot: string }> = {
 function GraceExtensionModal({
   cohortId, memberId, currentDeadline, onClose, onDone,
 }: {
-  cohortId: string; memberId: number | string; currentDeadline?: string | null
+  cohortId: string; memberId: number | string | null; currentDeadline?: string | null
   onClose: () => void; onDone: () => void
 }) {
   const [graceDate, setGraceDate] = useState('')
@@ -130,6 +130,7 @@ function GraceExtensionModal({
 
   async function handleSubmit() {
     if (!graceDate) { setError('Please select a new deadline date.'); return }
+    if (!memberId)  { setError('Could not resolve cohort member record — try refreshing.'); return }
     const baseline   = currentDeadline ? new Date(currentDeadline) : new Date()
     const targetDate = new Date(graceDate)
     const additionalDays = Math.ceil((targetDate.getTime() - baseline.getTime()) / (1000 * 60 * 60 * 24))
@@ -279,7 +280,7 @@ export default function CohortMemberPage() {
       const [enrollRes, plansRes, membersRes] = await Promise.allSettled([
         apiClient.get(`/admin/cohort-enrollments?cohort_id=${cohortId}&user_id=${userId}`),
         apiClient.get(`/admin/enrollment-payment-plans?user_id=${userId}`),
-        apiClient.get(`/admin/cohorts/${cohortId}/members?size=200`),
+        apiClient.get(`/admin/cohorts/${cohortId}/members?size=500`),
       ])
 
       if (enrollRes.status === 'fulfilled') {
@@ -360,7 +361,8 @@ export default function CohortMemberPage() {
   const phone         = user?.full_phone_number ?? user?.fullPhoneNumber ?? user?.phone_number ?? user?.phoneNumber ?? user?.phone
   const currency      = plan?.currency ?? 'NGN'
   const installments  = plan?.installments ?? plan?.payment_schedule ?? []
-  const memberId      = cohortMemberId ?? enrollment?.id ?? userId
+  // enrollment?.id is the enrollment record, not the cohort member record — don't fall back to userId
+  const memberId      = cohortMemberId ?? enrollment?.id ?? null
   const nextDue       = plan?.next_due_date ?? plan?.nextDueDate
   const planStatus    = plan?.status?.toUpperCase()
 
