@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft01Icon, Loading01Icon, UserGroup02Icon,
   StarIcon, BookOpen01Icon, CheckmarkCircle01Icon,
@@ -3390,7 +3390,7 @@ function PaymentStudentSidebar({
     // Fetch user detail and cohort member record in parallel
     Promise.allSettled([
       uid ? apiClient.get(`/admin/users/${uid}`) : Promise.resolve(null),
-      apiClient.get(`/admin/cohorts/${cohortId}/members?size=500`),
+      apiClient.get(`/admin/cohorts/${cohortId}/members?${uid ? `user_id=${uid}&` : ''}size=100`),
     ]).then(([userRes, membersRes]) => {
       if (userRes.status === 'fulfilled' && userRes.value) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -4238,22 +4238,12 @@ const STATUS_STYLE: Record<string, string> = {
 }
 
 export default function CohortDetailPage() {
-  const params       = useParams()
-  const router       = useRouter()
-  const searchParams = useSearchParams()
-  const cohortId     = params.cohortId as string
-
-  const initialTab = (() => {
-    const t = searchParams.get('tab')
-    if (t) {
-      const match = TABS.find(tab => tab.toLowerCase() === t.toLowerCase())
-      if (match) return match
-    }
-    return 'Curriculum' as Tab
-  })()
+  const params   = useParams()
+  const router   = useRouter()
+  const cohortId = params.cohortId as string
 
   const [cohort, setCohort]       = useState<Cohort | null>(null)
-  const [activeTab, setActiveTab] = useState<Tab>(initialTab)
+  const [activeTab, setActiveTab] = useState<Tab>('Curriculum')
   const [loading, setLoading]     = useState(true)
   const { setCollapsed }          = useSidebar()
 

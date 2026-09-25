@@ -280,7 +280,7 @@ export default function CohortMemberPage() {
       const [enrollRes, plansRes, membersRes] = await Promise.allSettled([
         apiClient.get(`/admin/cohort-enrollments?cohort_id=${cohortId}&user_id=${userId}`),
         apiClient.get(`/admin/enrollment-payment-plans?user_id=${userId}`),
-        apiClient.get(`/admin/cohorts/${cohortId}/members?size=500`),
+        apiClient.get(`/admin/cohorts/${cohortId}/members?user_id=${userId}&size=10`),
       ])
 
       if (enrollRes.status === 'fulfilled') {
@@ -393,7 +393,7 @@ export default function CohortMemberPage() {
       <div className="p-8 max-w-[1100px]">
         {/* Back nav */}
         <button
-          onClick={() => router.push(`/admin/cohorts/${cohortId}?tab=people`)}
+          onClick={() => router.back()}
           className="flex items-center gap-2 text-[13px] text-[#4b5563] font-body hover:text-[#111827] transition-colors mb-6"
         >
           <ArrowLeft01Icon size={15} strokeWidth={2} />
