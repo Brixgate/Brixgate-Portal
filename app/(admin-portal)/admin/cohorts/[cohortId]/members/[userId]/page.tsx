@@ -8,7 +8,7 @@ import {
   Mail01Icon, Call02Icon, Calendar01Icon, Time01Icon,
   Invoice01Icon, MoneyReceive01Icon,
 } from 'hugeicons-react'
-import { apiClient, getApiError } from '@/lib/api-client'
+import { apiClient, getApiError, unwrap } from '@/lib/api-client'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface ApiUser {
@@ -299,15 +299,20 @@ export default function CohortMemberPage() {
       // Resolve cohort member record ID for grace extension
       if (membersRes.status === 'fulfilled') {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const raw: any = membersRes.value.data?.data ?? membersRes.value.data
+        const raw: any = unwrap(membersRes.value.data)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const members: any[] = Array.isArray(raw?.members) ? raw.members
           : Array.isArray(raw?.content) ? raw.content
           : Array.isArray(raw)          ? raw
           : []
-        const match = members.find((m: { user?: { id?: number }; user_id?: number; userId?: number }) =>
-          String(m.user?.id ?? m.user_id ?? m.userId) === String(userId)
-        )
+        // Match by user ID, or fall back to email from the user profile we already fetched
+        const userEmail = userData?.email?.toLowerCase() ?? ''
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const match = members.find((m: any) => {
+          if (String(m.user?.id ?? m.user_id ?? m.userId) === String(userId)) return true
+          if (userEmail && (m.user?.email ?? '').toLowerCase() === userEmail) return true
+          return false
+        })
         if (match) setCohortMemberId(match.id)
       }
 

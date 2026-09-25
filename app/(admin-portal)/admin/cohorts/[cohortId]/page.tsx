@@ -3405,11 +3405,13 @@ function PaymentStudentSidebar({
           : Array.isArray(raw?.content) ? raw.content
           : Array.isArray(raw)          ? raw
           : []
-        // Match by user ID first, then by enrollment ID as fallback
+        // Match by user ID, enrollment ID, or email (most reliable cross-reference)
+        const studentEmail = student.email?.toLowerCase()
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const match = members.find((m: any) => {
           if (uid && String(m.user?.id ?? m.user_id ?? m.userId) === String(uid)) return true
           if (enrollmentId && String(m.enrollment_id ?? m.enrollmentId) === String(enrollmentId)) return true
+          if (studentEmail && (m.user?.email ?? m.email ?? '').toLowerCase() === studentEmail) return true
           return false
         })
         if (match?.id) setResolvedMemberId(match.id)
