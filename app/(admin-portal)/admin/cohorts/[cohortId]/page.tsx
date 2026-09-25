@@ -10,7 +10,7 @@ import {
   PencilEdit01Icon, Cancel01Icon, Building01Icon, UserAdd01Icon,
   Certificate01Icon, Payment01Icon, Invoice01Icon,
   MessageQuestionIcon, Add01Icon, Delete01Icon,
-  BarChartIcon, Mortarboard01Icon, UserBlock01Icon, RefreshIcon,
+  BarChartIcon, Mortarboard01Icon, UserBlock01Icon, RefreshIcon, Time01Icon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 import { useSidebar } from '@/lib/sidebar-context'
@@ -3283,6 +3283,8 @@ function ScheduleTab({ cohortId }: { cohortId: string }) {
 // ── Tab: Payments ─────────────────────────────────────────────────────────────
 interface PaymentOverviewStudent {
   user_id?: number; userId?: number
+  member_id?: number; memberId?: number
+  enrollment_id?: number; enrollmentId?: number
   name?: string; email?: string
   enrollment_status?: string
   payment_mode?: string; paymentMode?: string
@@ -3294,6 +3296,7 @@ interface PaymentOverviewStudent {
   status?: string                           // actual field from API
   plan_status?: string; planStatus?: string // legacy fallbacks
   next_due_date?: string; nextDueDate?: string
+  grace_end_date?: string; graceEndDate?: string
 }
 
 interface PaymentTotals {
@@ -3333,8 +3336,8 @@ const PAY_STATUS: Record<string, string> = {
 
 // ── Payment student sidebar ────────────────────────────────────────────────────
 function PaymentStudentSidebar({
-  student, onClose,
-}: { student: PaymentOverviewStudent; onClose: () => void }) {
+  student, cohortId, onClose,
+}: { student: PaymentOverviewStudent; cohortId: string; onClose: () => void }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [userDetail, setUserDetail]   = useState<any>(null)
   const [loadingUser, setLoadingUser] = useState(false)
@@ -3342,7 +3345,16 @@ function PaymentStudentSidebar({
   const [confirm, setConfirm]         = useState(false)
   const [actionError, setActionError] = useState('')
 
-  const uid = student.user_id ?? student.userId
+  // Grace extension state
+  const [showGrace,    setShowGrace]    = useState(false)
+  const [graceDate,    setGraceDate]    = useState('')
+  const [graceReason,  setGraceReason]  = useState('')
+  const [graceSaving,  setGraceSaving]  = useState(false)
+  const [graceError,   setGraceError]   = useState('')
+  const [graceSuccess, setGraceSuccess] = useState(false)
+
+  const uid      = student.user_id ?? student.userId
+  const memberId = student.member_id ?? student.memberId ?? student.enrollment_id ?? student.enrollmentId ?? uid
 
   useEffect(() => {
     if (!uid) return
@@ -3369,6 +3381,26 @@ function PaymentStudentSidebar({
       await apiClient.patch(`/admin/users/${uid}`, { status: newStatus })
       setUserDetail((prev: Record<string, unknown>) => prev ? { ...prev, status: newStatus } : prev)
     } catch (err) { setActionError(getApiError(err)) } finally { setToggling(false) }
+  }
+
+  async function handleGraceExtension() {
+    if (!graceDate) { setGraceError('Please select a new deadline date.'); return }
+    if (!memberId)  { setGraceError('Member ID not available — cannot extend grace.'); return }
+    // Calculate additional_days from today (or next_due_date) to chosen date
+    const baseline   = nextDue ? new Date(nextDue) : new Date()
+    const targetDate = new Date(graceDate)
+    const additionalDays = Math.ceil((targetDate.getTime() - baseline.getTime()) / (1000 * 60 * 60 * 24))
+    if (additionalDays <= 0) { setGraceError('New date must be after the current deadline.'); return }
+    setGraceSaving(true); setGraceError('')
+    try {
+      await apiClient.post(
+        `/admin/cohorts/${cohortId}/members/${memberId}/payment-grace-extension`,
+        { additional_days: additionalDays, reason: graceReason || 'Grace period extended by admin' }
+      )
+      setGraceSuccess(true)
+      setShowGrace(false)
+      setGraceDate(''); setGraceReason('')
+    } catch (e) { setGraceError(getApiError(e)) } finally { setGraceSaving(false) }
   }
 
   const payStatus    = student.status ?? student.plan_status ?? student.planStatus ?? null
@@ -3440,6 +3472,65 @@ function PaymentStudentSidebar({
             </p>
           )}
 
+          {/* Grace extension success */}
+          {graceSuccess && (
+            <div className="rounded-[10px] border border-[#bbf7d0] bg-[#ecfdf3] p-4 flex items-start gap-3">
+              <CheckmarkCircle01Icon size={16} color="#027a48" strokeWidth={1.5} className="flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[13px] font-semibold text-[#027a48] font-display">Grace period extended</p>
+                <p className="text-[12px] text-[#065f46] font-body mt-0.5">The student&apos;s deadline has been updated and access restored if previously locked.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Grace extension form */}
+          {showGrace && (
+            <div className="rounded-[10px] border border-[#bae6fd] bg-[#f0f9ff] p-4 flex flex-col gap-3">
+              <p className="text-[13px] font-semibold text-[#0369a1] font-display">Extend Grace Period</p>
+              {nextDue && (
+                <p className="text-[11px] text-[#0369a1] font-body">
+                  Current deadline: <span className="font-semibold">{new Date(nextDue).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                </p>
+              )}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-medium text-[#374151] font-body">New deadline date</label>
+                <input
+                  type="date"
+                  value={graceDate}
+                  min={new Date().toISOString().split('T')[0]}
+                  onChange={e => { setGraceDate(e.target.value); setGraceError('') }}
+                  className="h-9 px-3 border border-[#bae6fd] rounded-[6px] text-[13px] font-body text-[#111827] bg-white focus:outline-none focus:border-[#0369a1]"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-medium text-[#374151] font-body">Reason <span className="text-[#9ca3af] font-normal">(optional)</span></label>
+                <input
+                  type="text"
+                  value={graceReason}
+                  onChange={e => setGraceReason(e.target.value)}
+                  placeholder="e.g. Approved by finance team"
+                  className="h-9 px-3 border border-[#bae6fd] rounded-[6px] text-[13px] font-body text-[#111827] bg-white focus:outline-none focus:border-[#0369a1] placeholder:text-[#9ca3af]"
+                />
+              </div>
+              {graceError && (
+                <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body">
+                  <AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} /> {graceError}
+                </p>
+              )}
+              <div className="flex gap-2">
+                <button onClick={() => { setShowGrace(false); setGraceDate(''); setGraceReason(''); setGraceError('') }}
+                  className="flex-1 h-9 rounded-[8px] border border-[#e5e7eb] text-[12px] font-medium font-body hover:bg-white transition-colors">
+                  Cancel
+                </button>
+                <button onClick={handleGraceExtension} disabled={graceSaving}
+                  className="flex-1 h-9 rounded-[8px] bg-[#0369a1] text-[12px] font-semibold text-white font-display hover:bg-[#075985] disabled:opacity-60 flex items-center justify-center gap-1.5 transition-colors">
+                  {graceSaving && <Loading01Icon size={12} className="animate-spin" strokeWidth={2} />}
+                  Confirm Extension
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Confirm suspend/reactivate */}
           {confirm && (
             <div className={`rounded-[10px] border p-4 flex flex-col gap-3 ${accountActive ? 'border-[#fecdca] bg-[#fef2f2]' : 'border-[#bbf7d0] bg-[#ecfdf3]'}`}>
@@ -3469,8 +3560,16 @@ function PaymentStudentSidebar({
         </div>
 
         {/* Footer — only show if we have the user's account details */}
-        {!loadingUser && uid && !confirm && (
-          <div className="px-5 py-4 border-t border-[#f3f4f6]">
+        {!loadingUser && uid && !confirm && !showGrace && (
+          <div className="px-5 py-4 border-t border-[#f3f4f6] flex flex-col gap-2">
+            {/* Extend grace period */}
+            <button
+              onClick={() => { setShowGrace(true); setGraceSuccess(false); setGraceError('') }}
+              className="w-full h-10 rounded-[8px] text-[13px] font-semibold font-display flex items-center justify-center gap-2 transition-colors border border-[#bae6fd] bg-[#f0f9ff] text-[#0369a1] hover:bg-[#e0f2fe]"
+            >
+              <Time01Icon size={15} strokeWidth={1.5} /> Extend Grace Period
+            </button>
+            {/* Suspend / Reactivate */}
             <button
               onClick={() => setConfirm(true)}
               className={`w-full h-10 rounded-[8px] text-[13px] font-semibold font-display flex items-center justify-center gap-2 transition-colors ${
@@ -3634,7 +3733,7 @@ function PaymentsTab({ cohortId }: { cohortId: string }) {
       </div>
 
       {selected && (
-        <PaymentStudentSidebar student={selected} onClose={() => setSelected(null)} />
+        <PaymentStudentSidebar student={selected} cohortId={cohortId} onClose={() => setSelected(null)} />
       )}
     </>
   )
