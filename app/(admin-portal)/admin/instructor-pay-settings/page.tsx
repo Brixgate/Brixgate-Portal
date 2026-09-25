@@ -173,8 +173,8 @@ function SettingModal({
           </h2>
           <p className="text-[13px] text-[#4b5563] font-body mt-0.5">
             {editing
-              ? 'Update the payment rule. Scope cannot be changed after creation.'
-              : 'Select a programme and optionally a cohort, or leave both blank for a Global rule.'}
+              ? 'Update percentage, fees, and status. Scope (Global / Programme / Cohort) is fixed after creation.'
+              : 'The scope is automatically derived from your selections — you do not choose it manually.'}
           </p>
         </div>
 
@@ -226,7 +226,12 @@ function SettingModal({
 
               <div className={`flex items-center gap-2 text-[12px] font-body rounded-[6px] px-3 py-2 ${scopeColors[scope]}`}>
                 <AlertCircleIcon size={14} strokeWidth={1.5} />
-                This rule will apply at: <strong>{scope.charAt(0) + scope.slice(1).toLowerCase()} scope</strong>
+                <span>
+                  Scope is automatically set to <strong>{scope.charAt(0) + scope.slice(1).toLowerCase()}</strong> based on your selections above.
+                  {scope === 'GLOBAL' && ' This rate applies to all instructors by default.'}
+                  {scope === 'PROGRAM' && ' This rate overrides Global for all cohorts of the selected programme.'}
+                  {scope === 'COHORT' && ' This rate overrides both Global and Programme for this specific cohort.'}
+                </span>
               </div>
             </>
           )}

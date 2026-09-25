@@ -362,10 +362,11 @@ function PayoutRow({ payout, onRefresh }: { payout: Payout; onRefresh: () => voi
 }
 
 export default function InstructorPayoutsPage() {
-  const [payouts, setPayouts] = useState<Payout[]>([])
-  const [loading, setLoading] = useState(true)
-  const [activeFilter, setActiveFilter] = useState<typeof STATUS_FILTERS[number]>('All')
-  const [cohortInput, setCohortInput] = useState('')
+  const [payouts,      setPayouts]      = useState<Payout[]>([])
+  const [loading,      setLoading]      = useState(true)
+  const [statusFilter, setStatusFilter] = useState<typeof STATUS_FILTERS[number]>('All')
+  const [cohortInput,  setCohortInput]  = useState('')
+  const [search,       setSearch]       = useState('')
 
   function load() {
     const params = new URLSearchParams({ page: '1', size: '200' })
@@ -383,8 +384,10 @@ export default function InstructorPayoutsPage() {
 
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const filtered = activeFilter === 'All' ? payouts : payouts.filter(p => p.status === activeFilter)
-  const sorted   = [...filtered].sort((a, b) => b.id - a.id)
+  const filtered = payouts
+    .filter(p => statusFilter === 'All' || p.status === statusFilter)
+    .filter(p => !search.trim() || p.instructor_name?.toLowerCase().includes(search.toLowerCase()))
+  const sorted = [...filtered].sort((a, b) => b.id - a.id)
 
   return (
     <div className="p-8">
@@ -395,32 +398,49 @@ export default function InstructorPayoutsPage() {
             View and manage payouts. Generate payouts from the individual cohort page.
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <input
-            value={cohortInput}
-            onChange={e => setCohortInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && load()}
-            placeholder="Filter by Cohort ID…"
-            className="h-10 px-3 rounded-[8px] border border-[#d1d5db] text-[13px] text-[#111827] font-body outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520] w-[200px]"
-          />
-          <button onClick={load}
-            className="h-10 px-4 rounded-[8px] bg-[#d51520] hover:bg-[#b91c1c] text-white text-[14px] font-semibold font-display">
-            Search
-          </button>
-        </div>
       </div>
 
       <div className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)]">
-        {/* Filter chips */}
-        <div className="px-6 pt-5 pb-4 border-b border-[#eaecf0] flex items-center gap-2 flex-wrap">
-          {STATUS_FILTERS.map(f => (
-            <button key={f} onClick={() => setActiveFilter(f)}
-              className={`rounded-full px-4 h-8 text-[13px] font-medium transition-colors ${
-                activeFilter === f ? 'bg-[#d51520] text-white' : 'bg-white border border-[#eaecf0] text-[#374151] hover:bg-[#f9fafb]'
-              }`}>
-              {f === 'All' ? 'All' : f.charAt(0) + f.slice(1).toLowerCase()}
+        {/* Filter bar */}
+        <div className="px-6 pt-5 pb-4 border-b border-[#eaecf0] flex items-center gap-3 flex-wrap">
+          {/* Search */}
+          <div className="relative flex-1 min-w-[200px] max-w-[320px]">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9ca3af]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607z" />
+            </svg>
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search instructor name…"
+              className="w-full h-9 pl-9 pr-3 rounded-[8px] border border-[#e5e7eb] text-[13px] text-[#111827] font-body outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520]"
+            />
+          </div>
+
+          {/* Status dropdown */}
+          <select
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value as typeof STATUS_FILTERS[number])}
+            className="h-9 pl-3 pr-8 rounded-[8px] border border-[#e5e7eb] text-[13px] font-body text-[#111827] outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520] bg-white"
+          >
+            {STATUS_FILTERS.map(f => (
+              <option key={f} value={f}>{f === 'All' ? 'All Statuses' : f.charAt(0) + f.slice(1).toLowerCase()}</option>
+            ))}
+          </select>
+
+          {/* Cohort filter */}
+          <div className="flex items-center gap-2">
+            <input
+              value={cohortInput}
+              onChange={e => setCohortInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && load()}
+              placeholder="Cohort ID…"
+              className="h-9 px-3 rounded-[8px] border border-[#e5e7eb] text-[13px] text-[#111827] font-body outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520] w-[120px]"
+            />
+            <button onClick={load}
+              className="h-9 px-3 rounded-[8px] bg-[#d51520] hover:bg-[#b91c1c] text-white text-[13px] font-semibold font-display">
+              Filter
             </button>
-          ))}
+          </div>
         </div>
 
         {/* Table header */}
