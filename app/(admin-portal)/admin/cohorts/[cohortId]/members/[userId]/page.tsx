@@ -255,13 +255,14 @@ export default function CohortMemberPage() {
   const cohortId = params.cohortId as string
   const userId   = params.userId   as string
 
-  const [user,          setUser]       = useState<ApiUser | null>(null)
-  const [enrollment,    setEnrollment] = useState<CohortEnrollment | null>(null)
-  const [plan,          setPlan]       = useState<ApiPlan | null>(null)
-  const [loading,       setLoading]    = useState(true)
-  const [error,         setError]      = useState('')
-  const [showGrace,     setShowGrace]  = useState(false)
-  const [showSuspend,   setShowSuspend] = useState(false)
+  const [user,          setUser]         = useState<ApiUser | null>(null)
+  const [enrollment,    setEnrollment]   = useState<CohortEnrollment | null>(null)
+  const [plan,          setPlan]         = useState<ApiPlan | null>(null)
+  const [cohortMemberId, setCohortMemberId] = useState<number | string | null>(null)
+  const [loading,       setLoading]      = useState(true)
+  const [error,         setError]        = useState('')
+  const [showGrace,     setShowGrace]    = useState(false)
+  const [showSuspend,   setShowSuspend]  = useState(false)
   const [graceSuccess,  setGraceSuccess] = useState(false)
 
   const load = useCallback(async () => {
@@ -274,10 +275,11 @@ export default function CohortMemberPage() {
       const userData: ApiUser = rawUser?.user ?? rawUser
       setUser(userData)
 
-      // 2. Cohort enrollment (find entry matching this cohort)
-      const [enrollRes, plansRes] = await Promise.allSettled([
+      // 2. Enrollment + payment plans + cohort member record (for grace extension ID)
+      const [enrollRes, plansRes, membersRes] = await Promise.allSettled([
         apiClient.get(`/admin/cohort-enrollments?cohort_id=${cohortId}&user_id=${userId}`),
-        apiClient.get(`/user-payment-plans?user_id=${userId}`),
+        apiClient.get(`/admin/enrollment-payment-plans?user_id=${userId}`),
+        apiClient.get(`/admin/cohorts/${cohortId}/members?size=200`),
       ])
 
       if (enrollRes.status === 'fulfilled') {
@@ -288,24 +290,50 @@ export default function CohortMemberPage() {
           : Array.isArray(raw)          ? raw
           : []
         const match = list.find(e =>
-          String(e.cohort_id ?? e.cohortId) === String(cohortId) ||
-          String(e.cohortId)                === String(cohortId)
+          String(e.cohort_id ?? e.cohortId) === String(cohortId)
         ) ?? list[0] ?? null
         setEnrollment(match)
+      }
+
+      // Resolve cohort member record ID for grace extension
+      if (membersRes.status === 'fulfilled') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const raw: any = membersRes.value.data?.data ?? membersRes.value.data
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const members: any[] = Array.isArray(raw?.members) ? raw.members
+          : Array.isArray(raw?.content) ? raw.content
+          : Array.isArray(raw)          ? raw
+          : []
+        const match = members.find((m: { user?: { id?: number }; user_id?: number; userId?: number }) =>
+          String(m.user?.id ?? m.user_id ?? m.userId) === String(userId)
+        )
+        if (match) setCohortMemberId(match.id)
       }
 
       if (plansRes.status === 'fulfilled') {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const raw: any = plansRes.value.data?.data ?? plansRes.value.data
-        const list: ApiPlan[] = Array.isArray(raw?.plans) ? raw.plans
-          : Array.isArray(raw?.payment_plans) ? raw.payment_plans
-          : Array.isArray(raw?.content)       ? raw.content
-          : Array.isArray(raw)                ? raw
+        const list: ApiPlan[] = Array.isArray(raw?.enrollment_payment_plans) ? raw.enrollment_payment_plans
+          : Array.isArray(raw?.plans)   ? raw.plans
+          : Array.isArray(raw?.content) ? raw.content
+          : Array.isArray(raw)          ? raw
           : []
+        // Find the plan for this cohort
         const match = list.find(p =>
           String(p.cohort_id ?? p.cohortId) === String(cohortId)
-        ) ?? null
-        setPlan(match)
+        ) ?? list[0] ?? null
+
+        if (match) {
+          // Enrich with full installment schedule from the detail endpoint
+          try {
+            const detailRes = await apiClient.get(`/admin/enrollment-payment-plans/${match.id}`)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const dr: any = detailRes.data?.data ?? detailRes.data
+            setPlan(dr?.enrollment_payment_plan ?? dr?.plan ?? dr ?? match)
+          } catch {
+            setPlan(match)
+          }
+        }
       }
     } catch (e) { setError(getApiError(e)) } finally { setLoading(false) }
   }, [cohortId, userId])
@@ -332,7 +360,7 @@ export default function CohortMemberPage() {
   const phone         = user?.full_phone_number ?? user?.fullPhoneNumber ?? user?.phone_number ?? user?.phoneNumber ?? user?.phone
   const currency      = plan?.currency ?? 'NGN'
   const installments  = plan?.installments ?? plan?.payment_schedule ?? []
-  const memberId      = enrollment?.id ?? userId
+  const memberId      = cohortMemberId ?? enrollment?.id ?? userId
   const nextDue       = plan?.next_due_date ?? plan?.nextDueDate
   const planStatus    = plan?.status?.toUpperCase()
 

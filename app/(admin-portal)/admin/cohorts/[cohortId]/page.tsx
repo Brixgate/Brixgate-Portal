@@ -3354,21 +3354,41 @@ function PaymentStudentSidebar({
   const [graceError,   setGraceError]   = useState('')
   const [graceSuccess, setGraceSuccess] = useState(false)
 
-  const uid      = student.user_id ?? student.userId
-  const memberId = student.member_id ?? student.memberId ?? student.enrollment_id ?? student.enrollmentId ?? uid
+  const uid = student.user_id ?? student.userId
+  // member_id from the payment overview may be absent — resolve from the cohort members list
+  const [resolvedMemberId, setResolvedMemberId] = useState<number | string | null>(
+    student.member_id ?? student.memberId ?? null
+  )
+  const memberId = resolvedMemberId ?? student.enrollment_id ?? student.enrollmentId ?? uid
 
   useEffect(() => {
     if (!uid) return
     setLoadingUser(true)
-    apiClient.get(`/admin/users/${uid}`)
-      .then(res => {
+    // Fetch user detail and cohort member record in parallel
+    Promise.allSettled([
+      apiClient.get(`/admin/users/${uid}`),
+      apiClient.get(`/admin/cohorts/${cohortId}/members?size=200`),
+    ]).then(([userRes, membersRes]) => {
+      if (userRes.status === 'fulfilled') {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const raw = unwrap<any>(res.data)
+        const raw = unwrap<any>(userRes.value.data)
         setUserDetail(raw?.user ?? raw)
-      })
-      .catch(() => {})
-      .finally(() => setLoadingUser(false))
-  }, [uid])
+      }
+      if (membersRes.status === 'fulfilled') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const raw = unwrap<any>(membersRes.value.data)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const members: any[] = Array.isArray(raw?.members) ? raw.members
+          : Array.isArray(raw?.content) ? raw.content
+          : Array.isArray(raw)          ? raw
+          : []
+        const match = members.find((m: { user?: { id?: number }; user_id?: number; userId?: number }) =>
+          String(m.user?.id ?? m.user_id ?? m.userId) === String(uid)
+        )
+        if (match?.id) setResolvedMemberId(match.id)
+      }
+    }).finally(() => setLoadingUser(false))
+  }, [uid, cohortId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const accountActive: boolean = userDetail
     ? (userDetail.status === 1 || userDetail.status === '1' || userDetail.status === 'ACTIVE')
