@@ -1398,7 +1398,7 @@ function PeopleTab({ cohortId }: { cohortId: string }) {
             ) : rows.map(r => (
               <tr
                 key={r.key}
-                onClick={() => r.userId ? router.push(`/admin/users/${r.userId}`) : setSelectedPerson(r)}
+                onClick={() => r.userId ? router.push(`/admin/cohorts/${cohortId}/members/${r.userId}`) : setSelectedPerson(r)}
                 className={`border-b border-[#f3f4f6] cursor-pointer transition-colors ${
                   selectedPerson?.key === r.key ? 'bg-[#fef2f2]' : 'hover:bg-[#fafafa]'
                 }`}
@@ -2258,9 +2258,9 @@ function ReviewsTab({ cohortId, programId }: { cohortId: string; programId: numb
 
   useEffect(() => { loadForms() }, [cohortId, programId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  function loadResponses() {
+  function loadResponses(formId: number | string) {
     setLoadingRes(true)
-    apiClient.get(`/admin/cohorts/${cohortId}/reviews?page=1&size=100`)
+    apiClient.get(`/admin/review-forms/${formId}/responses?page=1&size=100`)
       .then(res => {
         const raw   = res.data?.data ?? res.data
         const inner = raw?.data ?? raw
@@ -2268,6 +2268,7 @@ function ReviewsTab({ cohortId, programId }: { cohortId: string; programId: numb
         const arr: any[] = Array.isArray(inner)             ? inner
           : Array.isArray(inner?.reviews)     ? inner.reviews
           : Array.isArray(inner?.submissions) ? inner.submissions
+          : Array.isArray(inner?.responses)   ? inner.responses
           : Array.isArray(inner?.content)     ? inner.content
           : []
         setResponses(arr)
@@ -2277,7 +2278,7 @@ function ReviewsTab({ cohortId, programId }: { cohortId: string; programId: numb
   }
 
   function loadFormDetail(form: AdminReviewForm) {
-    setDetailTab('questions'); setExpandedRes(new Set())
+    setDetailTab('questions'); setExpandedRes(new Set()); setResponses([])
     setSelectedForm(form); setLoadingQs(true)
     apiClient.get(`/admin/review-forms/${form.id}`)
       .then(res => {
@@ -2452,7 +2453,7 @@ function ReviewsTab({ cohortId, programId }: { cohortId: string; programId: numb
           <button key={tab}
             onClick={() => {
               setDetailTab(tab)
-              if (tab === 'responses' && responses.length === 0) loadResponses()
+              if (tab === 'responses' && responses.length === 0 && selectedForm) loadResponses(selectedForm.id)
             }}
             className={`py-2.5 mr-5 text-[13px] font-semibold font-display border-b-2 transition-colors capitalize ${
               detailTab === tab ? 'border-[#d51520] text-[#d51520]' : 'border-transparent text-[#4b5563] hover:text-[#374151]'
