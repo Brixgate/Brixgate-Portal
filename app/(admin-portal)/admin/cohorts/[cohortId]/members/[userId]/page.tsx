@@ -131,10 +131,10 @@ function GraceExtensionModal({
   async function handleSubmit() {
     if (!graceDate) { setError('Please select a new deadline date.'); return }
     if (!memberId)  { setError('Could not resolve cohort member record — try refreshing.'); return }
-    const baseline   = currentDeadline ? new Date(currentDeadline) : new Date()
+    const today      = new Date(); today.setHours(0, 0, 0, 0)
     const targetDate = new Date(graceDate)
-    const additionalDays = Math.ceil((targetDate.getTime() - baseline.getTime()) / (1000 * 60 * 60 * 24))
-    if (additionalDays <= 0) { setError('New date must be after the current deadline.'); return }
+    const additionalDays = Math.ceil((targetDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    if (additionalDays <= 0) { setError('New date must be in the future.'); return }
     setSaving(true); setError('')
     try {
       await apiClient.post(

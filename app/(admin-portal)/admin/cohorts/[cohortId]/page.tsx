@@ -3319,7 +3319,9 @@ interface PaymentOverviewStudent {
   status?: string                           // actual field from API
   plan_status?: string; planStatus?: string // legacy fallbacks
   next_due_date?: string; nextDueDate?: string
+  access_grace_extended_until?: string          // actual field from API
   grace_end_date?: string; graceEndDate?: string
+  access_status?: string
 }
 
 interface PaymentTotals {
@@ -3359,8 +3361,8 @@ const PAY_STATUS: Record<string, string> = {
 
 // ── Payment student sidebar ────────────────────────────────────────────────────
 function PaymentStudentSidebar({
-  student, cohortId, onClose,
-}: { student: PaymentOverviewStudent; cohortId: string; onClose: () => void }) {
+  student, cohortId, onClose, onGraceSuccess,
+}: { student: PaymentOverviewStudent; cohortId: string; onClose: () => void; onGraceSuccess?: () => void }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [userDetail, setUserDetail]   = useState<any>(null)
   const [loadingUser, setLoadingUser] = useState(false)
@@ -3437,10 +3439,10 @@ function PaymentStudentSidebar({
     if (!graceDate) { setGraceError('Please select a new deadline date.'); return }
     if (!memberId)  { setGraceError('Could not resolve cohort member record — try refreshing the page.'); return }
     // Calculate additional_days from today (or next_due_date) to chosen date
-    const baseline   = nextDue ? new Date(nextDue) : new Date()
+    const today      = new Date(); today.setHours(0, 0, 0, 0)
     const targetDate = new Date(graceDate)
-    const additionalDays = Math.ceil((targetDate.getTime() - baseline.getTime()) / (1000 * 60 * 60 * 24))
-    if (additionalDays <= 0) { setGraceError('New date must be after the current deadline.'); return }
+    const additionalDays = Math.ceil((targetDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    if (additionalDays <= 0) { setGraceError('New date must be in the future.'); return }
     setGraceSaving(true); setGraceError('')
     try {
       await apiClient.post(
@@ -3450,6 +3452,8 @@ function PaymentStudentSidebar({
       setGraceSuccess(true)
       setShowGrace(false)
       setGraceDate(''); setGraceReason('')
+      onGraceSuccess?.()
+
     } catch (e) { setGraceError(getApiError(e)) } finally { setGraceSaving(false) }
   }
 
@@ -3507,6 +3511,8 @@ function PaymentStudentSidebar({
               { label: 'Amount Paid',      value: <span className="font-semibold text-[#027a48]">{fmt(student.amount_paid ?? student.amountPaid ?? 0)}</span> },
               { label: 'Outstanding',      value: <span className={`font-semibold ${outstanding > 0 ? 'text-[#d51520]' : 'text-[#9ca3af]'}`}>{fmt(outstanding)}</span> },
               { label: 'Next Due Date',    value: nextDue ? new Date(nextDue).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' }) : '—' },
+              ...((student.access_grace_extended_until) ? [{ label: 'Grace Extended Until', value: <span className="font-semibold text-[#d97706]">{new Date(student.access_grace_extended_until).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}</span> }] : []),
+              ...((student.access_status) ? [{ label: 'Access Status', value: <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display bg-[#fffbeb] text-[#d97706]">{student.access_status.replace(/_/g, ' ')}</span> }] : []),
               { label: 'Currency',         value: student.currency ?? '—' },
             ].map(({ label, value }, i, arr) => (
               <div key={label} className={`flex items-center justify-between px-4 py-3 ${i < arr.length - 1 ? 'border-b border-[#f3f4f6]' : ''}`}>
@@ -3800,7 +3806,7 @@ function PaymentsTab({ cohortId }: { cohortId: string }) {
       </div>
 
       {selected && (
-        <PaymentStudentSidebar student={selected} cohortId={cohortId} onClose={() => setSelected(null)} />
+        <PaymentStudentSidebar student={selected} cohortId={cohortId} onClose={() => setSelected(null)} onGraceSuccess={() => { setSelected(null); load(true) }} />
       )}
     </>
   )
