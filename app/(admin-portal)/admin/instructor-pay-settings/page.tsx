@@ -315,7 +315,7 @@ export default function InstructorPaySettingsPage() {
         setProgNames(nameMap)
 
         // fetch cohorts for programmes that appear in settings
-        const programIds = [...new Set(arr.filter((s: PaySetting) => s.program_id).map((s: PaySetting) => s.program_id as number))]
+        const programIds = Array.from(new Set<number>(arr.filter((s: PaySetting) => s.program_id).map((s: PaySetting) => s.program_id as number)))
         if (programIds.length > 0) {
           const cohortResults = await Promise.allSettled(
             programIds.map((pid: number) => apiClient.get(`/admin/programs/${pid}/cohorts?size=100`))
