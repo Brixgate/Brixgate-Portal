@@ -69,6 +69,10 @@ interface ApiResource {
   type?: string
   link?: string
   createdAt?: string
+  storage_type?: string
+  content_type?: string
+  size_bytes?: number
+  original_filename?: string
   // module association — camelCase (Swagger) and snake_case (actual backend) variants
   moduleId?: number;          module_id?: number
   cohortModuleId?: number;    cohort_module_id?: number
@@ -83,16 +87,37 @@ interface ApiResourcesResponse {
 }
 
 // ── API shapes — modules (primary, camelCase per Swagger) ─────────────────────
+interface ProgramResource {
+  id: number
+  title?: string
+  type?: string
+  link?: string
+  status?: string
+  storage_type?: string   // "PROTECTED_FILE" | "EXTERNAL_LINK"
+  content_type?: string   // MIME type
+  size_bytes?: number
+  original_filename?: string
+}
+interface SupplementaryResource {
+  id: number
+  role?: string           // "TRANSCRIPT" | "SLIDES" | "WORKSHEET" | "REFERENCE" | etc.
+  order_index?: number
+  resource?: ProgramResource
+}
 interface CohortLesson {
   id: number
   title: string
   contentType?: string
-  content_type?: string   // snake_case fallback
+  content_type?: string         // snake_case fallback
+  content_source_type?: string  // "URL" | "RESOURCE" | "NONE"
   contentUrl?: string
-  content_url?: string    // snake_case fallback
-  duration: number        // minutes
+  content_url?: string          // snake_case fallback
+  primary_resource_id?: number
+  primary_resource?: ProgramResource
+  supplementary_resources?: SupplementaryResource[]
+  duration: number              // minutes
   orderIndex: number
-  order_index?: number    // snake_case fallback
+  order_index?: number          // snake_case fallback
   visibilityStatus?: string
   releaseDate?: string
   expiresAt?: string
@@ -792,6 +817,158 @@ function ResourceRow({ resource }: { resource: ApiResource }) {
   )
 }
 
+// ── Lesson content viewer ─────────────────────────────────────────────────────
+function toEmbedUrl(url: string): string | null {
+  try {
+    const u = new URL(url)
+    // YouTube
+    const ytMatch = u.hostname.replace('www.', '') === 'youtube.com'
+      ? u.searchParams.get('v')
+      : u.hostname === 'youtu.be'
+        ? u.pathname.slice(1)
+        : null
+    if (ytMatch) return `https://www.youtube.com/embed/${ytMatch}?rel=0`
+    // Vimeo
+    if (u.hostname.replace('www.', '') === 'vimeo.com') {
+      const id = u.pathname.split('/').filter(Boolean).pop()
+      if (id) return `https://player.vimeo.com/video/${id}`
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+function isVideoMime(contentType?: string, url?: string): boolean {
+  if (contentType?.startsWith('video/')) return true
+  const ext = url?.split('?')[0].split('.').pop()?.toLowerCase()
+  return ['mp4', 'webm', 'mov', 'ogg'].includes(ext ?? '')
+}
+
+function isPdfMime(contentType?: string, url?: string): boolean {
+  if (contentType === 'application/pdf') return true
+  return url?.split('?')[0].toLowerCase().endsWith('.pdf') ?? false
+}
+
+function LessonContentViewer({ lesson }: { lesson: CohortLesson }) {
+  const [signedUrl, setSignedUrl]   = useState<string | null>(null)
+  const [loadingUrl, setLoadingUrl] = useState(false)
+  const [urlError, setUrlError]     = useState<string | null>(null)
+
+  const sourceType = lesson.content_source_type?.toUpperCase() ?? 'NONE'
+  const resource   = lesson.primary_resource
+  const rawUrl     = lesson.contentUrl ?? lesson.content_url
+
+  useEffect(() => {
+    setSignedUrl(null); setUrlError(null)
+    if (sourceType !== 'RESOURCE' || !resource) return
+    if (resource.storage_type === 'EXTERNAL_LINK') {
+      setSignedUrl(resource.link ?? null)
+      return
+    }
+    if (resource.storage_type === 'PROTECTED_FILE') {
+      setLoadingUrl(true)
+      apiClient.get(`/program-resources/${resource.id}/download`)
+        .then(res => {
+          const d = unwrap<{ url?: string; download_url?: string; link?: string }>(res.data)
+          setSignedUrl(d.url ?? d.download_url ?? d.link ?? null)
+        })
+        .catch(err => setUrlError(getApiError(err)))
+        .finally(() => setLoadingUrl(false))
+    }
+  }, [sourceType, resource?.id])
+
+  // Determine effective URL and content category
+  const effectiveUrl = signedUrl ?? rawUrl ?? null
+  const embedUrl     = effectiveUrl ? toEmbedUrl(effectiveUrl) : null
+  const ct           = resource?.content_type
+  const isVid        = !embedUrl && !!effectiveUrl && isVideoMime(ct, effectiveUrl)
+  const isPdf        = !embedUrl && !isVid && !!effectiveUrl && isPdfMime(ct, effectiveUrl)
+
+  if (sourceType === 'NONE' || (!effectiveUrl && sourceType !== 'RESOURCE')) {
+    return (
+      <div className="flex items-center gap-2 text-[13px] text-[#6b7280] font-body">
+        <Link01Icon size={14} color="#d1d5db" strokeWidth={1.5} />
+        No content available for this lesson yet.
+      </div>
+    )
+  }
+
+  if (loadingUrl) {
+    return (
+      <div className="flex items-center gap-2 text-[13px] text-[#6b7280] font-body">
+        <Loading01Icon size={14} color="#6b7280" strokeWidth={1.5} className="animate-spin" />
+        Loading content…
+      </div>
+    )
+  }
+
+  if (urlError) {
+    return (
+      <div className="flex items-center gap-2 text-[13px] text-[#dc2626] font-body">
+        <AlertCircleIcon size={14} color="#dc2626" strokeWidth={1.5} />
+        {urlError}
+      </div>
+    )
+  }
+
+  if (!effectiveUrl) {
+    return (
+      <div className="flex items-center gap-2 text-[13px] text-[#6b7280] font-body">
+        <Link01Icon size={14} color="#d1d5db" strokeWidth={1.5} />
+        Content link not available yet.
+      </div>
+    )
+  }
+
+  if (embedUrl) {
+    return (
+      <div className="rounded-[10px] overflow-hidden border border-[#e5e7eb]" style={{ aspectRatio: '16/9' }}>
+        <iframe
+          src={embedUrl}
+          className="w-full h-full border-0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+          title={lesson.title}
+        />
+      </div>
+    )
+  }
+
+  if (isVid) {
+    return (
+      <div className="rounded-[10px] overflow-hidden border border-[#e5e7eb] bg-black">
+        <video src={effectiveUrl} controls className="w-full" style={{ maxHeight: '420px' }} />
+      </div>
+    )
+  }
+
+  if (isPdf) {
+    return (
+      <div className="rounded-[10px] overflow-hidden border border-[#e5e7eb]" style={{ height: '520px' }}>
+        <iframe
+          src={effectiveUrl}
+          className="w-full h-full border-0"
+          title={lesson.title}
+        />
+      </div>
+    )
+  }
+
+  // Fallback: show open/download button
+  return (
+    <a
+      href={effectiveUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-2 h-[48px] px-6 bg-[#D51520] hover:bg-[#B81119] text-white text-[14px] font-semibold font-display rounded-[8px] transition-colors"
+    >
+      Open content
+      <ArrowRight01Icon size={15} color="white" strokeWidth={2} />
+    </a>
+  )
+}
+
 // ── Detail panel (right) ──────────────────────────────────────────────────────
 function DetailPanel({ item, resources }: { item: SelectedItem | null; resources: ApiResource[] }) {
   if (!item) {
@@ -998,21 +1175,35 @@ function DetailPanel({ item, resources }: { item: SelectedItem | null; resources
       {/* Divider */}
       <div className="h-px bg-[#f3f4f6] mb-8" />
 
-      {/* Open button */}
-      {lesson.contentUrl ? (
-        <a
-          href={lesson.contentUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 h-[48px] px-6 bg-[#D51520] hover:bg-[#B81119] text-white text-[14px] font-semibold font-display rounded-[8px] transition-colors"
-        >
-          Open {typeLabel}
-          <ArrowRight01Icon size={15} color="white" strokeWidth={2} />
-        </a>
-      ) : (
-        <div className="flex items-center gap-2 text-[13px] text-[#4b5563] font-body">
-          <Link01Icon size={14} color="#d1d5db" strokeWidth={1.5} />
-          Content link not available yet.
+      {/* Inline content viewer */}
+      <LessonContentViewer lesson={lesson} />
+
+      {/* Supplementary resources */}
+      {(lesson.supplementary_resources?.length ?? 0) > 0 && (
+        <div className="mt-8">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-[#4b5563] font-display mb-3">
+            Supplementary Resources
+          </p>
+          <div className="flex flex-col gap-2">
+            {lesson.supplementary_resources!.map((sr) => {
+              if (!sr.resource) return null
+              const label = sr.role
+                ? sr.role.charAt(0) + sr.role.slice(1).toLowerCase()
+                : 'Resource'
+              return (
+                <ResourceRow key={sr.id} resource={{
+                  id: sr.resource.id,
+                  title: sr.resource.title ?? label,
+                  type: sr.resource.type,
+                  link: sr.resource.link,
+                  storage_type: sr.resource.storage_type,
+                  content_type: sr.resource.content_type,
+                  size_bytes: sr.resource.size_bytes,
+                  original_filename: sr.resource.original_filename,
+                }} />
+              )
+            })}
+          </div>
         </div>
       )}
     </div>
