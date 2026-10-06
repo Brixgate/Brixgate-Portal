@@ -12,6 +12,7 @@ import {
   TextUnderlineIcon, ListViewIcon, LeftToRightListNumberIcon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
+import { useSidebar } from '@/lib/sidebar-context'
 import { useToast, ToastContainer } from '@/components/shared/Toast'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import PriceInput from '@/components/admin/PriceInput'
@@ -2520,13 +2521,21 @@ export default function ProgramDetailPage() {
   const params    = useParams()
   const router    = useRouter()
   const programId = params.programId as string
+  const { setCollapsed: setMainSidebarCollapsed } = useSidebar()
 
   const [program, setProgram]       = useState<Program | null>(null)
   const [modules, setModules]             = useState<Module[]>([])
   const [selected, setSelected]           = useState<Module | null>(null)
   const [loading, setLoading]             = useState(true)
   const [activeTab, setActiveTab]         = useState<PageTab>('General')
-  const [curriculumSidebarOpen, setCurriculumSidebarOpen] = useState(false)
+  const [curriculumSidebarOpen, setCurriculumSidebarOpen] = useState(true)
+
+  useEffect(() => {
+    if (activeTab === 'General Curriculum') {
+      setMainSidebarCollapsed(true)
+      return () => { setMainSidebarCollapsed(false) }
+    }
+  }, [activeTab, setMainSidebarCollapsed])
   const [showAddMod, setShowAddMod] = useState(false)
   const [editMod, setEditMod]       = useState<Module | null>(null)
   const [modForm, setModForm]       = useState({ title: '', description: '', status: 'DRAFT' })
