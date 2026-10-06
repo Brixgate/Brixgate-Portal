@@ -304,7 +304,13 @@ function ModuleItem({
   )
 }
 
-// ── Rich text editor (ARTICLE descriptions) ───────────────────────────────────
+// Strip inline style attributes — prevents Chromium from injecting Tailwind CSS
+// custom properties when execCommand creates block elements inside contenteditable
+function stripInlineStyles(html: string): string {
+  return html.replace(/\s*style="[^"]*"/gi, '')
+}
+
+// ── Rich text editor (lesson/module descriptions) ─────────────────────────────
 function RichTextEditor({ value, onChange }: { value: string; onChange: (html: string) => void }) {
   const editorRef = useRef<HTMLDivElement>(null)
 
@@ -321,7 +327,7 @@ function RichTextEditor({ value, onChange }: { value: string; onChange: (html: s
   function exec(cmd: string, val?: string) {
     editorRef.current?.focus()
     document.execCommand(cmd, false, val)
-    if (editorRef.current) onChange(editorRef.current.innerHTML)
+    if (editorRef.current) onChange(stripInlineStyles(editorRef.current.innerHTML))
   }
 
   const btnCls = 'w-7 h-7 flex items-center justify-center rounded-[4px] hover:bg-[#e5e7eb] text-[#374151] transition-colors'
@@ -363,7 +369,7 @@ function RichTextEditor({ value, onChange }: { value: string; onChange: (html: s
         ref={editorRef}
         contentEditable
         suppressContentEditableWarning
-        onInput={() => { if (editorRef.current) onChange(editorRef.current.innerHTML) }}
+        onInput={() => { if (editorRef.current) onChange(stripInlineStyles(editorRef.current.innerHTML)) }}
         className="min-h-[160px] px-3 py-2.5 text-[13px] font-body text-[#111827] outline-none prose prose-sm max-w-none [&_h2]:text-[16px] [&_h2]:font-semibold [&_h2]:mb-1 [&_h3]:text-[14px] [&_h3]:font-semibold [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4"
         data-placeholder="In this lesson, students will learn…"
         style={{ caretColor: '#d51520' }}
@@ -668,7 +674,10 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
           </span>
         </div>
         {mod.description && (
-          <p className="text-[14px] text-[#374151] font-body mt-2 leading-[1.7]">{mod.description}</p>
+          <div
+            className="text-[14px] text-[#374151] font-body mt-2 leading-[1.7] [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:mt-0.5 [&_strong]:font-semibold [&_em]:italic"
+            dangerouslySetInnerHTML={{ __html: mod.description }}
+          />
         )}
         <div className="flex items-center gap-4 mt-2">
           <span className="text-[12px] text-[#4b5563] font-body">{mod.lessons.length} lesson{mod.lessons.length !== 1 ? 's' : ''}</span>
@@ -2585,7 +2594,7 @@ export default function ProgramDetailPage() {
   async function addModule(e: React.FormEvent) {
     e.preventDefault(); setModError('')
     if (!modForm.title.trim()) { setModError('Title required.'); return }
-    const desc = descEditorRef.current?.innerHTML.trim() || ''
+    const desc = stripInlineStyles(descEditorRef.current?.innerHTML.trim() || '')
     setModSaving(true)
     try {
       await apiClient.post(`/admin/programs/${programId}/modules`, {
@@ -2602,7 +2611,7 @@ export default function ProgramDetailPage() {
     e.preventDefault(); setModError('')
     if (!editMod) return
     if (!modForm.title.trim()) { setModError('Title required.'); return }
-    const desc = descEditorRef.current?.innerHTML.trim() || ''
+    const desc = stripInlineStyles(descEditorRef.current?.innerHTML.trim() || '')
     setModSaving(true)
     try {
       await apiClient.patch(`/admin/programs/${programId}/modules/${editMod.id}`, {
