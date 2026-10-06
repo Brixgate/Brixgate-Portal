@@ -108,7 +108,7 @@ export default function InstructorSettingsPage() {
       setLinkedinUrl(user.linkedinUrl ?? '')
       setTwitterUrl(user.twitterUrl ?? '')
     }
-  }, [user?.id])
+  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSave() {
     setSaving(true)

@@ -107,6 +107,7 @@ export default function AdminEnrollmentsPage() {
       .catch(() => setCohorts([]))
   }, [programId])
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const load = useCallback(async () => {
     setLoading(true)
     try {

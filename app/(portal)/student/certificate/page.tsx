@@ -250,11 +250,22 @@ function CertificateModal({ row, fullName, onClose }: {
 
   function handleDownload() {
     if (!svgHtml) { toast.error('Certificate is still loading, please wait.'); return }
-    const html = generatePrintHtml(svgHtml, fullName)
-    const win  = window.open('', '_blank')
-    if (!win) { toast.error('Pop-up blocked — please allow pop-ups and try again.'); return }
-    win.document.write(html)
-    win.document.close()
+    const html    = generatePrintHtml(svgHtml, fullName)
+    const blob    = new Blob([html], { type: 'text/html;charset=utf-8' })
+    const blobUrl = URL.createObjectURL(blob)
+    const win     = window.open(blobUrl, '_blank')
+    if (!win) {
+      // Pop-up blocked — fall back to a direct file download
+      const a = document.createElement('a')
+      a.href     = blobUrl
+      a.download = `Brixgate-Certificate-${fullName.replace(/\s+/g, '-')}.html`
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 5000)
+      return
+    }
+    win.focus()
+    // Revoke the blob URL after the window has had time to read it
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000)
   }
 
   async function handleCopyLink() {

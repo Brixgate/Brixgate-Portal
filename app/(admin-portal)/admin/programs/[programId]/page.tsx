@@ -155,7 +155,6 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 }
 const inputCls  = 'w-full h-10 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10'
 const selectCls = `${inputCls} bg-white`
-const textareaCls = 'w-full px-3 py-2.5 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body text-[#111827] outline-none focus:border-[#d51520] focus:ring-2 focus:ring-[#d51520]/10 resize-none'
 
 // ── Drag-and-drop file upload zone ────────────────────────────────────────────
 function FileDropZone({

@@ -167,6 +167,7 @@ function UserSidebar({
               <div className="px-5 py-5 flex items-start gap-4 border-b border-[#f3f4f6]">
                 <div className="w-14 h-14 rounded-full bg-[#f3f4f6] flex items-center justify-center flex-shrink-0 overflow-hidden">
                   {avatarUrl
+                    /* eslint-disable-next-line @next/next/no-img-element */
                     ? <img src={avatarUrl} alt={name} className="w-full h-full object-cover" />
                     : <span className="text-[18px] font-bold text-[#374151] font-display">{initials(name)}</span>
                   }
