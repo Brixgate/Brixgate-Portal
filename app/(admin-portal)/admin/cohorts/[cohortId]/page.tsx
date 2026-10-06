@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import {
   ArrowLeft01Icon, Loading01Icon, UserGroup02Icon,
   StarIcon, BookOpen01Icon, CheckmarkCircle01Icon,
@@ -225,7 +225,7 @@ function CurriculumTab({ cohortId, programId, parentLoading, onProgramIdResolved
 
       // Step 3: Load programme modules (the pool to pick from in edit mode)
       if (resolvedProgramId) {
-        const progModRes = await apiClient.get(`/admin/programs/${resolvedProgramId}/modules?status=PUBLISHED`).catch(() => null)
+        const progModRes = await apiClient.get(`/admin/programs/${resolvedProgramId}/modules?size=200`).catch(() => null)
         if (progModRes) {
           const d = unwrap<{ modules?: ProgramModule[]; content?: ProgramModule[] } | ProgramModule[]>(progModRes.data)
           const mods: ProgramModule[] = Array.isArray(d)
@@ -270,7 +270,7 @@ function CurriculumTab({ cohortId, programId, parentLoading, onProgramIdResolved
     if (!effectiveProgramId) return []
     setLoadingModuleId(module.id)
     try {
-      const res = await apiClient.get(`/admin/programs/${effectiveProgramId}/modules/${module.id}/lessons?status=PUBLISHED`)
+      const res = await apiClient.get(`/admin/programs/${effectiveProgramId}/modules/${module.id}/lessons?size=200`)
       const d = unwrap<{ lessons?: ProgramModuleLesson[]; content?: ProgramModuleLesson[] } | ProgramModuleLesson[]>(res.data)
       const lessons: ProgramModuleLesson[] = Array.isArray(d)
         ? d
@@ -4271,9 +4271,12 @@ const STATUS_STYLE: Record<string, string> = {
 }
 
 export default function CohortDetailPage() {
-  const params   = useParams()
-  const router   = useRouter()
-  const cohortId = params.cohortId as string
+  const params        = useParams()
+  const router        = useRouter()
+  const searchParams  = useSearchParams()
+  const cohortId      = params.cohortId as string
+  // programId may be passed as a query param from the cohorts list or programs page
+  const urlProgramId  = searchParams.get('programId') ? Number(searchParams.get('programId')) : null
 
   const [cohort, setCohort]       = useState<Cohort | null>(null)
   const [activeTab, setActiveTab] = useState<Tab>('Curriculum')
@@ -4322,7 +4325,7 @@ export default function CohortDetailPage() {
     loadCohort()
   }, [cohortId])
 
-  const programId = cohort?.programId ?? cohort?.program_id ?? cohort?.programmeId ?? cohort?.programme_id ?? cohort?.program?.id ?? cohort?.programme?.id ?? null
+  const programId = urlProgramId ?? cohort?.programId ?? cohort?.program_id ?? cohort?.programmeId ?? cohort?.programme_id ?? cohort?.program?.id ?? cohort?.programme?.id ?? null
 
   function goBack() {
     if (programId) {

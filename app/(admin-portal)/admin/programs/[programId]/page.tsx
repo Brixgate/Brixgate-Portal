@@ -386,6 +386,9 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
   const [lessonForm, setLessonForm]         = useState({
     title: '', content_type: 'VIDEO', duration: '', description: '', content_url: '',
   })
+  const [lessonContentMode, setLessonContentMode] = useState<'url' | 'upload'>('url')
+  const [lessonUploadFile, setLessonUploadFile]   = useState<File | null>(null)
+  const [lessonUploading, setLessonUploading]     = useState(false)
 
   // Resource form state
   const [showAddResource, setShowAddResource] = useState(false)
@@ -447,20 +450,41 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
   const base = `/admin/programs/${programId}/modules/${mod?.id}`
 
   // ── Lesson handlers ────────────────────────────────────────────────────────
+  async function resolveContentUrl(): Promise<string | undefined> {
+    if (lessonContentMode === 'url') return lessonForm.content_url.trim() || undefined
+    if (!lessonUploadFile) return undefined
+    setLessonUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', lessonUploadFile)
+      formData.append('program_id', programId)
+      formData.append('program_module_id', String(mod!.id))
+      formData.append('title', lessonForm.title.trim() || lessonUploadFile.name)
+      formData.append('type', lessonUploadFile.type.includes('pdf') ? 'PDF' : 'VIDEO')
+      formData.append('status', 'PUBLISHED')
+      const res = await apiClient.post('/program-resources', formData)
+      const raw = (res.data?.data ?? res.data) as Record<string, unknown>
+      const link = (raw?.link ?? (raw?.resource as Record<string, unknown>)?.link ?? (raw?.programResource as Record<string, unknown>)?.link) as string | undefined
+      return link ?? undefined
+    } finally { setLessonUploading(false) }
+  }
+
   async function addLesson(e: React.FormEvent) {
     e.preventDefault(); setError('')
     if (!lessonForm.title.trim()) { setError('Title required.'); return }
     setSaving(true)
     try {
+      const content_url = await resolveContentUrl()
       await apiClient.post(`${base}/lessons`, {
         title:        lessonForm.title.trim(),
         content_type: lessonForm.content_type,
-        content_url:  lessonForm.content_url.trim() || undefined,
+        content_url,
         description:  lessonForm.description.trim() || undefined,
         duration:     lessonForm.duration ? parseInt(lessonForm.duration) : undefined,
       })
       setShowAddLesson(false)
       setLessonForm({ title: '', content_type: 'VIDEO', duration: '', description: '', content_url: '' })
+      setLessonUploadFile(null); setLessonContentMode('url')
       onRefresh()
     } catch (err) { setError(getApiError(err)) } finally { setSaving(false) }
   }
@@ -495,7 +519,7 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
       description: l.description ?? '',
       content_url: l.content_url ?? l.contentUrl ?? '',
     })
-    setEditLesson(l); setError('')
+    setEditLesson(l); setError(''); setLessonContentMode('url'); setLessonUploadFile(null)
   }
 
   // Fetch cohorts whenever the add-resource modal opens.
@@ -803,11 +827,50 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
               </Field>
             </div>
 
-            <Field label="Content URL" hint="YouTube, Vimeo, or direct video/PDF link — displayed inline to students">
-              <input value={lessonForm.content_url}
-                onChange={e => setLessonForm(p => ({ ...p, content_url: e.target.value }))}
-                placeholder="https://youtube.com/watch?v=… or https://…"
-                className={inputCls} />
+            <Field label="Content">
+              {/* URL / Upload toggle */}
+              <div className="flex gap-1 mb-2">
+                {(['url', 'upload'] as const).map(m => (
+                  <button key={m} type="button"
+                    onClick={() => { setLessonContentMode(m); setLessonUploadFile(null); setLessonForm(p => ({ ...p, content_url: '' })) }}
+                    className={`px-3 h-7 rounded-full text-[12px] font-medium font-body transition-colors ${
+                      lessonContentMode === m
+                        ? 'bg-[#d51520] text-white'
+                        : 'bg-[#f3f4f6] text-[#4b5563] hover:bg-[#e5e7eb]'
+                    }`}>
+                    {m === 'url' ? 'Paste URL' : 'Upload File'}
+                  </button>
+                ))}
+              </div>
+              {lessonContentMode === 'url' ? (
+                <input value={lessonForm.content_url}
+                  onChange={e => setLessonForm(p => ({ ...p, content_url: e.target.value }))}
+                  placeholder="https://youtube.com/watch?v=… or https://…"
+                  className={inputCls} />
+              ) : (
+                <label className={`flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-[8px] p-5 cursor-pointer transition-colors ${
+                  lessonUploadFile ? 'border-[#d51520]/40 bg-[#fef2f2]' : 'border-[#e5e7eb] hover:border-[#d51520]/40 hover:bg-[#fef9f9]'
+                }`}>
+                  <input type="file" className="hidden" accept=".pdf,.mp4,.mov,.webm,.mp3,.m4a"
+                    onChange={e => setLessonUploadFile(e.target.files?.[0] ?? null)} />
+                  {lessonUploadFile ? (
+                    <>
+                      <CheckmarkCircle01Icon size={20} color="#d51520" strokeWidth={1.5} />
+                      <p className="text-[13px] font-medium text-[#d51520] font-body text-center truncate max-w-full">{lessonUploadFile.name}</p>
+                      <p className="text-[11px] text-[#9ca3af] font-body">{(lessonUploadFile.size / 1024 / 1024).toFixed(1)} MB</p>
+                    </>
+                  ) : (
+                    <>
+                      <Upload01Icon size={20} color="#9ca3af" strokeWidth={1.5} />
+                      <p className="text-[13px] text-[#4b5563] font-body text-center">Drop a PDF, MP4, or audio file here</p>
+                      <p className="text-[11px] text-[#9ca3af] font-body">Max 20 MB</p>
+                    </>
+                  )}
+                </label>
+              )}
+              {lessonContentMode === 'url' && (
+                <p className="text-[11px] text-[#9ca3af] font-body mt-1">YouTube, Vimeo, or direct video/PDF link</p>
+              )}
             </Field>
 
             <Field
@@ -830,10 +893,10 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
                 className="flex-1 h-10 rounded-[8px] border border-[#e5e7eb] text-[13px] font-body hover:bg-[#f9fafb]">
                 Cancel
               </button>
-              <button type="submit" disabled={saving}
+              <button type="submit" disabled={saving || lessonUploading}
                 className="flex-1 h-10 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] disabled:opacity-60 flex items-center justify-center gap-2">
-                {saving && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
-                {editLesson ? 'Save Changes' : 'Add Lesson'}
+                {(saving || lessonUploading) && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
+                {lessonUploading ? 'Uploading…' : editLesson ? 'Save Changes' : 'Add Lesson'}
               </button>
             </div>
           </form>
@@ -2437,7 +2500,7 @@ function CohortsTab({ programId }: { programId: string }) {
             <TableBody>
               {cohorts.map(c => (
                 <TableRow key={c.id}
-                  onClick={() => router.push(`/admin/cohorts/${c.id}`)}
+                  onClick={() => router.push(`/admin/cohorts/${c.id}?programId=${programId}`)}
                   className="cursor-pointer">
                   <TableCell>
                     <p className="text-[13px] font-semibold text-[#111827] font-display">{c.title}</p>

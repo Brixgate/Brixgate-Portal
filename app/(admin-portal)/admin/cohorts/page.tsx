@@ -268,7 +268,7 @@ export default function AdminCohortsPage() {
               ) : (
                 cohorts.map(c => (
                   <tr key={c.id}
-                    onClick={() => router.push(`/admin/cohorts/${c.id}`)}
+                    onClick={() => router.push(`/admin/cohorts/${c.id}?programId=${activeProgram ?? programs[0]?.id}`)}
                     className="border-b border-[#f3f4f6] hover:bg-[#fafafa] transition-colors cursor-pointer">
                     <td className="px-4 py-4">
                       <p className="text-[13px] font-semibold text-[#111827] font-display">{c.title}</p>
