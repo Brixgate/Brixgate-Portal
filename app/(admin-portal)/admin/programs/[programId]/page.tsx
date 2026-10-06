@@ -802,23 +802,13 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
             </Field>
 
             <Field
-              label={lessonForm.content_type === 'ARTICLE' ? 'Article Content' : 'Description / Content'}
-              hint={lessonForm.content_type === 'ARTICLE' ? 'Rich text — supports headings, bold, italic, lists' : 'Paragraphs, learning objectives, notes — supports plain text'}
+              label="Description / Content"
+              hint="Rich text — supports headings, bold, italic, lists"
             >
-              {lessonForm.content_type === 'ARTICLE' ? (
-                <RichTextEditor
-                  value={lessonForm.description}
-                  onChange={html => setLessonForm(p => ({ ...p, description: html }))}
-                />
-              ) : (
-                <textarea
-                  value={lessonForm.description}
-                  onChange={e => setLessonForm(p => ({ ...p, description: e.target.value }))}
-                  rows={5}
-                  placeholder="In this lesson, students will learn how to craft effective prompts for large language models. We'll cover zero-shot prompting, few-shot examples, and chain-of-thought techniques…"
-                  className={textareaCls}
-                />
-              )}
+              <RichTextEditor
+                value={lessonForm.description}
+                onChange={html => setLessonForm(p => ({ ...p, description: html }))}
+              />
             </Field>
 
             {error && (
