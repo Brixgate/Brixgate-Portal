@@ -19,6 +19,7 @@ import PriceInput from '@/components/admin/PriceInput'
 interface Resource { id: number; title: string; type: string; link: string; status?: string }
 interface Lesson   {
   id: number; title: string; content_type: string
+  content_url?: string; contentUrl?: string
   description?: string; duration?: number; order_index?: number
 }
 interface Module   { id: number; title: string; description?: string; order_index?: number; status?: string; lessons: Lesson[]; resources: Resource[] }
@@ -307,7 +308,7 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
   const [showAddLesson, setShowAddLesson]   = useState(false)
   const [editLesson, setEditLesson]         = useState<Lesson | null>(null)
   const [lessonForm, setLessonForm]         = useState({
-    title: '', content_type: 'VIDEO', duration: '', description: '',
+    title: '', content_type: 'VIDEO', duration: '', description: '', content_url: '',
   })
 
   // Resource form state
@@ -376,13 +377,14 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
     setSaving(true)
     try {
       await apiClient.post(`${base}/lessons`, {
-        title:        lessonForm.title.trim(),
-        content_type: lessonForm.content_type,
-        description:  lessonForm.description.trim() || undefined,
-        duration:     lessonForm.duration ? parseInt(lessonForm.duration) : undefined,
+        title:       lessonForm.title.trim(),
+        contentType: lessonForm.content_type,
+        contentUrl:  lessonForm.content_url.trim() || undefined,
+        description: lessonForm.description.trim() || undefined,
+        duration:    lessonForm.duration ? parseInt(lessonForm.duration) : undefined,
       })
       setShowAddLesson(false)
-      setLessonForm({ title: '', content_type: 'VIDEO', duration: '', description: '' })
+      setLessonForm({ title: '', content_type: 'VIDEO', duration: '', description: '', content_url: '' })
       onRefresh()
     } catch (err) { setError(getApiError(err)) } finally { setSaving(false) }
   }
@@ -393,10 +395,11 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
     setSaving(true)
     try {
       await apiClient.patch(`${base}/lessons/${editLesson!.id}`, {
-        title:        lessonForm.title.trim(),
-        content_type: lessonForm.content_type,
-        description:  lessonForm.description.trim() || undefined,
-        duration:     lessonForm.duration ? parseInt(lessonForm.duration) : undefined,
+        title:       lessonForm.title.trim(),
+        contentType: lessonForm.content_type,
+        contentUrl:  lessonForm.content_url.trim() || undefined,
+        description: lessonForm.description.trim() || undefined,
+        duration:    lessonForm.duration ? parseInt(lessonForm.duration) : undefined,
       })
       setEditLesson(null); onRefresh()
     } catch (err) { setError(getApiError(err)) } finally { setSaving(false) }
@@ -414,6 +417,7 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
       title: l.title, content_type: l.content_type,
       duration: l.duration ? String(l.duration) : '',
       description: l.description ?? '',
+      content_url: l.content_url ?? l.contentUrl ?? '',
     })
     setEditLesson(l); setError('')
   }
@@ -607,7 +611,7 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
         <div className="flex items-center justify-between mb-3">
           <h4 className="text-[12px] font-bold uppercase tracking-[0.06em] text-[#374151] font-display">Lessons</h4>
           <button
-            onClick={() => { setLessonForm({ title: '', content_type: 'VIDEO', duration: '', description: '' }); setError(''); setShowAddLesson(true) }}
+            onClick={() => { setLessonForm({ title: '', content_type: 'VIDEO', duration: '', description: '', content_url: '' }); setError(''); setShowAddLesson(true) }}
             className="flex items-center gap-1 text-[11px] text-[#d51520] font-medium font-display hover:underline">
             <Add01Icon size={11} strokeWidth={2} /> Add Lesson
           </button>
@@ -719,6 +723,13 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
                   placeholder="60" className={inputCls} />
               </Field>
             </div>
+
+            <Field label="Content URL" hint="YouTube, Vimeo, or direct video/PDF link — displayed inline to students">
+              <input value={lessonForm.content_url}
+                onChange={e => setLessonForm(p => ({ ...p, content_url: e.target.value }))}
+                placeholder="https://youtube.com/watch?v=… or https://…"
+                className={inputCls} />
+            </Field>
 
             <Field label="Description / Content" hint="Paragraphs, learning objectives, notes — supports plain text">
               <textarea
@@ -2432,10 +2443,11 @@ export default function ProgramDetailPage() {
   const programId = params.programId as string
 
   const [program, setProgram]       = useState<Program | null>(null)
-  const [modules, setModules]       = useState<Module[]>([])
-  const [selected, setSelected]     = useState<Module | null>(null)
-  const [loading, setLoading]       = useState(true)
-  const [activeTab, setActiveTab]   = useState<PageTab>('General')
+  const [modules, setModules]             = useState<Module[]>([])
+  const [selected, setSelected]           = useState<Module | null>(null)
+  const [loading, setLoading]             = useState(true)
+  const [activeTab, setActiveTab]         = useState<PageTab>('General')
+  const [curriculumSidebarOpen, setCurriculumSidebarOpen] = useState(true)
   const [showAddMod, setShowAddMod] = useState(false)
   const [editMod, setEditMod]       = useState<Module | null>(null)
   const [modForm, setModForm]       = useState({ title: '', description: '', status: 'DRAFT' })
@@ -2591,14 +2603,25 @@ export default function ProgramDetailPage() {
       {activeTab === 'General Curriculum' && (
         <div className="flex flex-1 overflow-hidden">
           {/* Left: module list */}
-          <div className="w-[300px] flex-shrink-0 bg-white border-r border-[#f3f4f6] overflow-y-auto flex flex-col">
-            <div className="px-4 py-3 border-b border-[#f3f4f6]">
-              <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#4b5563] font-display">
-                {modules.length} Module{modules.length !== 1 ? 's' : ''}
-              </p>
+          <div className={`${curriculumSidebarOpen ? 'w-[300px]' : 'w-10'} flex-shrink-0 bg-white border-r border-[#f3f4f6] overflow-hidden flex flex-col transition-[width] duration-200`}>
+            <div className="px-3 py-3 border-b border-[#f3f4f6] flex items-center justify-between flex-shrink-0 min-w-0">
+              {curriculumSidebarOpen && (
+                <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#4b5563] font-display truncate">
+                  {modules.length} Module{modules.length !== 1 ? 's' : ''}
+                </p>
+              )}
+              <button
+                onClick={() => setCurriculumSidebarOpen(v => !v)}
+                className="w-6 h-6 flex items-center justify-center rounded-[4px] hover:bg-[#f3f4f6] flex-shrink-0 ml-auto transition-colors"
+                title={curriculumSidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+              >
+                {curriculumSidebarOpen
+                  ? <ArrowLeft01Icon size={13} color="#6b7280" strokeWidth={2} />
+                  : <ArrowRight01Icon size={13} color="#6b7280" strokeWidth={2} />}
+              </button>
             </div>
-            {loading ? (
-              <div className="flex flex-col">
+            {curriculumSidebarOpen && (loading ? (
+              <div className="flex flex-col overflow-y-auto flex-1">
                 {Array.from({ length: 4 }).map((_, i) => (
                   <div key={i} className="h-14 border-b border-[#f3f4f6] flex items-center px-4 gap-3">
                     <div className="h-4 bg-[#f3f4f6] rounded animate-pulse flex-1" />
@@ -2611,12 +2634,14 @@ export default function ProgramDetailPage() {
                 <p className="text-[13px] text-[#4b5563] font-body">No modules yet</p>
               </div>
             ) : (
-              modules.map(m => (
-                <ModuleItem key={m.id} mod={m} programId={programId}
-                  isSelected={selected?.id === m.id}
-                  onSelect={setSelected} onRefresh={fetchModules} onEdit={openEditMod} />
-              ))
-            )}
+              <div className="overflow-y-auto flex-1">
+                {modules.map(m => (
+                  <ModuleItem key={m.id} mod={m} programId={programId}
+                    isSelected={selected?.id === m.id}
+                    onSelect={setSelected} onRefresh={fetchModules} onEdit={openEditMod} />
+                ))}
+              </div>
+            ))}
           </div>
 
           {/* Right: detail panel */}
