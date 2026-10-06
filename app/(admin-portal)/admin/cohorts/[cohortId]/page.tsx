@@ -2248,11 +2248,11 @@ function ReviewsTab({ cohortId, programId }: { cohortId: string; programId: numb
   const [analyticsQ,    setAnalyticsQ]    = useState<AdminReviewQuestion | null>(null)
   const [deleteQId,     setDeleteQId]     = useState<number | null>(null)
   const [detailTab,     setDetailTab]     = useState<'questions' | 'responses'>('questions')
-  // Responses tab state
-  const [responses,     setResponses]     = useState<Record<string, unknown>[]>([])
-  const [loadingRes,    setLoadingRes]    = useState(false)
-  const [resError,      setResError]      = useState<string | null>(null)
-  const [expandedRes,   setExpandedRes]   = useState<Set<number>>(new Set())
+  // Responses tab state — keyed by question ID
+  const [questionAnswers, setQuestionAnswers] = useState<Record<number, unknown[]>>({})
+  const [loadingRes,      setLoadingRes]      = useState(false)
+  const [resError,        setResError]        = useState<string | null>(null)
+  const [expandedQs,      setExpandedQs]      = useState<Set<number>>(new Set())
 
   function loadForms() {
     setLoading(true)
@@ -2275,27 +2275,39 @@ function ReviewsTab({ cohortId, programId }: { cohortId: string; programId: numb
 
   useEffect(() => { loadForms() }, [cohortId, programId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  function loadResponses(formId: number | string) {
-    setLoadingRes(true); setResError(null)
-    apiClient.get(`/admin/review-forms/${formId}/submissions?page=0&size=200`)
-      .then(res => {
-        const raw   = res.data?.data ?? res.data
-        const inner = raw?.data ?? raw
+  function loadResponses(questions: AdminReviewQuestion[]) {
+    if (questions.length === 0) { setQuestionAnswers({}); return }
+    setLoadingRes(true); setResError(null); setQuestionAnswers({})
+    Promise.allSettled(
+      questions.map(q => apiClient.get(`/admin/review-questions/${q.id}/answers`))
+    ).then(results => {
+      const map: Record<number, unknown[]> = {}
+      results.forEach((r, i) => {
+        const qId = questions[i].id
+        if (r.status === 'rejected') { map[qId] = []; return }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const arr: any[] = Array.isArray(inner)             ? inner
-          : Array.isArray(inner?.reviews)     ? inner.reviews
-          : Array.isArray(inner?.submissions) ? inner.submissions
-          : Array.isArray(inner?.responses)   ? inner.responses
-          : Array.isArray(inner?.content)     ? inner.content
+        const raw: any = r.value.data?.data ?? r.value.data
+        const inner = raw?.data ?? raw
+        const arr: unknown[] = Array.isArray(inner)          ? inner
+          : Array.isArray(inner?.answers)   ? inner.answers
+          : Array.isArray(inner?.content)   ? inner.content
+          : Array.isArray(inner?.responses) ? inner.responses
           : []
-        setResponses(arr)
+        map[qId] = arr
       })
-      .catch(err => { setResError(getApiError(err)) })
-      .finally(() => setLoadingRes(false))
+      setQuestionAnswers(map)
+      // Auto-expand questions that have answers
+      const withAnswers = new Set(
+        Object.entries(map).filter(([, v]) => v.length > 0).map(([k]) => Number(k))
+      )
+      setExpandedQs(withAnswers)
+    })
+    .catch(err => setResError(getApiError(err)))
+    .finally(() => setLoadingRes(false))
   }
 
   function loadFormDetail(form: AdminReviewForm) {
-    setDetailTab('questions'); setExpandedRes(new Set()); setResponses([])
+    setDetailTab('questions'); setExpandedQs(new Set()); setQuestionAnswers({})
     setSelectedForm(form); setLoadingQs(true)
     apiClient.get(`/admin/review-forms/${form.id}`)
       .then(res => {
@@ -2470,7 +2482,7 @@ function ReviewsTab({ cohortId, programId }: { cohortId: string; programId: numb
           <button key={tab}
             onClick={() => {
               setDetailTab(tab)
-              if (tab === 'responses' && selectedForm) loadResponses(selectedForm.id)
+              if (tab === 'responses') loadResponses(formQuestions)
             }}
             className={`py-2.5 mr-5 text-[13px] font-semibold font-display border-b-2 transition-colors capitalize ${
               detailTab === tab ? 'border-[#d51520] text-[#d51520]' : 'border-transparent text-[#4b5563] hover:text-[#374151]'
@@ -2543,69 +2555,84 @@ function ReviewsTab({ cohortId, programId }: { cohortId: string; programId: numb
               <AlertCircleIcon size={16} color="#d51520" strokeWidth={1.5} />
               <p className="text-[13px] text-[#d51520] font-body">{resError}</p>
             </div>
-          ) : responses.length === 0 ? (
+          ) : formQuestions.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center px-6">
               <div className="w-14 h-14 rounded-[12px] bg-[#f9fafb] flex items-center justify-center mb-4">
                 <MessageQuestionIcon size={24} color="#d1d5db" strokeWidth={1.5} />
               </div>
-              <p className="text-[14px] font-semibold text-[#374151] font-display mb-1">No responses yet</p>
+              <p className="text-[14px] font-semibold text-[#374151] font-display mb-1">No questions yet</p>
               <p className="text-[13px] text-[#4b5563] font-body max-w-[260px]">
-                Responses will appear here once students submit this review.
+                Add questions to this form first before viewing responses.
               </p>
             </div>
           ) : (
             <div>
-              {responses.map((r, idx) => {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const sub = r as any
-                const respondentName = sub.user_name ?? sub.userName ?? sub.user?.name ?? sub.student_name ?? sub.studentName ?? `Submission #${idx + 1}`
-                const respondentEmail = sub.user_email ?? sub.userEmail ?? sub.user?.email ?? ''
-                const submittedAt = sub.submitted_at ?? sub.submittedAt ?? sub.created_at ?? sub.createdAt ?? ''
-                const answers: unknown[] = Array.isArray(sub.answers) ? sub.answers : []
-                const isExpanded = expandedRes.has(idx)
+              {formQuestions.map((q, qi) => {
+                const answers = questionAnswers[q.id] ?? []
+                const isExpanded = expandedQs.has(q.id)
                 return (
-                  <div key={idx} className="border-b border-[#f3f4f6] last:border-b-0">
+                  <div key={q.id} className="border-b border-[#f3f4f6] last:border-b-0">
                     <button
-                      onClick={() => setExpandedRes(prev => {
+                      onClick={() => setExpandedQs(prev => {
                         const next = new Set(prev)
-                        if (next.has(idx)) next.delete(idx); else next.add(idx)
+                        if (next.has(q.id)) next.delete(q.id); else next.add(q.id)
                         return next
                       })}
                       className="w-full flex items-center gap-3 px-6 py-4 hover:bg-[#fafafa] transition-colors text-left"
                     >
-                      <div className="w-8 h-8 rounded-full bg-[#d51520] flex items-center justify-center flex-shrink-0">
-                        <span className="text-[11px] font-bold text-white font-display">
-                          {respondentName.split(' ').map((p: string) => p[0]).join('').slice(0, 2).toUpperCase()}
-                        </span>
+                      <div className="w-6 h-6 rounded-full bg-[#f3f4f6] flex items-center justify-center flex-shrink-0">
+                        <span className="text-[10px] font-bold text-[#6b7280] font-display">{qi + 1}</span>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-semibold text-[#111827] font-display truncate">{respondentName}</p>
-                        <p className="text-[11px] text-[#6b7280] font-body truncate">
-                          {respondentEmail}
-                          {submittedAt ? ` · ${new Date(submittedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
+                        <p className="text-[13px] font-semibold text-[#111827] font-display truncate">
+                          {q.question_text ?? q.questionText ?? `Question ${qi + 1}`}
+                        </p>
+                        <p className="text-[11px] text-[#6b7280] font-body capitalize">
+                          {(q.question_type ?? q.questionType ?? '').toLowerCase().replace(/_/g, ' ')}
                         </p>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className="text-[11px] text-[#9ca3af] font-body">{answers.length} answer{answers.length !== 1 ? 's' : ''}</span>
-                        {isExpanded ? <ArrowDown01Icon size={14} color="#4b5563" strokeWidth={1.5} /> : <ArrowRight01Icon size={14} color="#4b5563" strokeWidth={1.5} />}
+                        <span className="text-[11px] text-[#9ca3af] font-body">
+                          {answers.length} response{answers.length !== 1 ? 's' : ''}
+                        </span>
+                        {isExpanded
+                          ? <ArrowDown01Icon size={14} color="#4b5563" strokeWidth={1.5} />
+                          : <ArrowRight01Icon size={14} color="#4b5563" strokeWidth={1.5} />}
                       </div>
                     </button>
-                    {isExpanded && answers.length > 0 && (
+                    {isExpanded && (
                       <div className="px-6 pb-4 bg-[#fafafa]">
-                        {answers.map((a, ai) => {
-                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                          const ans = a as any
-                          const qText = ans.question_text ?? ans.questionText ?? `Question ${ai + 1}`
-                          const rawVal = ans.answer_value ?? ans.answerValue
-                          const displayVal = Array.isArray(rawVal) ? rawVal.join(', ')
-                            : rawVal !== null && rawVal !== undefined ? String(rawVal) : '—'
-                          return (
-                            <div key={ai} className="py-3 border-b border-[#f3f4f6] last:border-b-0">
-                              <p className="text-[11px] font-semibold text-[#9ca3af] font-display uppercase tracking-wide mb-1">{qText}</p>
-                              <p className="text-[13px] text-[#111827] font-body">{displayVal}</p>
-                            </div>
-                          )
-                        })}
+                        {answers.length === 0 ? (
+                          <p className="text-[12px] text-[#9ca3af] font-body py-2">No responses for this question yet.</p>
+                        ) : (
+                          <div className="flex flex-col gap-2">
+                            {answers.map((a, ai) => {
+                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                              const ans = a as any
+                              const respondent = ans.user_name ?? ans.userName ?? ans.user?.name ?? ans.student_name ?? `Respondent ${ai + 1}`
+                              const rawVal = ans.answer_value ?? ans.answerValue ?? ans.value ?? ans.text
+                              const displayVal = Array.isArray(rawVal) ? rawVal.join(', ')
+                                : rawVal !== null && rawVal !== undefined ? String(rawVal) : '—'
+                              const submittedAt = ans.submitted_at ?? ans.submittedAt ?? ans.created_at ?? ''
+                              return (
+                                <div key={ai} className="flex items-start gap-3 py-2.5 border-b border-[#f3f4f6] last:border-b-0">
+                                  <div className="w-7 h-7 rounded-full bg-[#d51520]/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                    <span className="text-[10px] font-bold text-[#d51520] font-display">
+                                      {respondent.split(' ').map((p: string) => p[0]).join('').slice(0, 2).toUpperCase()}
+                                    </span>
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-[11px] text-[#6b7280] font-body mb-0.5">
+                                      {respondent}
+                                      {submittedAt ? ` · ${new Date(submittedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
+                                    </p>
+                                    <p className="text-[13px] text-[#111827] font-body">{displayVal}</p>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
