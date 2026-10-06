@@ -8,7 +8,8 @@ import {
   ArrowLeft01Icon, File01Icon, BookOpen01Icon, VideoReplayIcon,
   Upload01Icon, Link01Icon, PencilEdit01Icon, Invoice01Icon,
   Payment01Icon, CheckmarkCircle01Icon, Building04Icon,
-  EyeIcon, Download01Icon,
+  EyeIcon, Download01Icon, TextBoldIcon, TextItalicIcon,
+  TextUnderlineIcon, ListViewIcon, LeftToRightListNumberIcon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 import { useToast, ToastContainer } from '@/components/shared/Toast'
@@ -302,6 +303,74 @@ function ModuleItem({
   )
 }
 
+// ── Rich text editor (ARTICLE descriptions) ───────────────────────────────────
+function RichTextEditor({ value, onChange }: { value: string; onChange: (html: string) => void }) {
+  const editorRef = useRef<HTMLDivElement>(null)
+
+  // Sync external value → editor only on mount or when value is cleared externally
+  useEffect(() => {
+    const el = editorRef.current
+    if (!el) return
+    // Only reset if the editor is empty (form reset) or truly out of sync
+    if (el.innerHTML !== value && (value === '' || el.innerHTML === '')) {
+      el.innerHTML = value
+    }
+  }, [value])
+
+  function exec(cmd: string, val?: string) {
+    editorRef.current?.focus()
+    document.execCommand(cmd, false, val)
+    if (editorRef.current) onChange(editorRef.current.innerHTML)
+  }
+
+  const btnCls = 'w-7 h-7 flex items-center justify-center rounded-[4px] hover:bg-[#e5e7eb] text-[#374151] transition-colors'
+
+  return (
+    <div className="border border-[#e5e7eb] rounded-[6px] overflow-hidden focus-within:ring-2 focus-within:ring-[#d51520]/20 focus-within:border-[#d51520]">
+      {/* Toolbar */}
+      <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-[#e5e7eb] bg-[#f9fafb]">
+        <button type="button" className={btnCls} onMouseDown={e => { e.preventDefault(); exec('bold') }} title="Bold">
+          <TextBoldIcon size={13} strokeWidth={2} />
+        </button>
+        <button type="button" className={btnCls} onMouseDown={e => { e.preventDefault(); exec('italic') }} title="Italic">
+          <TextItalicIcon size={13} strokeWidth={2} />
+        </button>
+        <button type="button" className={btnCls} onMouseDown={e => { e.preventDefault(); exec('underline') }} title="Underline">
+          <TextUnderlineIcon size={13} strokeWidth={2} />
+        </button>
+        <div className="w-px h-4 bg-[#e5e7eb] mx-1" />
+        <button type="button" className={btnCls} onMouseDown={e => { e.preventDefault(); exec('insertUnorderedList') }} title="Bullet list">
+          <ListViewIcon size={13} strokeWidth={2} />
+        </button>
+        <button type="button" className={btnCls} onMouseDown={e => { e.preventDefault(); exec('insertOrderedList') }} title="Numbered list">
+          <LeftToRightListNumberIcon size={13} strokeWidth={2} />
+        </button>
+        <div className="w-px h-4 bg-[#e5e7eb] mx-1" />
+        <select
+          className="h-6 text-[11px] font-body text-[#374151] bg-transparent border-0 outline-none cursor-pointer"
+          defaultValue=""
+          onChange={e => { exec('formatBlock', e.target.value); e.target.value = '' }}
+        >
+          <option value="" disabled>Heading</option>
+          <option value="h2">Heading 2</option>
+          <option value="h3">Heading 3</option>
+          <option value="p">Paragraph</option>
+        </select>
+      </div>
+      {/* Content area */}
+      <div
+        ref={editorRef}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={() => { if (editorRef.current) onChange(editorRef.current.innerHTML) }}
+        className="min-h-[160px] px-3 py-2.5 text-[13px] font-body text-[#111827] outline-none prose prose-sm max-w-none [&_h2]:text-[16px] [&_h2]:font-semibold [&_h2]:mb-1 [&_h3]:text-[14px] [&_h3]:font-semibold [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4"
+        data-placeholder="In this lesson, students will learn…"
+        style={{ caretColor: '#d51520' }}
+      />
+    </div>
+  )
+}
+
 // ── Detail panel ──────────────────────────────────────────────────────────────
 function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; programId: string; onRefresh: () => void }) {
   // Lesson form state
@@ -377,11 +446,11 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
     setSaving(true)
     try {
       await apiClient.post(`${base}/lessons`, {
-        title:       lessonForm.title.trim(),
-        contentType: lessonForm.content_type,
-        contentUrl:  lessonForm.content_url.trim() || undefined,
-        description: lessonForm.description.trim() || undefined,
-        duration:    lessonForm.duration ? parseInt(lessonForm.duration) : undefined,
+        title:        lessonForm.title.trim(),
+        content_type: lessonForm.content_type,
+        content_url:  lessonForm.content_url.trim() || undefined,
+        description:  lessonForm.description.trim() || undefined,
+        duration:     lessonForm.duration ? parseInt(lessonForm.duration) : undefined,
       })
       setShowAddLesson(false)
       setLessonForm({ title: '', content_type: 'VIDEO', duration: '', description: '', content_url: '' })
@@ -395,11 +464,11 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
     setSaving(true)
     try {
       await apiClient.patch(`${base}/lessons/${editLesson!.id}`, {
-        title:       lessonForm.title.trim(),
-        contentType: lessonForm.content_type,
-        contentUrl:  lessonForm.content_url.trim() || undefined,
-        description: lessonForm.description.trim() || undefined,
-        duration:    lessonForm.duration ? parseInt(lessonForm.duration) : undefined,
+        title:        lessonForm.title.trim(),
+        content_type: lessonForm.content_type,
+        content_url:  lessonForm.content_url.trim() || undefined,
+        description:  lessonForm.description.trim() || undefined,
+        duration:     lessonForm.duration ? parseInt(lessonForm.duration) : undefined,
       })
       setEditLesson(null); onRefresh()
     } catch (err) { setError(getApiError(err)) } finally { setSaving(false) }
@@ -731,14 +800,24 @@ function DetailPanel({ mod, programId, onRefresh }: { mod: Module | null; progra
                 className={inputCls} />
             </Field>
 
-            <Field label="Description / Content" hint="Paragraphs, learning objectives, notes — supports plain text">
-              <textarea
-                value={lessonForm.description}
-                onChange={e => setLessonForm(p => ({ ...p, description: e.target.value }))}
-                rows={5}
-                placeholder="In this lesson, students will learn how to craft effective prompts for large language models. We'll cover zero-shot prompting, few-shot examples, and chain-of-thought techniques…"
-                className={textareaCls}
-              />
+            <Field
+              label={lessonForm.content_type === 'ARTICLE' ? 'Article Content' : 'Description / Content'}
+              hint={lessonForm.content_type === 'ARTICLE' ? 'Rich text — supports headings, bold, italic, lists' : 'Paragraphs, learning objectives, notes — supports plain text'}
+            >
+              {lessonForm.content_type === 'ARTICLE' ? (
+                <RichTextEditor
+                  value={lessonForm.description}
+                  onChange={html => setLessonForm(p => ({ ...p, description: html }))}
+                />
+              ) : (
+                <textarea
+                  value={lessonForm.description}
+                  onChange={e => setLessonForm(p => ({ ...p, description: e.target.value }))}
+                  rows={5}
+                  placeholder="In this lesson, students will learn how to craft effective prompts for large language models. We'll cover zero-shot prompting, few-shot examples, and chain-of-thought techniques…"
+                  className={textareaCls}
+                />
+              )}
             </Field>
 
             {error && (
@@ -2447,7 +2526,7 @@ export default function ProgramDetailPage() {
   const [selected, setSelected]           = useState<Module | null>(null)
   const [loading, setLoading]             = useState(true)
   const [activeTab, setActiveTab]         = useState<PageTab>('General')
-  const [curriculumSidebarOpen, setCurriculumSidebarOpen] = useState(true)
+  const [curriculumSidebarOpen, setCurriculumSidebarOpen] = useState(false)
   const [showAddMod, setShowAddMod] = useState(false)
   const [editMod, setEditMod]       = useState<Module | null>(null)
   const [modForm, setModForm]       = useState({ title: '', description: '', status: 'DRAFT' })
