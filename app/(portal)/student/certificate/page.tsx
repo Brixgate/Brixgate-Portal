@@ -164,8 +164,8 @@ async function buildFilledSvg(row: CertRow, fullName: string): Promise<string> {
     ?? new Date().toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })
   const certId  = certificateNumber ?? '—'
   const certUrl = certificateNumber
-    ? `https://brixgate.com/verify/${certificateNumber}`
-    : 'https://brixgate.com/verify'
+    ? `https://brixgate.com/verify.html?id=${certificateNumber}`
+    : 'https://brixgate.com/verify.html'
 
   const [raw, qrDataUri] = await Promise.all([
     fetch(SVG_TEMPLATE_URL).then(r => r.text()),
@@ -233,8 +233,8 @@ function CertificateModal({ row, fullName, onClose }: {
   const { title, cohortLabel, issuedAt, certificateNumber } = row
 
   const pubLink = certificateNumber
-    ? `https://brixgate.com/verify/${certificateNumber}`
-    : 'https://brixgate.com'
+    ? `https://brixgate.com/verify.html?id=${certificateNumber}`
+    : 'https://brixgate.com/verify.html'
 
   useEffect(() => {
     buildFilledSvg(row, fullName)
