@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '@/lib/auth-context'
-import { apiClient, getApiError } from '@/lib/api-client'
-import { EyeIcon, ViewOffIcon, CheckmarkCircle01Icon, AlertCircleIcon } from 'hugeicons-react'
+import { apiClient, getApiError, unwrap } from '@/lib/api-client'
+import { EyeIcon, ViewOffIcon, CheckmarkCircle01Icon, AlertCircleIcon, Camera02Icon, Upload01Icon, Delete01Icon } from 'hugeicons-react'
 
 function SectionCard({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (
@@ -65,6 +65,14 @@ function FormTextarea({ label, value, onChange, placeholder, rows = 3 }: {
 export default function InstructorSettingsPage() {
   const { user, updateUser } = useAuth()
 
+  // Profile photo
+  const [avatarUrl,       setAvatarUrl]       = useState<string | null>(null)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [showAvatarMenu,  setShowAvatarMenu]  = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const dropdownRef  = useRef<HTMLDivElement>(null)
+  const [avatarMsg, setAvatarMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
   const [firstName, setFirstName]   = useState('')
   const [lastName,  setLastName]    = useState('')
   const [phone,     setPhone]       = useState('')
@@ -91,6 +99,67 @@ export default function InstructorSettingsPage() {
   const [showNew, setShowNew] = useState(false)
   const [pwSaving, setPwSaving] = useState(false)
   const [pwMsg, setPwMsg]       = useState<{ ok: boolean; text: string } | null>(null)
+
+  // Seed avatar from auth context on mount
+  useEffect(() => {
+    if (user?.profileImageUrl) setAvatarUrl(user.profileImageUrl)
+  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Close avatar dropdown on outside click
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowAvatarMenu(false)
+      }
+    }
+    if (showAvatarMenu) document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showAvatarMenu])
+
+  async function handleAvatarFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    const allowed = ['image/jpeg', 'image/png', 'image/webp']
+    if (!allowed.includes(file.type)) {
+      setAvatarMsg({ ok: false, text: 'Please select a JPG, PNG, or WebP image.' })
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setAvatarMsg({ ok: false, text: 'Image must be under 2MB.' })
+      return
+    }
+    setShowAvatarMenu(false)
+    setUploadingAvatar(true)
+    setAvatarMsg(null)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await apiClient.post('/users/me/profile-picture', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data = unwrap<any>(res.data)
+      const url: string | null =
+        data?.user?.profileImageUrl ??
+        data?.user?.profile_image_url ??
+        data?.user?.profile_photo_url ??
+        data?.profileImageUrl ??
+        data?.profile_image_url ??
+        data?.profile_photo_url ??
+        data?.url ??
+        null
+      if (url) {
+        setAvatarUrl(url)
+        updateUser({ profileImageUrl: url })
+      }
+      setAvatarMsg({ ok: true, text: 'Profile photo updated.' })
+    } catch (err) {
+      setAvatarMsg({ ok: false, text: getApiError(err) })
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }
 
   useEffect(() => {
     if (user) {
@@ -181,6 +250,101 @@ export default function InstructorSettingsPage() {
       </div>
 
       <div className="space-y-6">
+        {/* Profile photo */}
+        <SectionCard title="Profile Photo">
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={handleAvatarFileChange}
+          />
+          <div className="flex items-center gap-5">
+            <div className="relative" ref={dropdownRef}>
+              <button
+                type="button"
+                onClick={() => !uploadingAvatar && setShowAvatarMenu(v => !v)}
+                className="relative block focus:outline-none group"
+                disabled={uploadingAvatar}
+              >
+                {avatarUrl ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={avatarUrl}
+                    alt="Profile"
+                    className="w-16 h-16 rounded-full object-cover border-2 border-[#e5e7eb] group-hover:border-[#d51520] transition-colors"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; setAvatarUrl(null) }}
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-[#d51520] flex items-center justify-center text-white text-[22px] font-bold font-display">
+                    {`${firstName[0] ?? ''}${lastName[0] ?? ''}`.toUpperCase() || '?'}
+                  </div>
+                )}
+                {uploadingAvatar && (
+                  <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center">
+                    <svg className="animate-spin w-5 h-5 text-white" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="white" strokeWidth="4" />
+                      <path className="opacity-75" fill="white" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  </div>
+                )}
+                {!uploadingAvatar && (
+                  <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-white border border-[#e5e7eb] shadow-sm flex items-center justify-center pointer-events-none">
+                    <Camera02Icon size={12} color="#374151" strokeWidth={1.5} />
+                  </div>
+                )}
+              </button>
+
+              {showAvatarMenu && (
+                <div className="absolute top-[calc(100%+8px)] left-0 z-50 bg-white rounded-[10px] shadow-[0px_8px_24px_rgba(16,24,40,0.12)] border border-[#f3f4f6] py-1.5 w-[200px]">
+                  <button
+                    type="button"
+                    onClick={() => { setShowAvatarMenu(false); setTimeout(() => fileInputRef.current?.click(), 50) }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] font-medium text-[#374151] font-body hover:bg-[#f9fafb] transition-colors text-left"
+                  >
+                    <Upload01Icon size={15} color="#374151" strokeWidth={1.5} />
+                    {avatarUrl ? 'Change photo' : 'Upload photo'}
+                  </button>
+                  {avatarUrl && (
+                    <button
+                      type="button"
+                      onClick={() => { setAvatarUrl(null); setShowAvatarMenu(false) }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] font-medium text-[#d51520] font-body hover:bg-[#fef2f2] transition-colors text-left"
+                    >
+                      <Delete01Icon size={15} color="#d51520" strokeWidth={1.5} />
+                      Remove photo
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <p className="text-[14px] font-semibold text-[#111827] font-display">{firstName} {lastName}</p>
+              <p className="text-[12px] text-[#4b5563] font-body mt-0.5">Instructor</p>
+              <button
+                type="button"
+                onClick={() => !uploadingAvatar && fileInputRef.current?.click()}
+                disabled={uploadingAvatar}
+                className="text-[12px] text-[#d51520] font-medium font-display mt-2 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {uploadingAvatar ? 'Uploading…' : 'Change photo'}
+              </button>
+              <p className="text-[11px] text-[#4b5563] font-body mt-0.5">JPG, PNG or WebP · Max 2MB</p>
+            </div>
+          </div>
+
+          {avatarMsg && (
+            <div className={`mt-4 flex items-center gap-2 text-[13px] font-body ${avatarMsg.ok ? 'text-green-700' : 'text-red-600'}`}>
+              {avatarMsg.ok
+                ? <CheckmarkCircle01Icon size={16} color="#16a34a" strokeWidth={1.5} />
+                : <AlertCircleIcon size={16} color="#dc2626" strokeWidth={1.5} />}
+              {avatarMsg.text}
+            </div>
+          )}
+        </SectionCard>
+
         {/* Personal info */}
         <SectionCard title="Personal Information" description="Update your name and contact details.">
           <div className="space-y-4">

@@ -209,25 +209,19 @@ function CertificatePreview({ svgHtml }: { svgHtml: string }) {
   )
 }
 
-// ── Generate print HTML from the filled SVG string ────────────────────────────
-function generatePrintHtml(svgHtml: string, fullName: string): string {
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>Certificate — ${escapeXml(fullName)}</title>
-<style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}
-html,body{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#E8EBF0!important}
-@media print{@page{margin:0;size:A4 landscape}html,body{background:#E8EBF0!important}}
-.wrap{width:100%;max-width:1188px}
-svg{width:100%;height:auto;display:block}
-</style>
-</head>
-<body>
-<div class="wrap">${svgHtml}</div>
-<script>window.addEventListener('load',function(){setTimeout(function(){window.print()},800)})<\/script>
-</body></html>`
+// ── Direct SVG download (no print dialog) ────────────────────────────────────
+function downloadSvg(svgHtml: string, fullName: string) {
+  // Restore fixed pixel dimensions for a standalone SVG file
+  const svgFixed = svgHtml.replace('width="100%" height="auto"', 'width="1188" height="840"')
+  const blob = new Blob([svgFixed], { type: 'image/svg+xml;charset=utf-8' })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
+  a.href     = url
+  a.download = `Brixgate-Certificate-${fullName.replace(/\s+/g, '-')}.svg`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  setTimeout(() => URL.revokeObjectURL(url), 5_000)
 }
 
 // ── Certificate modal ─────────────────────────────────────────────────────────
@@ -250,22 +244,7 @@ function CertificateModal({ row, fullName, onClose }: {
 
   function handleDownload() {
     if (!svgHtml) { toast.error('Certificate is still loading, please wait.'); return }
-    const html    = generatePrintHtml(svgHtml, fullName)
-    const blob    = new Blob([html], { type: 'text/html;charset=utf-8' })
-    const blobUrl = URL.createObjectURL(blob)
-    const win     = window.open(blobUrl, '_blank')
-    if (!win) {
-      // Pop-up blocked — fall back to a direct file download
-      const a = document.createElement('a')
-      a.href     = blobUrl
-      a.download = `Brixgate-Certificate-${fullName.replace(/\s+/g, '-')}.html`
-      a.click()
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 5000)
-      return
-    }
-    win.focus()
-    // Revoke the blob URL after the window has had time to read it
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000)
+    downloadSvg(svgHtml, fullName)
   }
 
   async function handleCopyLink() {
@@ -332,7 +311,7 @@ function CertificateModal({ row, fullName, onClose }: {
                 className="flex items-center gap-2 h-9 px-5 rounded-[8px] bg-[#d51520] text-[13px] font-semibold text-white font-display hover:bg-[#b81119] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Download01Icon size={14} color="white" strokeWidth={1.5} />
-                Download PDF
+                Download Certificate
               </button>
               <button onClick={onClose} className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-[#f3f4f6] transition-colors">
                 <Cancel01Icon size={16} color="#374151" strokeWidth={1.5} />
@@ -450,12 +429,8 @@ export default function CertificatePage() {
     e.stopPropagation()
     if (certReadiness(row) !== 'ready') { toast.error('Certificate is not ready for download.'); return }
     try {
-      const svg  = await buildFilledSvg(row, fullName)
-      const html = generatePrintHtml(svg, fullName)
-      const win  = window.open('', '_blank')
-      if (!win) { toast.error('Pop-up blocked — please allow pop-ups and try again.'); return }
-      win.document.write(html)
-      win.document.close()
+      const svg = await buildFilledSvg(row, fullName)
+      downloadSvg(svg, fullName)
     } catch { toast.error('Could not load certificate template.') }
   }
 

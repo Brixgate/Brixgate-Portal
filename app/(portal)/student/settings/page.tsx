@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import Image from 'next/image'
 import Link from 'next/link'
 import TopNav from '@/components/layout/TopNav'
 // FEATURE_OFF: notifications — import { MOCK_NOTIFICATION_PREFERENCES } from '@/lib/mock-data'
@@ -365,8 +364,8 @@ export default function SettingsPage() {
       showToast('Please select a JPG, PNG, or WebP image.', 'error')
       return
     }
-    if (file.size > 5 * 1024 * 1024) {
-      showToast('Image must be under 5MB.', 'error')
+    if (file.size > 2 * 1024 * 1024) {
+      showToast('Image must be under 2MB.', 'error')
       return
     }
 
@@ -380,9 +379,18 @@ export default function SettingsPage() {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
 
-      // Response uses snake_case — handle both for safety
-      const data = unwrap<{ user?: { profileImageUrl?: string; profile_image_url?: string } }>(res.data)
-      const url = data?.user?.profileImageUrl ?? data?.user?.profile_image_url ?? null
+      // Response shape varies — try every known field path
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data = unwrap<any>(res.data)
+      const url: string | null =
+        data?.user?.profileImageUrl ??
+        data?.user?.profile_image_url ??
+        data?.user?.profile_photo_url ??
+        data?.profileImageUrl ??
+        data?.profile_image_url ??
+        data?.profile_photo_url ??
+        data?.url ??
+        null
 
       if (url) {
         setAvatar(url)
@@ -536,12 +544,12 @@ export default function SettingsPage() {
                   >
                     {/* Avatar image or initials */}
                     {avatar ? (
-                      <Image
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
                         src={avatar}
                         alt="Profile"
-                        width={64}
-                        height={64}
                         className="w-16 h-16 rounded-full object-cover border-2 border-[#e5e7eb] group-hover:border-[#d51520] transition-colors"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; setAvatar(null) }}
                       />
                     ) : (
                       <div className="w-16 h-16 rounded-full bg-[#d51520] flex items-center justify-center text-white text-[22px] font-bold font-display group-hover:bg-[#b81119] transition-colors">
@@ -610,7 +618,7 @@ export default function SettingsPage() {
                     {uploadingAvatar ? 'Uploading…' : 'Change photo'}
                   </button>
                   <p className="text-[11px] text-[#4b5563] font-body mt-0.5">
-                    JPG, PNG or WebP · Max 5MB
+                    JPG, PNG or WebP · Max 2MB
                   </p>
                 </div>
               </div>

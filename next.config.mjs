@@ -9,16 +9,26 @@ const nextConfig = {
   images: {
     remotePatterns: [
       {
-        // Profile images and uploads served from the Brixgate API / storage
         protocol: 'https',
         hostname: 'api.brixgate.com',
         pathname: '/**',
       },
       {
-        // Supabase storage (if assets are hosted there)
+        protocol: 'https',
+        hostname: 'dev.api.brixgate.com',
+        pathname: '/**',
+      },
+      {
+        // Supabase storage
         protocol: 'https',
         hostname: '*.supabase.co',
         pathname: '/storage/**',
+      },
+      {
+        // Any other Supabase storage patterns
+        protocol: 'https',
+        hostname: '*.supabase.co',
+        pathname: '/**',
       },
     ],
   },

@@ -161,6 +161,7 @@ export function getApiError(error: unknown): string {
     // Status-based fallbacks when no message body
     if (error.response?.status === 401) return 'Incorrect password. Please try again.'
     if (error.response?.status === 404) return 'No account found with that email address.'
+    if (error.response?.status === 413) return 'File is too large. Please use a smaller image (under 2MB) and try again.'
     if (error.response?.status === 422) return 'Please check your details and try again.'
     if (error.response?.status === 429) return 'Too many attempts. Please wait a moment and try again.'
     if (error.response?.status && error.response.status >= 500) return 'Server error. Please try again in a moment.'
