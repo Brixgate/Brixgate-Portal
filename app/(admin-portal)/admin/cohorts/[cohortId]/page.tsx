@@ -1694,6 +1694,47 @@ interface QuestionAnalytics {
   distribution?: Record<string, number>
 }
 
+interface SubmissionEntry {
+  id: number
+  calculated_rating?: number; calculatedRating?: number
+  submitted_at?: string;      submittedAt?: string
+  respondent?: { user_id: number; name: string; email: string }
+}
+interface RespondentAnswer {
+  question: {
+    id: number
+    question_text?: string;  questionText?: string
+    question_type?: string;  questionType?: string
+    configuration?: { minimum?: number; maximum?: number }
+    option_values?: { options?: { value: string; label?: string }[] }
+    optionValues?:  { options?: { value: string; label?: string }[] }
+  }
+  answer_id?: number
+  answer_value: unknown
+  numeric_value?: number; numericValue?: number
+  answered_at?: string;   answeredAt?: string
+}
+interface RespondentSubmissionData {
+  review_form?: { id: number; title?: string }
+  respondent?: { user_id: number; name: string; email: string }
+  submission_count?: number
+  submissions?: Array<{
+    id: number
+    calculated_rating?: number
+    submitted_at?: string
+    answers: RespondentAnswer[]
+  }>
+}
+// answer shape returned by the submissions endpoint questions[].answers[]
+interface GroupedAnswer {
+  answer_id?: number;    answerId?: number
+  submission_id?: number
+  respondent?: { user_id: number; name: string; email?: string }
+  answer_value?: unknown
+  numeric_value?: number; numericValue?: number
+  submitted_at?: string;  submittedAt?: string
+}
+
 const FORM_STAGES = ['START_PROGRAM', 'MID_PROGRAM', 'END_OF_PROGRAM', 'AFTER_SESSION', 'CUSTOM']
 const QUESTION_TYPES = ['RATING', 'TEXT', 'TEXTAREA', 'RADIO', 'SINGLE_SELECT', 'CHECKBOX', 'MULTI_SELECT', 'YES_NO', 'YES_NO_MAYBE']
 
@@ -2249,10 +2290,16 @@ function ReviewsTab({ cohortId, programId }: { cohortId: string; programId: numb
   const [deleteQId,     setDeleteQId]     = useState<number | null>(null)
   const [detailTab,     setDetailTab]     = useState<'questions' | 'responses'>('questions')
   // Responses tab state — keyed by question ID
-  const [questionAnswers, setQuestionAnswers] = useState<Record<number, unknown[]>>({})
-  const [loadingRes,      setLoadingRes]      = useState(false)
-  const [resError,        setResError]        = useState<string | null>(null)
-  const [expandedQs,      setExpandedQs]      = useState<Set<number>>(new Set())
+  const [questionAnswers,    setQuestionAnswers]    = useState<Record<number, GroupedAnswer[]>>({})
+  const [loadingRes,         setLoadingRes]         = useState(false)
+  const [resError,           setResError]           = useState<string | null>(null)
+  const [expandedQs,         setExpandedQs]         = useState<Set<number>>(new Set())
+  // Two-mode state
+  const [responseMode,       setResponseMode]       = useState<'grouped' | 'individual'>('grouped')
+  const [submissions,        setSubmissions]        = useState<SubmissionEntry[]>([])
+  const [selectedRespondent, setSelectedRespondent] = useState<SubmissionEntry | null>(null)
+  const [respondentData,     setRespondentData]     = useState<RespondentSubmissionData | null>(null)
+  const [loadingIndividual,  setLoadingIndividual]  = useState(false)
 
   function loadForms() {
     setLoading(true)
@@ -2276,34 +2323,46 @@ function ReviewsTab({ cohortId, programId }: { cohortId: string; programId: numb
   useEffect(() => { loadForms() }, [cohortId, programId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function loadResponses(questions: AdminReviewQuestion[]) {
-    if (questions.length === 0) { setQuestionAnswers({}); return }
-    setLoadingRes(true); setResError(null); setQuestionAnswers({})
-    Promise.allSettled(
-      questions.map(q => apiClient.get(`/admin/review-questions/${q.id}/answers`))
-    ).then(results => {
-      const map: Record<number, unknown[]> = {}
-      results.forEach((r, i) => {
-        const qId = questions[i].id
-        if (r.status === 'rejected') { map[qId] = []; return }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const raw: any = r.value.data?.data ?? r.value.data
+    if (!selectedForm) return
+    setLoadingRes(true); setResError(null)
+    setQuestionAnswers({}); setSubmissions([])
+    setSelectedRespondent(null); setRespondentData(null); setResponseMode('grouped')
+    apiClient.get(`/admin/review-forms/${selectedForm.id}/submissions?status=SUBMITTED&size=100`)
+      .then(res => {
+        const raw   = res.data?.data ?? res.data
         const inner = raw?.data ?? raw
-        const arr: unknown[] = Array.isArray(inner)          ? inner
-          : Array.isArray(inner?.answers)   ? inner.answers
-          : Array.isArray(inner?.content)   ? inner.content
-          : Array.isArray(inner?.responses) ? inner.responses
-          : []
-        map[qId] = arr
+        // Respondents list (for individual mode)
+        const subs: SubmissionEntry[] = Array.isArray(inner?.submissions) ? inner.submissions : []
+        setSubmissions(subs)
+        // questions[].answers[] (for grouped mode)
+        const apiQs: Array<{ id: number; answers?: GroupedAnswer[] }> =
+          Array.isArray(inner?.questions) ? inner.questions : []
+        const map: Record<number, GroupedAnswer[]> = {}
+        apiQs.forEach(q => { map[q.id] = Array.isArray(q.answers) ? q.answers : [] })
+        questions.forEach(q => { if (!(q.id in map)) map[q.id] = [] })
+        setQuestionAnswers(map)
+        const withAnswers = new Set(
+          Object.entries(map).filter(([, v]) => v.length > 0).map(([k]) => Number(k))
+        )
+        setExpandedQs(withAnswers)
       })
-      setQuestionAnswers(map)
-      // Auto-expand questions that have answers
-      const withAnswers = new Set(
-        Object.entries(map).filter(([, v]) => v.length > 0).map(([k]) => Number(k))
-      )
-      setExpandedQs(withAnswers)
-    })
-    .catch(err => setResError(getApiError(err)))
-    .finally(() => setLoadingRes(false))
+      .catch(err => setResError(getApiError(err)))
+      .finally(() => setLoadingRes(false))
+  }
+
+  function loadIndividualAnswers(submission: SubmissionEntry) {
+    if (!selectedForm || !submission.respondent?.user_id) return
+    setSelectedRespondent(submission)
+    setLoadingIndividual(true)
+    setRespondentData(null)
+    apiClient.get(`/admin/review-forms/${selectedForm.id}/users/${submission.respondent.user_id}/submissions?status=SUBMITTED`)
+      .then(res => {
+        const raw  = res.data?.data ?? res.data
+        const data: RespondentSubmissionData = raw?.data ?? raw
+        setRespondentData(data)
+      })
+      .catch(() => setRespondentData(null))
+      .finally(() => setLoadingIndividual(false))
   }
 
   function loadFormDetail(form: AdminReviewForm) {
@@ -2545,7 +2604,7 @@ function ReviewsTab({ cohortId, programId }: { cohortId: string; programId: numb
 
       {/* Responses tab */}
       {detailTab === 'responses' && (
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto flex flex-col">
           {loadingRes ? (
             <div className="flex items-center justify-center py-16">
               <Loading01Icon size={20} className="animate-spin" color="#d51520" strokeWidth={1.5} />
@@ -2566,79 +2625,396 @@ function ReviewsTab({ cohortId, programId }: { cohortId: string; programId: numb
               </p>
             </div>
           ) : (
-            <div>
-              {formQuestions.map((q, qi) => {
-                const answers = questionAnswers[q.id] ?? []
-                const isExpanded = expandedQs.has(q.id)
-                return (
-                  <div key={q.id} className="border-b border-[#f3f4f6] last:border-b-0">
+            <>
+              {/* Mode toggle + stats bar */}
+              <div className="flex items-center justify-between px-6 py-3 border-b border-[#f3f4f6] bg-white flex-shrink-0">
+                <div className="flex items-center gap-1 p-0.5 bg-[#f3f4f6] rounded-[8px]">
+                  <button
+                    onClick={() => { setResponseMode('grouped'); setSelectedRespondent(null); setRespondentData(null) }}
+                    className={`px-3 py-1.5 rounded-[6px] text-[12px] font-semibold font-display transition-all ${
+                      responseMode === 'grouped'
+                        ? 'bg-white text-[#111827] shadow-[0px_1px_2px_rgba(16,24,40,0.08)]'
+                        : 'text-[#6b7280] hover:text-[#374151]'
+                    }`}>
+                    By Question
+                  </button>
+                  {!(selectedForm?.is_anonymous) && (
                     <button
-                      onClick={() => setExpandedQs(prev => {
-                        const next = new Set(prev)
-                        if (next.has(q.id)) next.delete(q.id); else next.add(q.id)
-                        return next
-                      })}
-                      className="w-full flex items-center gap-3 px-6 py-4 hover:bg-[#fafafa] transition-colors text-left"
-                    >
-                      <div className="w-6 h-6 rounded-full bg-[#f3f4f6] flex items-center justify-center flex-shrink-0">
-                        <span className="text-[10px] font-bold text-[#6b7280] font-display">{qi + 1}</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-semibold text-[#111827] font-display truncate">
-                          {q.question_text ?? q.questionText ?? `Question ${qi + 1}`}
-                        </p>
-                        <p className="text-[11px] text-[#6b7280] font-body capitalize">
-                          {(q.question_type ?? q.questionType ?? '').toLowerCase().replace(/_/g, ' ')}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className="text-[11px] text-[#9ca3af] font-body">
-                          {answers.length} response{answers.length !== 1 ? 's' : ''}
-                        </span>
-                        {isExpanded
-                          ? <ArrowDown01Icon size={14} color="#4b5563" strokeWidth={1.5} />
-                          : <ArrowRight01Icon size={14} color="#4b5563" strokeWidth={1.5} />}
-                      </div>
+                      onClick={() => setResponseMode('individual')}
+                      className={`px-3 py-1.5 rounded-[6px] text-[12px] font-semibold font-display transition-all ${
+                        responseMode === 'individual'
+                          ? 'bg-white text-[#111827] shadow-[0px_1px_2px_rgba(16,24,40,0.08)]'
+                          : 'text-[#6b7280] hover:text-[#374151]'
+                      }`}>
+                      By Student
                     </button>
-                    {isExpanded && (
-                      <div className="px-6 pb-4 bg-[#fafafa]">
-                        {answers.length === 0 ? (
-                          <p className="text-[12px] text-[#9ca3af] font-body py-2">No responses for this question yet.</p>
-                        ) : (
-                          <div className="flex flex-col gap-2">
-                            {answers.map((a, ai) => {
-                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                              const ans = a as any
-                              const respondent = ans.user_name ?? ans.userName ?? ans.user?.name ?? ans.student_name ?? `Respondent ${ai + 1}`
-                              const rawVal = ans.answer_value ?? ans.answerValue ?? ans.value ?? ans.text
-                              const displayVal = Array.isArray(rawVal) ? rawVal.join(', ')
-                                : rawVal !== null && rawVal !== undefined ? String(rawVal) : '—'
-                              const submittedAt = ans.submitted_at ?? ans.submittedAt ?? ans.created_at ?? ''
-                              return (
-                                <div key={ai} className="flex items-start gap-3 py-2.5 border-b border-[#f3f4f6] last:border-b-0">
-                                  <div className="w-7 h-7 rounded-full bg-[#d51520]/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                    <span className="text-[10px] font-bold text-[#d51520] font-display">
-                                      {respondent.split(' ').map((p: string) => p[0]).join('').slice(0, 2).toUpperCase()}
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-[12px] text-[#9ca3af] font-body">
+                    {submissions.length} submission{submissions.length !== 1 ? 's' : ''}
+                  </span>
+                  {selectedForm?.is_anonymous && (
+                    <span className="text-[10px] font-semibold text-[#6b7280] bg-[#f3f4f6] px-2 py-0.5 rounded-full font-display">Anonymous</span>
+                  )}
+                </div>
+              </div>
+
+              {/* ── GROUPED MODE ──────────────────────────────────────────── */}
+              {responseMode === 'grouped' && (
+                <div className="flex-1 overflow-y-auto">
+                  {formQuestions.map((q, qi) => {
+                    const answers   = questionAnswers[q.id] ?? []
+                    const isExpanded = expandedQs.has(q.id)
+                    const qType     = (q.question_type ?? q.questionType ?? '').toUpperCase()
+                    const isChoice  = ['RADIO', 'SINGLE_SELECT', 'CHECKBOX', 'MULTI_SELECT', 'YES_NO', 'YES_NO_MAYBE'].includes(qType)
+                    const isRating  = qType === 'RATING'
+                    const isText    = ['TEXT', 'TEXTAREA'].includes(qType)
+                    const max       = q.configuration?.maximum ?? 5
+
+                    // Build distribution for chart
+                    let distribution: Array<{ label: string; count: number }> = []
+                    if (isRating && answers.length > 0) {
+                      const counts: Record<number, number> = {}
+                      for (let r = 1; r <= max; r++) counts[r] = 0
+                      answers.forEach(a => {
+                        const v = typeof a.answer_value === 'number' ? a.answer_value
+                          : typeof a.numeric_value === 'number' ? a.numeric_value
+                          : typeof a.numericValue === 'number'  ? a.numericValue
+                          : Number(a.answer_value)
+                        if (!isNaN(v) && v >= 1 && v <= max) counts[v] = (counts[v] ?? 0) + 1
+                      })
+                      distribution = Object.entries(counts).map(([k, c]) => ({ label: `${k} star${Number(k) !== 1 ? 's' : ''}`, count: c }))
+                    } else if (isChoice && answers.length > 0) {
+                      const counts: Record<string, number> = {}
+                      answers.forEach(a => {
+                        const val = a.answer_value
+                        const vals = Array.isArray(val) ? val : [val]
+                        vals.forEach(v => { const s = String(v ?? ''); if (s) counts[s] = (counts[s] ?? 0) + 1 })
+                      })
+                      distribution = Object.entries(counts).sort((x, y) => y[1] - x[1]).map(([k, c]) => ({ label: k, count: c }))
+                    }
+                    const distTotal = distribution.reduce((s, d) => s + d.count, 0)
+
+                    // Average for RATING
+                    const numericVals = isRating ? answers.map(a => {
+                      const v = typeof a.answer_value === 'number' ? a.answer_value
+                        : typeof a.numeric_value === 'number' ? a.numeric_value
+                        : typeof a.numericValue === 'number'  ? a.numericValue
+                        : Number(a.answer_value)
+                      return isNaN(v) ? null : v
+                    }).filter((v): v is number => v !== null) : []
+                    const avg = numericVals.length > 0
+                      ? numericVals.reduce((s, v) => s + v, 0) / numericVals.length
+                      : null
+
+                    return (
+                      <div key={q.id} className="border-b border-[#f3f4f6] last:border-b-0">
+                        <button
+                          onClick={() => setExpandedQs(prev => {
+                            const next = new Set(prev)
+                            if (next.has(q.id)) next.delete(q.id); else next.add(q.id)
+                            return next
+                          })}
+                          className="w-full flex items-center gap-3 px-6 py-4 hover:bg-[#fafafa] transition-colors text-left"
+                        >
+                          <div className="w-6 h-6 rounded-full bg-[#f3f4f6] flex items-center justify-center flex-shrink-0">
+                            <span className="text-[10px] font-bold text-[#6b7280] font-display">{qi + 1}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[13px] font-semibold text-[#111827] font-display leading-snug">
+                              {q.question_text ?? q.questionText ?? `Question ${qi + 1}`}
+                            </p>
+                            <p className="text-[11px] text-[#6b7280] font-body capitalize">
+                              {qType.toLowerCase().replace(/_/g, ' ')}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {isRating && avg !== null && (
+                              <span className="text-[12px] font-bold text-[#d51520] font-display">{avg.toFixed(1)}</span>
+                            )}
+                            <span className="text-[11px] text-[#9ca3af] font-body">
+                              {answers.length} response{answers.length !== 1 ? 's' : ''}
+                            </span>
+                            {isExpanded
+                              ? <ArrowDown01Icon size={14} color="#4b5563" strokeWidth={1.5} />
+                              : <ArrowRight01Icon size={14} color="#4b5563" strokeWidth={1.5} />}
+                          </div>
+                        </button>
+
+                        {isExpanded && (
+                          <div className="px-6 pb-5 pt-1 bg-[#fafafa] border-t border-[#f3f4f6]">
+                            {answers.length === 0 ? (
+                              <p className="text-[12px] text-[#9ca3af] font-body py-3">No responses for this question yet.</p>
+                            ) : (isRating || isChoice) ? (
+                              <div className="pt-3">
+                                {/* Summary row */}
+                                <div className="flex items-center gap-4 mb-4">
+                                  <div className="bg-white border border-[#eaecf0] rounded-[8px] px-4 py-2.5 text-center">
+                                    <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display mb-0.5">Responses</p>
+                                    <p className="text-[22px] font-bold text-[#111827] font-display leading-none">{answers.length}</p>
+                                  </div>
+                                  {isRating && avg !== null && (
+                                    <div className="bg-white border border-[#eaecf0] rounded-[8px] px-4 py-2.5 text-center">
+                                      <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display mb-0.5">Avg Score</p>
+                                      <p className="text-[22px] font-bold text-[#d51520] font-display leading-none">
+                                        {avg.toFixed(1)}
+                                        <span className="text-[12px] font-medium text-[#9ca3af] ml-0.5">/{max}</span>
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                                {/* Distribution bars */}
+                                {distribution.length > 0 && (
+                                  <div className="flex flex-col gap-2">
+                                    {distribution.map(({ label, count }) => {
+                                      const pct = distTotal > 0 ? Math.round((count / distTotal) * 100) : 0
+                                      return (
+                                        <div key={label} className="flex items-center gap-3">
+                                          <span className="text-[12px] font-medium text-[#374151] font-body w-24 truncate shrink-0">{label}</span>
+                                          <div className="flex-1 h-2 bg-[#e5e7eb] rounded-full overflow-hidden">
+                                            <div className="h-2 bg-[#d51520] rounded-full transition-all duration-300" style={{ width: `${pct}%` }} />
+                                          </div>
+                                          <span className="text-[11px] text-[#9ca3af] font-body w-16 text-right shrink-0 tabular-nums">
+                                            {count} · {pct}%
+                                          </span>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                )}
+                                {/* Individual answers below chart (non-anonymous only) */}
+                                {!selectedForm?.is_anonymous && answers.length > 0 && (
+                                  <div className="mt-4 pt-3 border-t border-[#f3f4f6]">
+                                    <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[#9ca3af] font-display mb-2">Individual answers</p>
+                                    <div className="flex flex-col gap-1">
+                                      {answers.map((a, ai) => {
+                                        const name = a.respondent?.name ?? `Respondent ${ai + 1}`
+                                        const rawVal = a.answer_value
+                                        const displayVal = Array.isArray(rawVal) ? (rawVal as string[]).join(', ')
+                                          : rawVal !== null && rawVal !== undefined ? String(rawVal) : '—'
+                                        return (
+                                          <div key={ai} className="flex items-center gap-2 py-1.5 border-b border-[#f9fafb] last:border-0">
+                                            <div className="w-6 h-6 rounded-full bg-[#fef2f2] flex items-center justify-center flex-shrink-0">
+                                              <span className="text-[9px] font-bold text-[#d51520] font-display">
+                                                {getInitials(name)}
+                                              </span>
+                                            </div>
+                                            <span className="text-[12px] font-medium text-[#374151] font-body flex-1 truncate">{name}</span>
+                                            {isRating ? (
+                                              <div className="flex items-center gap-0.5 flex-shrink-0">
+                                                {Array.from({ length: max }, (_, n) => (
+                                                  <div key={n} className={`w-3 h-3 rounded-[2px] ${n < Number(rawVal) ? 'bg-[#d51520]' : 'bg-[#e5e7eb]'}`} />
+                                                ))}
+                                                <span className="text-[11px] font-bold text-[#111827] font-display ml-1">{String(rawVal)}</span>
+                                              </div>
+                                            ) : (
+                                              <span className="text-[12px] text-[#111827] font-body flex-shrink-0 max-w-[160px] truncate">{displayVal}</span>
+                                            )}
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ) : isText ? (
+                              // Text responses — list
+                              <div className="flex flex-col gap-2 pt-3">
+                                {answers.map((a, ai) => {
+                                  const name = a.respondent?.name ?? (selectedForm?.is_anonymous ? 'Anonymous' : `Respondent ${ai + 1}`)
+                                  const val  = a.answer_value !== null && a.answer_value !== undefined ? String(a.answer_value) : '—'
+                                  return (
+                                    <div key={ai} className="bg-white border border-[#eaecf0] rounded-[8px] px-4 py-3">
+                                      {!selectedForm?.is_anonymous && (
+                                        <p className="text-[10px] font-semibold text-[#9ca3af] font-display mb-1 uppercase tracking-wider">{name}</p>
+                                      )}
+                                      <p className="text-[13px] text-[#111827] font-body leading-relaxed">{val}</p>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            ) : (
+                              // Fallback for other types
+                              <div className="flex flex-col gap-2 pt-3">
+                                {answers.map((a, ai) => {
+                                  const name = a.respondent?.name ?? `Respondent ${ai + 1}`
+                                  const rawVal = a.answer_value
+                                  const displayVal = Array.isArray(rawVal) ? (rawVal as string[]).join(', ')
+                                    : rawVal !== null && rawVal !== undefined ? String(rawVal) : '—'
+                                  return (
+                                    <div key={ai} className="flex items-center gap-3 py-2 border-b border-[#f9fafb] last:border-0">
+                                      <div className="w-6 h-6 rounded-full bg-[#fef2f2] flex items-center justify-center flex-shrink-0">
+                                        <span className="text-[9px] font-bold text-[#d51520] font-display">{getInitials(name)}</span>
+                                      </div>
+                                      <span className="text-[12px] font-medium text-[#374151] font-body flex-1 truncate">{name}</span>
+                                      <span className="text-[12px] text-[#111827] font-body flex-shrink-0">{displayVal}</span>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* ── INDIVIDUAL MODE ───────────────────────────────────────── */}
+              {responseMode === 'individual' && (
+                <div className="flex-1 flex overflow-hidden">
+                  {/* Left: respondent list */}
+                  <div className="w-[220px] flex-shrink-0 border-r border-[#f3f4f6] overflow-y-auto bg-[#fafafa]">
+                    {submissions.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+                        <p className="text-[12px] text-[#9ca3af] font-body">No submissions yet.</p>
+                      </div>
+                    ) : submissions.map((sub, si) => {
+                      const name   = sub.respondent?.name ?? `Respondent ${si + 1}`
+                      const email  = sub.respondent?.email ?? ''
+                      const rating = sub.calculated_rating ?? sub.calculatedRating
+                      const isActive = selectedRespondent?.id === sub.id
+                      return (
+                        <button
+                          key={sub.id}
+                          onClick={() => loadIndividualAnswers(sub)}
+                          className={`w-full text-left px-4 py-3 border-b border-[#f3f4f6] last:border-0 transition-colors flex items-start gap-2.5 ${
+                            isActive ? 'bg-[#fef2f2] border-l-2 border-l-[#d51520]' : 'hover:bg-white'
+                          }`}>
+                          <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                            isActive ? 'bg-[#d51520]' : 'bg-[#f3f4f6]'
+                          }`}>
+                            <span className={`text-[9px] font-bold font-display ${isActive ? 'text-white' : 'text-[#6b7280]'}`}>
+                              {getInitials(name)}
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-[12px] font-semibold font-display leading-tight truncate ${isActive ? 'text-[#d51520]' : 'text-[#111827]'}`}>
+                              {name}
+                            </p>
+                            {email && <p className="text-[10px] text-[#9ca3af] font-body truncate mt-0.5">{email}</p>}
+                            {rating != null && (
+                              <p className="text-[10px] text-[#6b7280] font-body mt-0.5">
+                                {rating.toFixed(1)} avg
+                              </p>
+                            )}
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  {/* Right: selected respondent's answers */}
+                  <div className="flex-1 overflow-y-auto">
+                    {!selectedRespondent ? (
+                      <div className="flex flex-col items-center justify-center h-full py-16 text-center px-6">
+                        <div className="w-12 h-12 rounded-[10px] bg-[#f3f4f6] flex items-center justify-center mb-3">
+                          <UserGroup02Icon size={20} color="#d1d5db" strokeWidth={1.5} />
+                        </div>
+                        <p className="text-[13px] font-semibold text-[#374151] font-display mb-1">Select a student</p>
+                        <p className="text-[12px] text-[#9ca3af] font-body">
+                          Click a name on the left to see their answers.
+                        </p>
+                      </div>
+                    ) : loadingIndividual ? (
+                      <div className="flex items-center justify-center py-16">
+                        <Loading01Icon size={18} className="animate-spin" color="#d51520" strokeWidth={1.5} />
+                      </div>
+                    ) : !respondentData ? (
+                      <div className="flex flex-col items-center justify-center py-16 text-center px-6">
+                        <p className="text-[13px] font-semibold text-[#374151] font-display mb-1">No answers found</p>
+                        <p className="text-[12px] text-[#9ca3af] font-body">This student&apos;s responses could not be loaded.</p>
+                      </div>
+                    ) : (() => {
+                      const respondent = respondentData.respondent
+                      const allAnswers: RespondentAnswer[] = respondentData.submissions?.flatMap(s => s.answers) ?? []
+                      const submittedAt = respondentData.submissions?.[0]?.submitted_at
+                      return (
+                        <div className="p-5">
+                          {/* Respondent header */}
+                          <div className="flex items-center gap-3 mb-5 pb-4 border-b border-[#f3f4f6]">
+                            <div className="w-9 h-9 rounded-full bg-[#d51520] flex items-center justify-center flex-shrink-0">
+                              <span className="text-[11px] font-bold text-white font-display">{getInitials(respondent?.name ?? '?')}</span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[14px] font-bold text-[#111827] font-display">{respondent?.name ?? '—'}</p>
+                              <p className="text-[11px] text-[#9ca3af] font-body">
+                                {respondent?.email ?? ''}
+                                {submittedAt ? ` · Submitted ${new Date(submittedAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
+                              </p>
+                            </div>
+                            {/* Navigation arrows */}
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              {(() => {
+                                const idx = submissions.findIndex(s => s.id === selectedRespondent.id)
+                                const prev = idx > 0 ? submissions[idx - 1] : null
+                                const next = idx < submissions.length - 1 ? submissions[idx + 1] : null
+                                return (
+                                  <>
+                                    <button
+                                      disabled={!prev}
+                                      onClick={() => prev && loadIndividualAnswers(prev)}
+                                      className="w-7 h-7 flex items-center justify-center rounded-[6px] border border-[#e5e7eb] hover:bg-[#f9fafb] disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                                      <ArrowLeft01Icon size={13} color="#4b5563" strokeWidth={1.5} />
+                                    </button>
+                                    <button
+                                      disabled={!next}
+                                      onClick={() => next && loadIndividualAnswers(next)}
+                                      className="w-7 h-7 flex items-center justify-center rounded-[6px] border border-[#e5e7eb] hover:bg-[#f9fafb] disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                                      <ArrowRight01Icon size={13} color="#4b5563" strokeWidth={1.5} />
+                                    </button>
+                                    <span className="text-[11px] text-[#9ca3af] font-body ml-1">
+                                      {submissions.findIndex(s => s.id === selectedRespondent.id) + 1}/{submissions.length}
                                     </span>
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-[11px] text-[#6b7280] font-body mb-0.5">
-                                      {respondent}
-                                      {submittedAt ? ` · ${new Date(submittedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
-                                    </p>
-                                    <p className="text-[13px] text-[#111827] font-body">{displayVal}</p>
-                                  </div>
+                                  </>
+                                )
+                              })()}
+                            </div>
+                          </div>
+                          {/* Answers */}
+                          <div className="flex flex-col gap-3">
+                            {allAnswers.map((ra, rai) => {
+                              const qText = ra.question.question_text ?? ra.question.questionText ?? `Question ${rai + 1}`
+                              const qType = (ra.question.question_type ?? ra.question.questionType ?? '').toUpperCase()
+                              const max   = ra.question.configuration?.maximum ?? 5
+                              const val   = ra.answer_value
+                              const isUnanswered = val === null || val === undefined
+                              return (
+                                <div key={rai} className={`rounded-[8px] border px-4 py-3.5 ${
+                                  isUnanswered ? 'bg-[#fafafa] border-[#f3f4f6]' : 'bg-white border-[#eaecf0]'
+                                }`}>
+                                  <p className="text-[12px] font-semibold text-[#374151] font-display mb-2 leading-snug">{qText}</p>
+                                  {isUnanswered ? (
+                                    <p className="text-[12px] text-[#d1d5db] font-body italic">Not answered</p>
+                                  ) : qType === 'RATING' ? (
+                                    <div className="flex items-center gap-1.5">
+                                      {Array.from({ length: max }, (_, n) => (
+                                        <div key={n} className={`w-5 h-5 rounded-[4px] ${n < Number(val) ? 'bg-[#d51520]' : 'bg-[#f3f4f6]'}`} />
+                                      ))}
+                                      <span className="text-[14px] font-bold text-[#111827] font-display ml-1">{String(val)}<span className="text-[11px] text-[#9ca3af] font-normal">/{max}</span></span>
+                                    </div>
+                                  ) : Array.isArray(val) ? (
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {(val as string[]).map((v, vi) => (
+                                        <span key={vi} className="text-[12px] font-medium text-[#374151] bg-[#f3f4f6] px-2 py-0.5 rounded-[4px] font-body">{v}</span>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <p className="text-[13px] text-[#111827] font-body leading-relaxed">{String(val)}</p>
+                                  )}
                                 </div>
                               )
                             })}
                           </div>
-                        )}
-                      </div>
-                    )}
+                        </div>
+                      )
+                    })()}
                   </div>
-                )
-              })}
-            </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

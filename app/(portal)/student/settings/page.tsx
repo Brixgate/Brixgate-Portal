@@ -364,8 +364,8 @@ export default function SettingsPage() {
       showToast('Please select a JPG, PNG, or WebP image.', 'error')
       return
     }
-    if (file.size > 2 * 1024 * 1024) {
-      showToast('Image must be under 2MB.', 'error')
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('Image must be under 5MB.', 'error')
       return
     }
 
@@ -618,7 +618,7 @@ export default function SettingsPage() {
                     {uploadingAvatar ? 'Uploading…' : 'Change photo'}
                   </button>
                   <p className="text-[11px] text-[#4b5563] font-body mt-0.5">
-                    JPG, PNG or WebP · Max 2MB
+                    JPG, PNG or WebP · Max 5MB
                   </p>
                 </div>
               </div>
