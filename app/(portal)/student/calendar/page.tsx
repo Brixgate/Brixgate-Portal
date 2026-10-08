@@ -13,6 +13,7 @@ import {
   Loading01Icon,
   LinkSquare01Icon,
   Cancel01Icon,
+  CheckmarkCircle01Icon,
 } from 'hugeicons-react'
 
 // ── API shapes ────────────────────────────────────────────────────────────────
@@ -51,18 +52,24 @@ interface CalEvent {
   meetingLink: string
   sessionType: string
   cohortTitle: string
+  attendanceEnabled: boolean
+  attendanceStatus: 'OPEN' | 'CLOSED' | 'CANCELLED' | null
+  myAttendanceStatus: string | null
 }
 
 function readSchedule(s: ApiSchedule, cohortTitle: string): CalEvent {
   return {
-    id:          s.id,
-    title:       s.title ?? 'Session',
-    description: s.description ?? '',
-    startISO:    s.start_datetime ?? s.startDatetime ?? '',
-    endISO:      s.end_datetime   ?? s.endDatetime   ?? '',
-    meetingLink: s.meeting_link   ?? s.meetingLink   ?? '',
-    sessionType: s.session_type   ?? s.sessionType   ?? 'LIVE_CLASS',
+    id:                 s.id,
+    title:              s.title ?? 'Session',
+    description:        s.description ?? '',
+    startISO:           s.start_datetime ?? s.startDatetime ?? '',
+    endISO:             s.end_datetime   ?? s.endDatetime   ?? '',
+    meetingLink:        s.meeting_link   ?? s.meetingLink   ?? '',
+    sessionType:        s.session_type   ?? s.sessionType   ?? 'LIVE_CLASS',
     cohortTitle,
+    attendanceEnabled:  s.attendance_enabled ?? s.attendanceEnabled ?? false,
+    attendanceStatus:   null,
+    myAttendanceStatus: null,
   }
 }
 
@@ -179,6 +186,49 @@ function AddToCalendarButton({ ev }: { ev: CalEvent }) {
   )
 }
 
+// ── Attendance check-in widget ────────────────────────────────────────────────
+function AttendanceCheckIn({ scheduleId, onCheckedIn }: { scheduleId: number; onCheckedIn: (status: string) => void }) {
+  const [code,    setCode]    = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState<string | null>(null)
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!code.trim()) return
+    setLoading(true); setError(null)
+    try {
+      const res = await apiClient.post(`/cohort-schedules/${scheduleId}/attendance/check-in`, { check_in_code: code.trim() })
+      const raw = res.data?.data ?? res.data
+      const status = raw?.status ?? raw?.attendance_status ?? 'PRESENT'
+      onCheckedIn(status)
+    } catch (err) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      setError(msg ?? 'Invalid code. Please check and try again.')
+    } finally { setLoading(false) }
+  }
+
+  return (
+    <form onSubmit={submit} className="mt-2">
+      <p className="text-[11px] font-semibold text-[#15803d] font-display mb-1.5">Attendance is open — enter your code</p>
+      {error && <p className="text-[11px] text-[#d51520] font-body mb-1">{error}</p>}
+      <div className="flex gap-1.5">
+        <input
+          type="text"
+          value={code}
+          onChange={e => setCode(e.target.value.toUpperCase())}
+          placeholder="e.g. A3X7"
+          maxLength={10}
+          className="flex-1 h-8 px-2.5 text-[13px] font-body border border-[#bbf7d0] rounded-[6px] bg-white focus:outline-none focus:ring-2 focus:ring-[#15803d]/20 focus:border-[#15803d] uppercase tracking-widest"
+        />
+        <button type="submit" disabled={loading || !code.trim()}
+          className="h-8 px-3 bg-[#15803d] hover:bg-[#166534] text-white text-[12px] font-semibold font-display rounded-[6px] disabled:opacity-50 transition-colors flex items-center gap-1">
+          {loading ? <Loading01Icon size={11} className="animate-spin" strokeWidth={2} /> : 'Mark Present'}
+        </button>
+      </div>
+    </form>
+  )
+}
+
 // ── Day detail panel ──────────────────────────────────────────────────────────
 function DayPanel({
   day, month, year, events, onClose,
@@ -188,6 +238,8 @@ function DayPanel({
 }) {
   const sorted = [...events].sort((a, b) => a.startISO.localeCompare(b.startISO))
   const weekday = WEEKDAYS[new Date(year, month, day).getDay()]
+  // Track per-event attendance status after check-in (overrides CalEvent.myAttendanceStatus)
+  const [checkedIn, setCheckedIn] = useState<Record<number, string>>({})
 
   return (
     <div className="w-[300px] flex-shrink-0 border-l border-[#f3f4f6] flex flex-col bg-white">
@@ -201,10 +253,7 @@ function DayPanel({
             {sorted.length} session{sorted.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <button
-          onClick={onClose}
-          className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#f3f4f6] transition-colors"
-        >
+        <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#f3f4f6] transition-colors">
           <Cancel01Icon size={14} color="#6b7280" strokeWidth={2} />
         </button>
       </div>
@@ -219,45 +268,78 @@ function DayPanel({
             <p className="text-[12px] text-[#9ca3af] font-body text-center">No sessions this day</p>
           </div>
         ) : (
-          sorted.map(ev => (
-            <div key={ev.id} className="bg-[#fef2f2] border border-[#fecaca] rounded-[8px] p-3 flex flex-col gap-1.5">
-              <p className="text-[13px] font-semibold text-[#d51520] font-display leading-snug">{ev.title}</p>
+          sorted.map(ev => {
+            const isLive = ev.attendanceStatus === 'OPEN'
+            const myStatus = checkedIn[ev.id] ?? ev.myAttendanceStatus
+            const alreadyIn = myStatus && myStatus !== 'NOT_MARKED' && myStatus !== 'ABSENT'
 
-              <div className="flex items-center gap-1.5 text-[11px] text-[#4b5563] font-body">
-                <Clock01Icon size={11} color="#6b7280" strokeWidth={1.5} />
-                <span>
-                  {formatTime(ev.startISO)}
-                  {ev.endISO ? ` – ${formatTime(ev.endISO)}` : ''}
-                  {' WAT'}
-                </span>
-              </div>
-
-              <p className="text-[11px] text-[#6b7280] font-body">{ev.cohortTitle}</p>
-
-              {ev.description && (
-                <p className="text-[11px] text-[#4b5563] font-body leading-[1.5] border-t border-[#fecaca] pt-1.5 mt-0.5">
-                  {ev.description}
-                </p>
-              )}
-
-              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                {ev.meetingLink ? (
-                  <a
-                    href={ev.meetingLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center gap-1.5 text-[11px] font-semibold font-display text-white bg-[#d51520] hover:bg-[#b81119] px-3 py-1.5 rounded-[6px] transition-colors"
-                  >
-                    <LinkSquare01Icon size={11} color="white" strokeWidth={2} />
-                    Join Session
-                  </a>
-                ) : (
-                  <p className="text-[10px] text-[#9ca3af] font-body">Link not available yet</p>
+            return (
+              <div key={ev.id} className={`rounded-[8px] p-3 flex flex-col gap-1.5 border ${
+                isLive
+                  ? 'bg-[#f0fdf4] border-[#bbf7d0]'
+                  : 'bg-[#fef2f2] border-[#fecaca]'
+              }`}>
+                {/* Live badge */}
+                {isLive && (
+                  <div className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#15803d] animate-pulse" />
+                    <span className="text-[10px] font-semibold text-[#15803d] font-display uppercase tracking-wide">Live</span>
+                  </div>
                 )}
-                {ev.startISO && <AddToCalendarButton ev={ev} />}
+
+                <p className={`text-[13px] font-semibold font-display leading-snug ${isLive ? 'text-[#15803d]' : 'text-[#d51520]'}`}>{ev.title}</p>
+
+                <div className="flex items-center gap-1.5 text-[11px] text-[#4b5563] font-body">
+                  <Clock01Icon size={11} color="#6b7280" strokeWidth={1.5} />
+                  <span>
+                    {formatTime(ev.startISO)}{ev.endISO ? ` – ${formatTime(ev.endISO)}` : ''} WAT
+                  </span>
+                </div>
+
+                <p className="text-[11px] text-[#6b7280] font-body">{ev.cohortTitle}</p>
+
+                {ev.description && (
+                  <p className={`text-[11px] text-[#4b5563] font-body leading-[1.5] border-t pt-1.5 mt-0.5 ${isLive ? 'border-[#bbf7d0]' : 'border-[#fecaca]'}`}>
+                    {ev.description}
+                  </p>
+                )}
+
+                <div className={`flex items-center gap-1.5 mt-0.5 flex-wrap ${isLive ? 'border-t border-[#bbf7d0] pt-1.5' : ''}`}>
+                  {ev.meetingLink ? (
+                    <a href={ev.meetingLink} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center gap-1.5 text-[11px] font-semibold font-display text-white bg-[#d51520] hover:bg-[#b81119] px-3 py-1.5 rounded-[6px] transition-colors">
+                      <LinkSquare01Icon size={11} color="white" strokeWidth={2} />
+                      Join Session
+                    </a>
+                  ) : (
+                    <p className="text-[10px] text-[#9ca3af] font-body">Link not available yet</p>
+                  )}
+                  {ev.startISO && <AddToCalendarButton ev={ev} />}
+                </div>
+
+                {/* Attendance section */}
+                {ev.attendanceEnabled && (
+                  <div className={`border-t pt-2 mt-0.5 ${isLive ? 'border-[#bbf7d0]' : 'border-[#fecaca]'}`}>
+                    {alreadyIn ? (
+                      <div className="flex items-center gap-1.5">
+                        <CheckmarkCircle01Icon size={14} color="#15803d" strokeWidth={1.5} />
+                        <span className="text-[12px] font-semibold text-[#15803d] font-display">
+                          Attendance marked — {myStatus}
+                        </span>
+                      </div>
+                    ) : isLive ? (
+                      <AttendanceCheckIn
+                        scheduleId={ev.id}
+                        onCheckedIn={(status) => setCheckedIn(prev => ({ ...prev, [ev.id]: status }))}
+                      />
+                    ) : (
+                      <p className="text-[11px] text-[#9ca3af] font-body">Attendance tracking enabled</p>
+                    )}
+                  </div>
+                )}
               </div>
-            </div>
-          ))
+            )
+          })
         )}
       </div>
     </div>
@@ -266,13 +348,18 @@ function DayPanel({
 
 // ── Event dot (grid cell chip) ────────────────────────────────────────────────
 function EventChip({ event, onClick }: { event: CalEvent; onClick: () => void }) {
+  const isLive = event.attendanceStatus === 'OPEN'
   return (
     <button
       onClick={e => { e.stopPropagation(); onClick() }}
-      className="w-full text-left px-1 py-0.5 rounded-[3px] bg-[#fef2f2] border border-[#fecaca] text-[10px] font-semibold text-[#d51520] font-display truncate hover:bg-[#fee2e2] transition-colors"
+      className={`w-full text-left px-1 py-0.5 rounded-[3px] text-[10px] font-semibold font-display truncate transition-colors ${
+        isLive
+          ? 'bg-[#ecfdf3] border border-[#bbf7d0] text-[#15803d] hover:bg-[#d1fae5]'
+          : 'bg-[#fef2f2] border border-[#fecaca] text-[#d51520] hover:bg-[#fee2e2]'
+      }`}
       title={event.title}
     >
-      {formatTime(event.startISO)} {event.title}
+      {isLive && '● '}{formatTime(event.startISO)} {event.title}
     </button>
   )
 }
@@ -321,7 +408,24 @@ function CalendarInner() {
               const list: ApiSchedule[] = Array.isArray(raw)
                 ? raw
                 : (raw as Record<string, unknown>)?.schedules as ApiSchedule[] ?? []
-              list.forEach(s => all.push(readSchedule(s, cohortTitle)))
+              const events = list.map(s => readSchedule(s, cohortTitle))
+
+              // Fetch attendance status for each attendance-enabled schedule in parallel
+              await Promise.all(
+                events.map(async ev => {
+                  if (!ev.attendanceEnabled) return
+                  try {
+                    const aRes = await apiClient.get(`/cohort-schedules/${ev.id}/attendance`)
+                    const aRaw = aRes.data?.data ?? aRes.data
+                    const evData = aRaw?.attendance_event ?? aRaw?.attendanceEvent ?? aRaw?.event
+                    if (evData?.status) ev.attendanceStatus = evData.status
+                    const myEntry = aRaw?.my_entry ?? aRaw?.myEntry
+                    if (myEntry?.status) ev.myAttendanceStatus = myEntry.status
+                  } catch { /* no attendance event yet */ }
+                })
+              )
+
+              events.forEach(e => all.push(e))
             } catch { /* skip */ }
           })
         )

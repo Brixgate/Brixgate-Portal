@@ -3392,6 +3392,300 @@ function ScheduleModal({ cohortId, schedule, onClose, onSaved }: {
   )
 }
 
+// ── Attendance types ──────────────────────────────────────────────────────────
+interface AttendanceEvent {
+  id: number
+  status: 'OPEN' | 'CLOSED' | 'CANCELLED'
+  check_in_code?: string; checkInCode?: string
+  closes_at?: string; closesAt?: string
+  late_after_minutes?: number; lateAfterMinutes?: number
+  counts_toward_score?: boolean; countsTowardScore?: boolean
+}
+
+interface AttendanceEntry {
+  id: number
+  user_id?: number; userId?: number
+  name?: string; email?: string
+  status: 'PRESENT' | 'LATE' | 'ABSENT' | 'EXCUSED' | 'NOT_MARKED'
+  source?: string
+  checked_in_at?: string; checkedInAt?: string
+}
+
+// ── Open attendance config modal ──────────────────────────────────────────────
+function OpenAttendanceModal({
+  onClose, onSubmit, loading, error,
+}: {
+  onClose: () => void
+  onSubmit: (body: Record<string, unknown>) => Promise<void>
+  loading: boolean
+  error: string | null
+}) {
+  const defaultClose = new Date(Date.now() + 15 * 60 * 1000).toISOString().slice(0, 16)
+  const [closesAt,   setClosesAt]   = useState(defaultClose)
+  const [lateAfter,  setLateAfter]  = useState('5')
+  const [countScore, setCountScore] = useState(true)
+
+  function submit() {
+    onSubmit({
+      closes_at: new Date(closesAt).toISOString(),
+      late_after_minutes: parseInt(lateAfter) || 5,
+      counts_toward_score: countScore,
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4">
+      <div className="bg-white rounded-[12px] shadow-lg w-full max-w-[380px] p-6">
+        <h4 className="text-[15px] font-bold text-[#111827] font-display mb-1">Open Attendance</h4>
+        <p className="text-[12px] text-[#6b7280] font-body mb-5">A unique check-in code will be generated for students to enter.</p>
+        {error && (
+          <div className="mb-4 px-3 py-2 bg-[#fef2f2] border border-[#fecaca] rounded-[6px] text-[12px] text-[#b91c1c] font-body">{error}</div>
+        )}
+        <div className="space-y-4">
+          <div>
+            <label className="block text-[12px] font-medium text-[#374151] font-body mb-1">Auto-close at</label>
+            <input type="datetime-local" value={closesAt} onChange={e => setClosesAt(e.target.value)}
+              className="w-full h-9 px-3 text-[13px] font-body border border-[#e5e7eb] rounded-[6px] focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520] bg-white" />
+          </div>
+          <div>
+            <label className="block text-[12px] font-medium text-[#374151] font-body mb-1">Mark late after (minutes)</label>
+            <input type="number" min="1" value={lateAfter} onChange={e => setLateAfter(e.target.value)}
+              className="w-full h-9 px-3 text-[13px] font-body border border-[#e5e7eb] rounded-[6px] focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520] bg-white" />
+          </div>
+          <button onClick={() => setCountScore(v => !v)}
+            className="flex items-center gap-3 w-full text-left">
+            <div className={`w-9 h-5 rounded-full transition-colors flex-shrink-0 ${countScore ? 'bg-[#d51520]' : 'bg-[#e5e7eb]'}`}>
+              <div className={`w-4 h-4 bg-white rounded-full shadow mt-0.5 transition-transform ${countScore ? 'translate-x-4' : 'translate-x-0.5'}`} />
+            </div>
+            <span className="text-[12px] text-[#374151] font-body">Count toward graduation score</span>
+          </button>
+        </div>
+        <div className="flex justify-end gap-2 mt-6">
+          <button onClick={onClose} disabled={loading}
+            className="h-9 px-4 border border-[#e5e7eb] text-[#374151] text-[13px] font-semibold font-display rounded-[8px] hover:bg-[#f9fafb] disabled:opacity-50">
+            Cancel
+          </button>
+          <button onClick={submit} disabled={loading}
+            className="flex items-center gap-2 h-9 px-4 bg-[#d51520] hover:bg-[#b81119] text-white text-[13px] font-semibold font-display rounded-[8px] disabled:opacity-50 transition-colors">
+            {loading && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
+            Open Attendance
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Attendance section (inside schedule detail panel) ─────────────────────────
+function AttendanceSection({ scheduleId }: { scheduleId: number }) {
+  const [event,        setEvent]        = useState<AttendanceEvent | null>(null)
+  const [entries,      setEntries]      = useState<AttendanceEntry[]>([])
+  const [loading,      setLoading]      = useState(true)
+  const [showModal,    setShowModal]    = useState(false)
+  const [codeCopied,   setCodeCopied]   = useState(false)
+  const [actionError,  setActionError]  = useState<string | null>(null)
+  const [acting,       setActing]       = useState(false)
+  const [overriding,   setOverriding]   = useState<number | null>(null)
+
+  function load() {
+    setLoading(true)
+    apiClient.get(`/admin/cohort-schedules/${scheduleId}/attendance`)
+      .then(res => {
+        const raw = res.data?.data ?? res.data
+        const ev: AttendanceEvent | null =
+          raw?.attendance_event ?? raw?.attendanceEvent ?? raw?.event ??
+          (raw?.status && typeof raw.status === 'string' ? raw : null)
+        setEvent(ev ?? null)
+        const ents: AttendanceEntry[] = Array.isArray(raw?.entries) ? raw.entries
+          : Array.isArray(raw?.attendance_entries) ? raw.attendance_entries : []
+        setEntries(ents)
+      })
+      .catch(() => { setEvent(null); setEntries([]) })
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => { load() }, [scheduleId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function openAttendance(body: Record<string, unknown>) {
+    setActing(true); setActionError(null)
+    try {
+      const res = await apiClient.post(`/admin/cohort-schedules/${scheduleId}/attendance`, body)
+      const raw = res.data?.data ?? res.data
+      const ev: AttendanceEvent = raw?.attendance_event ?? raw?.attendanceEvent ?? raw?.event ?? raw
+      setEvent(ev)
+      setEntries([])
+    } catch (e) {
+      setActionError(getApiError(e))
+    } finally { setActing(false); setShowModal(false) }
+  }
+
+  async function changeStatus(newStatus: 'CLOSED' | 'CANCELLED') {
+    if (!event) return
+    setActing(true); setActionError(null)
+    try {
+      await apiClient.patch(`/admin/cohort-schedules/${scheduleId}/attendance/${event.id}`, { status: newStatus })
+      setEvent(prev => prev ? { ...prev, status: newStatus } : prev)
+      if (newStatus === 'CLOSED') load()
+    } catch (e) { setActionError(getApiError(e)) }
+    finally { setActing(false) }
+  }
+
+  async function overrideEntry(entry: AttendanceEntry, newStatus: string) {
+    const uid = entry.user_id ?? entry.userId
+    if (!uid) return
+    setOverriding(uid)
+    try {
+      await apiClient.put(
+        `/admin/cohort-schedules/${scheduleId}/attendance/entries/${uid}`,
+        { status: newStatus, source: 'ADMIN' }
+      )
+      setEntries(prev => prev.map(e =>
+        (e.user_id ?? e.userId) === uid ? { ...e, status: newStatus as AttendanceEntry['status'] } : e
+      ))
+    } catch { /* silent */ } finally { setOverriding(null) }
+  }
+
+  function copyCode() {
+    const code = event?.check_in_code ?? event?.checkInCode
+    if (!code) return
+    navigator.clipboard.writeText(code).then(() => {
+      setCodeCopied(true); setTimeout(() => setCodeCopied(false), 2000)
+    })
+  }
+
+  const entryStyle = (s: string) => {
+    switch (s) {
+      case 'PRESENT':    return 'bg-[#ecfdf3] text-[#15803d]'
+      case 'LATE':       return 'bg-[#fffbeb] text-[#d97706]'
+      case 'ABSENT':     return 'bg-[#fef2f2] text-[#b91c1c]'
+      case 'EXCUSED':    return 'bg-[#eff6ff] text-[#1d4ed8]'
+      default:           return 'bg-[#f3f4f6] text-[#6b7280]'
+    }
+  }
+
+  if (loading) return (
+    <div className="flex items-center gap-2 py-1 text-[#9ca3af]">
+      <Loading01Icon size={13} className="animate-spin" strokeWidth={1.5} />
+      <span className="text-[12px] font-body">Loading…</span>
+    </div>
+  )
+
+  const code = event?.check_in_code ?? event?.checkInCode
+
+  return (
+    <div className="space-y-3">
+      {actionError && (
+        <div className="px-3 py-2 bg-[#fef2f2] border border-[#fecaca] rounded-[6px] text-[12px] text-[#b91c1c] font-body">{actionError}</div>
+      )}
+
+      {!event && (
+        <button onClick={() => setShowModal(true)}
+          className="flex items-center gap-1.5 h-8 px-3 bg-[#d51520] hover:bg-[#b81119] text-white text-[12px] font-semibold font-display rounded-[6px] transition-colors">
+          Open Attendance
+        </button>
+      )}
+
+      {event && (
+        <>
+          {/* Status + actions */}
+          <div className="flex items-center justify-between">
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold font-display ${
+              event.status === 'OPEN' ? 'bg-[#ecfdf3] text-[#15803d]' :
+              event.status === 'CANCELLED' ? 'bg-[#fef2f2] text-[#b91c1c]' :
+              'bg-[#f3f4f6] text-[#6b7280]'
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${event.status === 'OPEN' ? 'bg-[#15803d]' : event.status === 'CANCELLED' ? 'bg-[#b91c1c]' : 'bg-[#6b7280]'}`} />
+              {event.status}
+            </span>
+            {event.status === 'OPEN' && (
+              <div className="flex gap-1.5">
+                <button onClick={() => changeStatus('CLOSED')} disabled={acting}
+                  className="h-7 px-2.5 text-[11px] font-semibold font-display border border-[#e5e7eb] text-[#374151] rounded-[6px] hover:bg-[#f9fafb] disabled:opacity-50 transition-colors">
+                  Close
+                </button>
+                <button onClick={() => changeStatus('CANCELLED')} disabled={acting}
+                  className="h-7 px-2.5 text-[11px] font-semibold font-display border border-[#fecaca] text-[#b91c1c] rounded-[6px] hover:bg-[#fef2f2] disabled:opacity-50 transition-colors">
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* One-time code */}
+          {event.status === 'OPEN' && code && (
+            <div className="bg-[#fef9f0] border border-[#fed7aa] rounded-[8px] p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-[#9a3412] font-display mb-1.5">Check-in Code — show once only</p>
+              <div className="flex items-center gap-2">
+                <span className="text-[24px] font-bold text-[#1c1917] font-display tracking-[0.12em] flex-1">{code}</span>
+                <button onClick={copyCode}
+                  className="h-7 px-2.5 text-[11px] font-semibold font-display border border-[#fed7aa] text-[#9a3412] rounded-[6px] hover:bg-[#fed7aa]/30 transition-colors">
+                  {codeCopied ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+              {(event.closes_at ?? event.closesAt) && (
+                <p className="text-[11px] text-[#9ca3af] font-body mt-1.5">
+                  Auto-closes: {formatScheduleDateTime(event.closes_at ?? event.closesAt)}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Roster */}
+          {entries.length > 0 ? (
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-[#6b7280] font-display mb-2">
+                Roster ({entries.length})
+              </p>
+              <div className="rounded-[6px] border border-[#f3f4f6] overflow-hidden max-h-[240px] overflow-y-auto">
+                {entries.map((entry, i) => {
+                  const uid = entry.user_id ?? entry.userId
+                  return (
+                    <div key={entry.id ?? i}
+                      className={`flex items-center justify-between px-3 py-2 ${i < entries.length - 1 ? 'border-b border-[#f7f8fa]' : ''} hover:bg-[#fafafa]`}>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[12px] font-semibold text-[#111827] font-display truncate">{entry.name ?? `User #${uid}`}</p>
+                        {entry.email && <p className="text-[10px] text-[#9ca3af] font-body truncate">{entry.email}</p>}
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                        {overriding === uid ? (
+                          <Loading01Icon size={12} className="animate-spin text-[#9ca3af]" strokeWidth={1.5} />
+                        ) : (
+                          <div className="relative">
+                            <select value={entry.status}
+                              onChange={e => overrideEntry(entry, e.target.value)}
+                              className={`text-[10px] font-semibold font-display py-0.5 pl-2 pr-6 rounded-full border-0 appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#d51520]/30 ${entryStyle(entry.status)}`}>
+                              {['PRESENT', 'LATE', 'ABSENT', 'EXCUSED', 'NOT_MARKED'].map(st => (
+                                <option key={st} value={st}>{st.replace('_', ' ')}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ) : (
+            <p className="text-[12px] text-[#9ca3af] font-body">
+              {event.status === 'OPEN' ? 'No students have checked in yet.' : 'No attendance records.'}
+            </p>
+          )}
+        </>
+      )}
+
+      {showModal && (
+        <OpenAttendanceModal
+          onClose={() => setShowModal(false)}
+          onSubmit={openAttendance}
+          loading={acting}
+          error={actionError}
+        />
+      )}
+    </div>
+  )
+}
+
 function ScheduleTab({ cohortId }: { cohortId: string }) {
   const [schedules,       setSchedules]       = useState<CohortSchedule[]>([])
   const [loading,         setLoading]         = useState(true)
@@ -3655,6 +3949,17 @@ function ScheduleTab({ cohortId }: { cohortId: string }) {
                   )}
                 </div>
               </div>
+
+              {/* Attendance management — only when attendance is enabled */}
+              {viewingSchedule.attendance_enabled && (
+                <>
+                  <div className="h-px bg-[#f3f4f6]" />
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-widest text-[#4b5563] font-display mb-3">Attendance</p>
+                    <AttendanceSection scheduleId={viewingSchedule.id} />
+                  </div>
+                </>
+              )}
             </div>
             <div className="px-6 py-4 border-t border-[#f3f4f6] flex gap-2">
               <button
