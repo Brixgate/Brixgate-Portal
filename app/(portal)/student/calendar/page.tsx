@@ -197,9 +197,10 @@ function AttendanceCheckIn({ scheduleId, onCheckedIn }: { scheduleId: number; on
     if (!code.trim()) return
     setLoading(true); setError(null)
     try {
-      const res = await apiClient.post(`/cohort-schedules/${scheduleId}/attendance/check-in`, { check_in_code: code.trim() })
+      // MD specifies body field is "code", not "check_in_code"
+      const res = await apiClient.post(`/cohort-schedules/${scheduleId}/attendance/check-in`, { code: code.trim() })
       const raw = res.data?.data ?? res.data
-      const status = raw?.status ?? raw?.attendance_status ?? 'PRESENT'
+      const status = raw?.status ?? raw?.attendance_status ?? raw?.attendance_entry?.status ?? 'PRESENT'
       onCheckedIn(status)
     } catch (err) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
@@ -417,11 +418,20 @@ function CalendarInner() {
                   try {
                     const aRes = await apiClient.get(`/cohort-schedules/${ev.id}/attendance`)
                     const aRaw = aRes.data?.data ?? aRes.data
+                    // Event status lives under attendance_event per the MD response shape
                     const evData = aRaw?.attendance_event ?? aRaw?.attendanceEvent ?? aRaw?.event
                     if (evData?.status) ev.attendanceStatus = evData.status
+                    // My own entry — backend may return it under my_entry or inside entries array
                     const myEntry = aRaw?.my_entry ?? aRaw?.myEntry
-                    if (myEntry?.status) ev.myAttendanceStatus = myEntry.status
-                  } catch { /* no attendance event yet */ }
+                    if (myEntry?.status) {
+                      ev.myAttendanceStatus = myEntry.status
+                    } else if (Array.isArray(aRaw?.entries)) {
+                      // If the student is in the roster entries, find their own record
+                      // (entries will only be returned if the student has roster access)
+                      const me = aRaw.entries.find((e: { is_me?: boolean; isSelf?: boolean }) => e.is_me || e.isSelf)
+                      if (me?.status) ev.myAttendanceStatus = me.status
+                    }
+                  } catch { /* no attendance event yet, or 403 if student lacks roster access */ }
                 })
               )
 

@@ -3489,7 +3489,7 @@ function AttendanceSection({ scheduleId }: { scheduleId: number }) {
 
   function load() {
     setLoading(true)
-    apiClient.get(`/admin/cohort-schedules/${scheduleId}/attendance`)
+    apiClient.get(`/cohort-schedules/${scheduleId}/attendance`)
       .then(res => {
         const raw = res.data?.data ?? res.data
         const ev: AttendanceEvent | null =
@@ -3509,7 +3509,7 @@ function AttendanceSection({ scheduleId }: { scheduleId: number }) {
   async function openAttendance(body: Record<string, unknown>) {
     setActing(true); setActionError(null)
     try {
-      const res = await apiClient.post(`/admin/cohort-schedules/${scheduleId}/attendance`, body)
+      const res = await apiClient.post(`/cohort-schedules/${scheduleId}/attendance/open`, body)
       const raw = res.data?.data ?? res.data
       const ev: AttendanceEvent = raw?.attendance_event ?? raw?.attendanceEvent ?? raw?.event ?? raw
       setEvent(ev)
@@ -3523,7 +3523,9 @@ function AttendanceSection({ scheduleId }: { scheduleId: number }) {
     if (!event) return
     setActing(true); setActionError(null)
     try {
-      await apiClient.patch(`/admin/cohort-schedules/${scheduleId}/attendance/${event.id}`, { status: newStatus })
+      // MD specifies separate POST endpoints for close and cancel
+      const action = newStatus === 'CLOSED' ? 'close' : 'cancel'
+      await apiClient.post(`/cohort-schedules/${scheduleId}/attendance/${action}`)
       setEvent(prev => prev ? { ...prev, status: newStatus } : prev)
       if (newStatus === 'CLOSED') load()
     } catch (e) { setActionError(getApiError(e)) }
@@ -3536,8 +3538,8 @@ function AttendanceSection({ scheduleId }: { scheduleId: number }) {
     setOverriding(uid)
     try {
       await apiClient.put(
-        `/admin/cohort-schedules/${scheduleId}/attendance/entries/${uid}`,
-        { status: newStatus, source: 'ADMIN' }
+        `/cohort-schedules/${scheduleId}/attendance/${uid}`,
+        { status: newStatus }
       )
       setEntries(prev => prev.map(e =>
         (e.user_id ?? e.userId) === uid ? { ...e, status: newStatus as AttendanceEntry['status'] } : e
