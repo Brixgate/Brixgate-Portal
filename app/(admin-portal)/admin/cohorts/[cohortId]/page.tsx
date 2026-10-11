@@ -3100,6 +3100,18 @@ function formatScheduleDateTime(iso?: string, tz?: string) {
 interface CohortModule { id: number; title?: string; program_module_id?: number }
 interface CohortLesson { id: number; title?: string; order_index?: number }
 
+// WAT = UTC+1. Convert a UTC ISO string to "YYYY-MM-DDTHH:mm" in WAT for datetime-local inputs.
+function utcToWatInput(iso: string): string {
+  const d = new Date(new Date(iso).getTime() + 60 * 60 * 1000)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`
+}
+
+// Treat a datetime-local string ("YYYY-MM-DDTHH:mm") as WAT, convert to UTC ISO for the API.
+function watInputToUtcISO(local: string): string {
+  return new Date(new Date(local + ':00.000Z').getTime() - 60 * 60 * 1000).toISOString()
+}
+
 function ScheduleModal({ cohortId, schedule, onClose, onSaved }: {
   cohortId: string
   schedule: CohortSchedule | null
@@ -3109,8 +3121,8 @@ function ScheduleModal({ cohortId, schedule, onClose, onSaved }: {
   const [title,       setTitle]       = useState(schedule?.title ?? '')
   const [desc,        setDesc]        = useState(schedule?.description ?? '')
   const [sessType,    setSessType]    = useState(schedule?.session_type ?? 'LIVE_CLASS')
-  const [startDt,     setStartDt]     = useState(schedule?.start_datetime?.slice(0, 16) ?? '')
-  const [endDt,       setEndDt]       = useState(schedule?.end_datetime?.slice(0, 16) ?? '')
+  const [startDt,     setStartDt]     = useState(schedule?.start_datetime ? utcToWatInput(schedule.start_datetime) : '')
+  const [endDt,       setEndDt]       = useState(schedule?.end_datetime   ? utcToWatInput(schedule.end_datetime)   : '')
   const [endDtTouched, setEndDtTouched] = useState(!!(schedule?.end_datetime))
   const [timezone,    setTimezone]    = useState(schedule?.timezone ?? 'WAT')
   const [meetLink,    setMeetLink]    = useState(schedule?.meeting_link ?? '')
@@ -3184,8 +3196,8 @@ function ScheduleModal({ cohortId, schedule, onClose, onSaved }: {
       title:              title.trim(),
       description:        desc.trim() || undefined,
       session_type:       sessType,
-      start_datetime:     startDt.length === 16 ? startDt + ':00.000Z' : new Date(startDt).toISOString(),
-      end_datetime:       endDt.length === 16   ? endDt   + ':00.000Z' : new Date(endDt).toISOString(),
+      start_datetime:     startDt ? watInputToUtcISO(startDt) : undefined,
+      end_datetime:       endDt   ? watInputToUtcISO(endDt)   : undefined,
       timezone,
       meeting_link:       meetLink.trim() || undefined,
       meeting_provider:   meetProv.trim() || undefined,
@@ -3413,21 +3425,27 @@ interface AttendanceEntry {
 
 // ── Open attendance config modal ──────────────────────────────────────────────
 function OpenAttendanceModal({
-  onClose, onSubmit, loading, error,
+  onClose, onSubmit, loading, error, scheduleBounds,
 }: {
   onClose: () => void
   onSubmit: (body: Record<string, unknown>) => Promise<void>
   loading: boolean
   error: string | null
+  scheduleBounds?: { start: string; end: string }
 }) {
-  const defaultClose = new Date(Date.now() + 15 * 60 * 1000).toISOString().slice(0, 16)
+  const minClose = scheduleBounds?.start ? utcToWatInput(scheduleBounds.start) : undefined
+  const maxClose = scheduleBounds?.end   ? utcToWatInput(scheduleBounds.end)   : undefined
+  // Default to session start + 15 min (or now + 15 min if no bounds)
+  const defaultClose = minClose
+    ? utcToWatInput(new Date(new Date(scheduleBounds!.start).getTime() + 15 * 60 * 1000).toISOString())
+    : utcToWatInput(new Date(Date.now() + 15 * 60 * 1000).toISOString())
   const [closesAt,   setClosesAt]   = useState(defaultClose)
   const [lateAfter,  setLateAfter]  = useState('5')
   const [countScore, setCountScore] = useState(true)
 
   function submit() {
     onSubmit({
-      closes_at: new Date(closesAt).toISOString(),
+      closes_at: watInputToUtcISO(closesAt),
       late_after_minutes: parseInt(lateAfter) || 5,
       counts_toward_score: countScore,
     })
@@ -3443,8 +3461,11 @@ function OpenAttendanceModal({
         )}
         <div className="space-y-4">
           <div>
-            <label className="block text-[12px] font-medium text-[#374151] font-body mb-1">Auto-close at</label>
+            <label className="block text-[12px] font-medium text-[#374151] font-body mb-1">
+              Auto-close at (WAT){minClose && maxClose && <span className="text-[#9ca3af] ml-1">· within session window</span>}
+            </label>
             <input type="datetime-local" value={closesAt} onChange={e => setClosesAt(e.target.value)}
+              min={minClose} max={maxClose}
               className="w-full h-9 px-3 text-[13px] font-body border border-[#e5e7eb] rounded-[6px] focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520] bg-white" />
           </div>
           <div>
@@ -3477,7 +3498,7 @@ function OpenAttendanceModal({
 }
 
 // ── Attendance section (inside schedule detail panel) ─────────────────────────
-function AttendanceSection({ scheduleId }: { scheduleId: number }) {
+function AttendanceSection({ scheduleId, scheduleBounds }: { scheduleId: number; scheduleBounds?: { start: string; end: string } }) {
   const [event,        setEvent]        = useState<AttendanceEvent | null>(null)
   const [entries,      setEntries]      = useState<AttendanceEntry[]>([])
   const [loading,      setLoading]      = useState(true)
@@ -3682,6 +3703,7 @@ function AttendanceSection({ scheduleId }: { scheduleId: number }) {
           onSubmit={openAttendance}
           loading={acting}
           error={actionError}
+          scheduleBounds={scheduleBounds}
         />
       )}
     </div>
@@ -3958,7 +3980,13 @@ function ScheduleTab({ cohortId }: { cohortId: string }) {
                   <div className="h-px bg-[#f3f4f6]" />
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-widest text-[#4b5563] font-display mb-3">Attendance</p>
-                    <AttendanceSection scheduleId={viewingSchedule.id} />
+                    <AttendanceSection
+                      scheduleId={viewingSchedule.id}
+                      scheduleBounds={viewingSchedule.start_datetime && viewingSchedule.end_datetime ? {
+                        start: viewingSchedule.start_datetime,
+                        end:   viewingSchedule.end_datetime,
+                      } : undefined}
+                    />
                   </div>
                 </>
               )}

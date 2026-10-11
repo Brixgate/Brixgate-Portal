@@ -52,6 +52,7 @@ interface CalEvent {
   meetingLink: string
   sessionType: string
   cohortTitle: string
+  scheduleStatus: string | null
   attendanceEnabled: boolean
   attendanceStatus: 'OPEN' | 'CLOSED' | 'CANCELLED' | null
   myAttendanceStatus: string | null
@@ -67,10 +68,22 @@ function readSchedule(s: ApiSchedule, cohortTitle: string): CalEvent {
     meetingLink:        s.meeting_link   ?? s.meetingLink   ?? '',
     sessionType:        s.session_type   ?? s.sessionType   ?? 'LIVE_CLASS',
     cohortTitle,
+    scheduleStatus:     s.status ?? null,
     attendanceEnabled:  s.attendance_enabled ?? s.attendanceEnabled ?? false,
     attendanceStatus:   null,
     myAttendanceStatus: null,
   }
+}
+
+// A session is "live" if the attendance event is open, the schedule status is LIVE,
+// or the current WAT time falls within the session window.
+function isSessionLive(ev: CalEvent): boolean {
+  if (ev.attendanceStatus === 'OPEN') return true
+  if (ev.scheduleStatus === 'LIVE') return true
+  const now = Date.now()
+  const start = ev.startISO ? new Date(ev.startISO).getTime() : 0
+  const end   = ev.endISO   ? new Date(ev.endISO).getTime()   : 0
+  return !!(start && end && now >= start && now <= end)
 }
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
@@ -270,7 +283,7 @@ function DayPanel({
           </div>
         ) : (
           sorted.map(ev => {
-            const isLive = ev.attendanceStatus === 'OPEN'
+            const isLive = isSessionLive(ev)
             const myStatus = checkedIn[ev.id] ?? ev.myAttendanceStatus
             const alreadyIn = myStatus && myStatus !== 'NOT_MARKED' && myStatus !== 'ABSENT'
 
@@ -349,7 +362,7 @@ function DayPanel({
 
 // ── Event dot (grid cell chip) ────────────────────────────────────────────────
 function EventChip({ event, onClick }: { event: CalEvent; onClick: () => void }) {
-  const isLive = event.attendanceStatus === 'OPEN'
+  const isLive = isSessionLive(event)
   return (
     <button
       onClick={e => { e.stopPropagation(); onClick() }}
