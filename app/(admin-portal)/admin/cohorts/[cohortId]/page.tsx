@@ -474,7 +474,7 @@ function CurriculumTab({ cohortId, programId, parentLoading, onProgramIdResolved
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] font-semibold text-[#111827] font-display truncate">{m.title}</p>
-                      {m.description && <p className="text-[11px] text-[#4b5563] font-body mt-0.5 truncate">{m.description}</p>}
+                      {m.description && <p className="text-[11px] text-[#4b5563] font-body mt-0.5 truncate">{m.description.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()}</p>}
                     </div>
                     <div className="flex items-center gap-3 flex-shrink-0">
                       {m.status && (
@@ -611,7 +611,7 @@ function CurriculumTab({ cohortId, programId, parentLoading, onProgramIdResolved
                         state !== 'none' ? 'text-[#d51520]' : 'text-[#111827]'
                       }`}>{m.title}</p>
                       {m.description && (
-                        <p className="text-[11px] text-[#6b7280] font-body mt-0.5 truncate">{m.description}</p>
+                        <p className="text-[11px] text-[#6b7280] font-body mt-0.5 truncate">{m.description.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()}</p>
                       )}
                     </button>
                     {/* Expand toggle */}
