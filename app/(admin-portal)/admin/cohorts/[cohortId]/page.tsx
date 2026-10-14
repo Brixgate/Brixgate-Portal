@@ -4041,23 +4041,415 @@ function ScheduleTab({ cohortId }: { cohortId: string }) {
   )
 }
 
+// ── Enrollment Finance types ──────────────────────────────────────────────────
+interface PricingPlan {
+  id: number; title?: string; plan_type?: string; status?: string
+  currency?: string
+}
+interface PricingBreakdown {
+  id: number; currency?: string; base_price?: number; final_price?: number
+}
+interface PaymentOption {
+  id: number; title?: string; payment_mode?: string; paymentMode?: string
+  installment_count?: number; initial_payment_percent?: number
+}
+interface EnrollmentPlan {
+  id: number
+  payment_mode?: string
+  currency?: string
+  original_amount?: number; total_amount?: number
+  amount_paid?: number; outstanding_amount?: number
+  status?: string; access_status?: string
+  next_due_date?: string
+  installments?: InstallmentRow[]
+  payments?: PaymentRow[]
+  price_adjustments?: AdjustmentRow[]
+}
+interface InstallmentRow {
+  id: number; installment_number?: number; amount?: number; due_amount?: number
+  amount_paid?: number; outstanding?: number; status?: string; due_date?: string
+}
+interface PaymentRow {
+  id: number; amount?: number; method?: string; payment_method?: string
+  reference?: string; status?: string; collected_at?: string; created_at?: string
+  recorded_by_admin_id?: number
+}
+interface AdjustmentRow {
+  id: number; type?: string; amount?: number
+  previous_total?: number; revised_total?: number
+  reason?: string; created_at?: string
+}
+
+// ── Enroll Student Modal ───────────────────────────────────────────────────────
+function EnrollStudentModal({
+  cohortId, programId, onClose, onSuccess,
+}: { cohortId: string; programId: number | null; onClose: () => void; onSuccess: () => void }) {
+  // Step: user | plan | submit
+  const [step, setStep] = useState<'user' | 'plan' | 'submit'>('user')
+
+  // User selection
+  const [userSearch,   setUserSearch]   = useState('')
+  const [userResults,  setUserResults]  = useState<{ id: number; name?: string; email?: string; role?: string }[]>([])
+  const [searchingUser,setSearchingUser] = useState(false)
+  const [selectedUser, setSelectedUser] = useState<{ id: number; name?: string; email?: string } | null>(null)
+  const [createMode,   setCreateMode]   = useState(false)
+  const [newName,      setNewName]      = useState('')
+  const [newEmail,     setNewEmail]     = useState('')
+  const [creatingUser, setCreatingUser] = useState(false)
+
+  // Plan selection
+  const [plans,        setPlans]        = useState<PricingPlan[]>([])
+  const [selectedPlan, setSelectedPlan] = useState<PricingPlan | null>(null)
+  const [loadingPlans, setLoadingPlans] = useState(false)
+
+  const [breakdowns,       setBreakdowns]       = useState<PricingBreakdown[]>([])
+  const [selectedBreakdown,setSelectedBreakdown] = useState<PricingBreakdown | null>(null)
+  const [loadingBreakdowns,setLoadingBreakdowns] = useState(false)
+
+  const [options,        setOptions]        = useState<PaymentOption[]>([])
+  const [selectedOption, setSelectedOption] = useState<PaymentOption | null | 'FULL'>('FULL')
+  const [loadingOptions, setLoadingOptions] = useState(false)
+
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
+  const [submitSuccess, setSubmitSuccess] = useState(false)
+
+  // Search users (debounced)
+  useEffect(() => {
+    if (!userSearch.trim() || createMode) { setUserResults([]); return }
+    const t = setTimeout(async () => {
+      setSearchingUser(true)
+      try {
+        const res = await apiClient.get(`/admin/users?size=20&search=${encodeURIComponent(userSearch.trim())}`)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const raw = unwrap<any>(res.data)
+        const list = Array.isArray(raw?.users) ? raw.users : Array.isArray(raw?.content) ? raw.content : Array.isArray(raw) ? raw : []
+        setUserResults(list)
+      } catch { setUserResults([]) }
+      finally { setSearchingUser(false) }
+    }, 350)
+    return () => clearTimeout(t)
+  }, [userSearch, createMode])
+
+  // Load plans when entering plan step
+  useEffect(() => {
+    if (step !== 'plan' || !programId) return
+    setLoadingPlans(true)
+    apiClient.get(`/admin/pricing-plans?program_id=${programId}&cohort_id=${cohortId}`)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then(r => { const d = unwrap<any>(r.data); setPlans(Array.isArray(d?.pricing_plans) ? d.pricing_plans : Array.isArray(d) ? d : []) })
+      .catch(() => setPlans([]))
+      .finally(() => setLoadingPlans(false))
+  }, [step, programId, cohortId])
+
+  // Load breakdowns when plan selected
+  useEffect(() => {
+    if (!selectedPlan) { setBreakdowns([]); setSelectedBreakdown(null); return }
+    setLoadingBreakdowns(true)
+    apiClient.get(`/admin/pricing-plans/${selectedPlan.id}/breakdowns`)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then(r => { const d = unwrap<any>(r.data); setBreakdowns(Array.isArray(d?.breakdowns) ? d.breakdowns : Array.isArray(d) ? d : []) })
+      .catch(() => setBreakdowns([]))
+      .finally(() => setLoadingBreakdowns(false))
+  }, [selectedPlan])
+
+  // Load payment options when breakdown selected
+  useEffect(() => {
+    if (!selectedPlan || !selectedBreakdown) { setOptions([]); setSelectedOption('FULL'); return }
+    setLoadingOptions(true)
+    apiClient.get(`/admin/pricing-plans/${selectedPlan.id}/breakdowns/${selectedBreakdown.id}/payment-options`)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then(r => { const d = unwrap<any>(r.data); setOptions(Array.isArray(d?.payment_options) ? d.payment_options : Array.isArray(d) ? d : []) })
+      .catch(() => setOptions([]))
+      .finally(() => setLoadingOptions(false))
+  }, [selectedPlan, selectedBreakdown])
+
+  async function handleCreateUser() {
+    if (!newName.trim() || !newEmail.trim()) return
+    setCreatingUser(true)
+    try {
+      const res = await apiClient.post('/admin/users', { name: newName.trim(), email: newEmail.trim(), role: 'PROSPECT' })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const raw = unwrap<any>(res.data)
+      const u = raw?.user ?? raw
+      setSelectedUser({ id: u.id, name: u.name, email: u.email })
+      setCreateMode(false); setNewName(''); setNewEmail('')
+    } catch (e) { setSubmitError(getApiError(e)) }
+    finally { setCreatingUser(false) }
+  }
+
+  async function handleSubmit() {
+    if (!selectedUser || !selectedPlan || !selectedBreakdown) return
+    setSubmitting(true); setSubmitError('')
+    try {
+      const body: Record<string, unknown> = {
+        user_id: selectedUser.id,
+        program_id: programId,
+        cohort_id: Number(cohortId),
+        pricing_plan_id: selectedPlan.id,
+        pricing_breakdown_id: selectedBreakdown.id,
+      }
+      if (selectedOption && selectedOption !== 'FULL' && typeof selectedOption === 'object') {
+        body.payment_option_id = (selectedOption as PaymentOption).id
+      }
+      await apiClient.post('/admin/enrollment-payment-plans/prospect-enrollments', body)
+      setSubmitSuccess(true)
+      setTimeout(() => { onSuccess(); onClose() }, 1500)
+    } catch (e) { setSubmitError(getApiError(e)) }
+    finally { setSubmitting(false) }
+  }
+
+  const canProceedToStep2 = !!selectedUser && !!programId
+  const canSubmit = !!selectedUser && !!selectedPlan && !!selectedBreakdown
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4">
+      <div className="bg-white rounded-[12px] shadow-lg w-full max-w-[480px] flex flex-col max-h-[90vh]">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#f3f4f6]">
+          <h3 className="text-[15px] font-bold text-[#111827] font-display">Enroll Student</h3>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f3f4f6]">
+            <Cancel01Icon size={15} color="#4b5563" strokeWidth={1.5} />
+          </button>
+        </div>
+
+        {/* Step indicator */}
+        <div className="flex items-center gap-0 px-6 py-3 border-b border-[#f3f4f6]">
+          {(['user', 'plan'] as const).map((s, i) => (
+            <div key={s} className="flex items-center gap-0">
+              <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold font-display ${step === s || (s === 'user' && step === 'submit') || (s === 'plan' && step === 'submit') ? 'bg-[#fef2f2] text-[#d51520]' : 'text-[#9ca3af]'}`}>
+                <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${step === s ? 'bg-[#d51520] text-white' : 'bg-[#e5e7eb] text-[#6b7280]'}`}>{i + 1}</span>
+                {s === 'user' ? 'Student' : 'Pricing'}
+              </div>
+              {i === 0 && <div className="w-6 h-px bg-[#e5e7eb]" />}
+            </div>
+          ))}
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+          {submitSuccess ? (
+            <div className="flex flex-col items-center py-8 gap-3">
+              <div className="w-12 h-12 rounded-full bg-[#ecfdf3] flex items-center justify-center">
+                <CheckmarkCircle01Icon size={24} color="#027a48" strokeWidth={1.5} />
+              </div>
+              <p className="text-[14px] font-semibold text-[#027a48] font-display">Enrollment application created</p>
+              <p className="text-[12px] text-[#4b5563] font-body text-center">The student has been registered. They&apos;ll receive an email to set up their password.</p>
+            </div>
+          ) : step === 'user' ? (
+            <>
+              <div>
+                <p className="text-[12px] font-semibold text-[#374151] font-display mb-2">Find existing student</p>
+                <div className="relative">
+                  <input
+                    value={userSearch}
+                    onChange={e => { setUserSearch(e.target.value); setSelectedUser(null) }}
+                    placeholder="Search by name or email…"
+                    className="w-full h-9 pl-9 pr-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520]"
+                  />
+                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9ca3af]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607z" />
+                  </svg>
+                  {searchingUser && <Loading01Icon size={13} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-[#9ca3af]" strokeWidth={1.5} />}
+                </div>
+                {userResults.length > 0 && !selectedUser && (
+                  <div className="mt-1 border border-[#e5e7eb] rounded-[8px] overflow-hidden divide-y divide-[#f3f4f6]">
+                    {userResults.map(u => (
+                      <button key={u.id} onClick={() => { setSelectedUser(u); setUserSearch(u.name ?? u.email ?? '') }} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-[#fafafa] transition-colors text-left">
+                        <div className="w-7 h-7 rounded-full bg-[#fef2f2] flex items-center justify-center flex-shrink-0">
+                          <span className="text-[10px] font-bold text-[#d51520] font-display">{(u.name ?? u.email ?? '?').slice(0, 2).toUpperCase()}</span>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[12px] font-semibold text-[#111827] font-display truncate">{u.name ?? '—'}</p>
+                          <p className="text-[11px] text-[#6b7280] font-body truncate">{u.email}</p>
+                        </div>
+                        <span className="ml-auto text-[10px] text-[#9ca3af] font-body flex-shrink-0">{u.role}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {selectedUser && (
+                  <div className="mt-2 flex items-center gap-2.5 px-3 py-2 bg-[#f0fdf4] border border-[#bbf7d0] rounded-[8px]">
+                    <CheckmarkCircle01Icon size={14} color="#027a48" strokeWidth={1.5} />
+                    <div className="min-w-0">
+                      <p className="text-[12px] font-semibold text-[#027a48] font-display truncate">{selectedUser.name}</p>
+                      <p className="text-[11px] text-[#4b5563] font-body truncate">{selectedUser.email}</p>
+                    </div>
+                    <button onClick={() => { setSelectedUser(null); setUserSearch('') }} className="ml-auto text-[#9ca3af] hover:text-[#374151]">
+                      <Cancel01Icon size={12} strokeWidth={2} />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-[#f3f4f6]" />
+                <span className="text-[11px] text-[#9ca3af] font-body">or</span>
+                <div className="flex-1 h-px bg-[#f3f4f6]" />
+              </div>
+
+              <div>
+                <button
+                  onClick={() => setCreateMode(v => !v)}
+                  className="text-[12px] font-semibold text-[#d51520] font-display hover:underline"
+                >
+                  {createMode ? 'Cancel — find existing instead' : '+ Create new student account'}
+                </button>
+                {createMode && (
+                  <div className="mt-3 space-y-2.5">
+                    <div>
+                      <label className="text-[11px] font-medium text-[#374151] font-body block mb-1">Full Name</label>
+                      <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Adunola Okafor"
+                        className="w-full h-9 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520]" />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-medium text-[#374151] font-body block mb-1">Email Address</label>
+                      <input value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="adunola.okafor@gmail.com" type="email"
+                        className="w-full h-9 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520]" />
+                    </div>
+                    <button
+                      onClick={handleCreateUser}
+                      disabled={creatingUser || !newName.trim() || !newEmail.trim()}
+                      className="h-9 px-4 bg-[#111827] text-white text-[12px] font-semibold font-display rounded-[8px] disabled:opacity-50 flex items-center gap-1.5 transition-colors"
+                    >
+                      {creatingUser && <Loading01Icon size={12} className="animate-spin" strokeWidth={2} />}
+                      Create &amp; Select
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {!programId && (
+                <p className="text-[12px] text-[#d97706] font-body bg-[#fffbeb] border border-[#fde68a] rounded-[8px] px-3 py-2">
+                  Programme ID could not be resolved for this cohort. Pricing plans cannot be loaded.
+                </p>
+              )}
+            </>
+          ) : (
+            // Step 2: Pricing
+            <>
+              <div className="flex items-center gap-2 px-3 py-2 bg-[#f9fafb] border border-[#e5e7eb] rounded-[8px]">
+                <div className="w-6 h-6 rounded-full bg-[#fef2f2] flex items-center justify-center flex-shrink-0">
+                  <span className="text-[9px] font-bold text-[#d51520] font-display">{(selectedUser?.name ?? '?').slice(0, 2).toUpperCase()}</span>
+                </div>
+                <p className="text-[12px] font-medium text-[#374151] font-body truncate">{selectedUser?.name} · {selectedUser?.email}</p>
+              </div>
+
+              {/* Pricing plan */}
+              <div>
+                <label className="text-[12px] font-semibold text-[#374151] font-display block mb-1.5">Pricing Plan</label>
+                {loadingPlans ? <div className="h-9 bg-[#f3f4f6] rounded-[6px] animate-pulse" /> : (
+                  <select
+                    value={selectedPlan?.id ?? ''}
+                    onChange={e => {
+                      const p = plans.find(pl => String(pl.id) === e.target.value) ?? null
+                      setSelectedPlan(p); setSelectedBreakdown(null); setSelectedOption('FULL')
+                    }}
+                    className="w-full h-9 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520] bg-white"
+                  >
+                    <option value="">Select a pricing plan…</option>
+                    {plans.map(p => <option key={p.id} value={p.id}>{p.title} ({p.plan_type})</option>)}
+                  </select>
+                )}
+                {!loadingPlans && plans.length === 0 && programId && <p className="text-[11px] text-[#9ca3af] font-body mt-1">No active pricing plans found for this cohort.</p>}
+              </div>
+
+              {/* Currency breakdown */}
+              {selectedPlan && (
+                <div>
+                  <label className="text-[12px] font-semibold text-[#374151] font-display block mb-1.5">Currency &amp; Price</label>
+                  {loadingBreakdowns ? <div className="h-9 bg-[#f3f4f6] rounded-[6px] animate-pulse" /> : (
+                    <select
+                      value={selectedBreakdown?.id ?? ''}
+                      onChange={e => { setSelectedBreakdown(breakdowns.find(b => String(b.id) === e.target.value) ?? null); setSelectedOption('FULL') }}
+                      className="w-full h-9 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520] bg-white"
+                    >
+                      <option value="">Select currency…</option>
+                      {breakdowns.map(b => <option key={b.id} value={b.id}>{b.currency} — ₦{(b.final_price ?? b.base_price ?? 0).toLocaleString()}</option>)}
+                    </select>
+                  )}
+                </div>
+              )}
+
+              {/* Payment option */}
+              {selectedBreakdown && (
+                <div>
+                  <label className="text-[12px] font-semibold text-[#374151] font-display block mb-1.5">Payment Option</label>
+                  {loadingOptions ? <div className="h-9 bg-[#f3f4f6] rounded-[6px] animate-pulse" /> : (
+                    <select
+                      value={selectedOption === 'FULL' ? 'FULL' : typeof selectedOption === 'object' ? String((selectedOption as PaymentOption).id) : ''}
+                      onChange={e => {
+                        if (e.target.value === 'FULL') { setSelectedOption('FULL'); return }
+                        setSelectedOption(options.find(o => String(o.id) === e.target.value) ?? 'FULL')
+                      }}
+                      className="w-full h-9 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520] bg-white"
+                    >
+                      <option value="FULL">Full Payment (no installment)</option>
+                      {options.map(o => <option key={o.id} value={o.id}>{o.title ?? (o.payment_mode ?? o.paymentMode)?.replace(/_/g, ' ')}</option>)}
+                    </select>
+                  )}
+                </div>
+              )}
+
+              {submitError && (
+                <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body bg-[#fef2f2] border border-[#fecdca] rounded-[8px] px-3 py-2">
+                  <AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} /> {submitError}
+                </p>
+              )}
+            </>
+          )}
+        </div>
+
+        {!submitSuccess && (
+          <div className="px-6 py-4 border-t border-[#f3f4f6] flex justify-between gap-2">
+            {step === 'user' ? (
+              <>
+                <button onClick={onClose} className="h-9 px-4 border border-[#e5e7eb] text-[#374151] text-[13px] font-semibold font-display rounded-[8px] hover:bg-[#f9fafb]">Cancel</button>
+                <button
+                  onClick={() => { if (canProceedToStep2) setStep('plan') }}
+                  disabled={!canProceedToStep2}
+                  className="h-9 px-5 bg-[#d51520] hover:bg-[#b81119] text-white text-[13px] font-semibold font-display rounded-[8px] disabled:opacity-40 transition-colors"
+                >
+                  Next: Pricing →
+                </button>
+              </>
+            ) : (
+              <>
+                <button onClick={() => setStep('user')} className="h-9 px-4 border border-[#e5e7eb] text-[#374151] text-[13px] font-semibold font-display rounded-[8px] hover:bg-[#f9fafb]">← Back</button>
+                <button
+                  onClick={handleSubmit}
+                  disabled={!canSubmit || submitting}
+                  className="h-9 px-5 bg-[#d51520] hover:bg-[#b81119] text-white text-[13px] font-semibold font-display rounded-[8px] disabled:opacity-40 flex items-center gap-1.5 transition-colors"
+                >
+                  {submitting && <Loading01Icon size={13} className="animate-spin" strokeWidth={2} />}
+                  Create Enrollment
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Tab: Payments ─────────────────────────────────────────────────────────────
 interface PaymentOverviewStudent {
   user_id?: number; userId?: number
   member_id?: number; memberId?: number
   enrollment_id?: number; enrollmentId?: number
+  plan_id?: number; planId?: number; enrollment_payment_plan_id?: number
   name?: string; email?: string
   enrollment_status?: string
   payment_mode?: string; paymentMode?: string
   currency?: string
   ought_to_pay?: number
   amount_paid?: number; amountPaid?: number
-  outstanding_amount?: number               // actual field from API
-  amount_outstanding?: number; amountOutstanding?: number  // legacy fallbacks
-  status?: string                           // actual field from API
-  plan_status?: string; planStatus?: string // legacy fallbacks
+  outstanding_amount?: number
+  amount_outstanding?: number; amountOutstanding?: number
+  status?: string
+  plan_status?: string; planStatus?: string
   next_due_date?: string; nextDueDate?: string
-  access_grace_extended_until?: string          // actual field from API
+  access_grace_extended_until?: string
   grace_end_date?: string; graceEndDate?: string
   access_status?: string
 }
@@ -4116,6 +4508,33 @@ function PaymentStudentSidebar({
   const [graceError,   setGraceError]   = useState('')
   const [graceSuccess, setGraceSuccess] = useState(false)
 
+  // Plan detail state
+  const [planDetail,     setPlanDetail]     = useState<EnrollmentPlan | null>(null)
+  const [loadingPlan,    setLoadingPlan]    = useState(false)
+  const planId = student.plan_id ?? student.planId ?? student.enrollment_payment_plan_id ?? null
+
+  // Adjust price state
+  const [showAdjust,    setShowAdjust]    = useState(false)
+  const [adjType,       setAdjType]       = useState('SCHOLARSHIP')
+  const [adjAmount,     setAdjAmount]     = useState('')
+  const [adjReason,     setAdjReason]     = useState('')
+  const [adjSaving,     setAdjSaving]     = useState(false)
+  const [adjError,      setAdjError]      = useState('')
+  const [adjSuccess,    setAdjSuccess]    = useState(false)
+
+  // Record payment state
+  const [showPayment,   setShowPayment]   = useState(false)
+  const [payAmount,     setPayAmount]     = useState('')
+  const [payMethod,     setPayMethod]     = useState('BANK_TRANSFER')
+  const [payReference,  setPayReference]  = useState('')
+  const [payCollectedAt,setPayCollectedAt]= useState('')
+  const [payNote,       setPayNote]       = useState('')
+  const [payConfirm,    setPayConfirm]    = useState(false)
+  const [paySaving,     setPaySaving]     = useState(false)
+  const [payError,      setPayError]      = useState('')
+  const [paySuccess,    setPaySuccess]    = useState(false)
+  const [accessGranted, setAccessGranted] = useState(false)
+
   const uid            = student.user_id ?? student.userId
   const enrollmentId   = student.enrollment_id ?? student.enrollmentId
   // member_id from the payment overview may be absent — resolve from the cohort members list
@@ -4158,6 +4577,73 @@ function PaymentStudentSidebar({
       }
     }).finally(() => setLoadingUser(false))
   }, [uid, enrollmentId, cohortId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch plan detail
+  useEffect(() => {
+    if (!planId) return
+    setLoadingPlan(true)
+    apiClient.get(`/admin/enrollment-payment-plans/${planId}`)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then(r => { const d = unwrap<any>(r.data); setPlanDetail(d?.plan ?? d) })
+      .catch(() => setPlanDetail(null))
+      .finally(() => setLoadingPlan(false))
+  }, [planId])
+
+  function refetchPlan() {
+    if (!planId) return
+    apiClient.get(`/admin/enrollment-payment-plans/${planId}`)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then(r => { const d = unwrap<any>(r.data); setPlanDetail(d?.plan ?? d) })
+      .catch(() => {})
+  }
+
+  async function handleAdjustPrice() {
+    if (!planId || !adjAmount) { setAdjError('Amount is required.'); return }
+    const outstanding = planDetail?.outstanding_amount ?? 0
+    const amt = parseFloat(adjAmount)
+    if (isNaN(amt) || amt <= 0) { setAdjError('Enter a valid positive amount.'); return }
+    if (outstanding > 0 && amt > outstanding) { setAdjError(`Amount cannot exceed outstanding balance (${fmt(outstanding)}).`); return }
+    setAdjSaving(true); setAdjError('')
+    try {
+      await apiClient.post(`/admin/enrollment-payment-plans/${planId}/price-adjustments`, {
+        type: adjType, amount: amt, reason: adjReason || adjType,
+      })
+      setAdjSuccess(true); setShowAdjust(false)
+      setAdjAmount(''); setAdjReason(''); setAdjType('SCHOLARSHIP')
+      refetchPlan()
+    } catch (e) { setAdjError(getApiError(e)) }
+    finally { setAdjSaving(false) }
+  }
+
+  async function handleRecordPayment() {
+    if (!planId || !payAmount) { setPayError('Amount is required.'); return }
+    const amt = parseFloat(payAmount)
+    if (isNaN(amt) || amt <= 0) { setPayError('Enter a valid positive amount.'); return }
+    setPaySaving(true); setPayError('')
+    try {
+      const body: Record<string, unknown> = {
+        amount: amt,
+        currency: planDetail?.currency ?? student.currency ?? 'NGN',
+        payment_method: payMethod,
+      }
+      if (payReference.trim()) body.reference = payReference.trim()
+      if (payCollectedAt) body.collected_at = new Date(payCollectedAt).toISOString()
+      if (payNote.trim()) body.note = payNote.trim()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const res = await apiClient.post(`/admin/enrollment-payment-plans/${planId}/manual-payments`, body)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const d = unwrap<any>(res.data)
+      setPaySuccess(true); setShowPayment(false); setPayConfirm(false)
+      setPayAmount(''); setPayMethod('BANK_TRANSFER'); setPayReference('')
+      setPayCollectedAt(''); setPayNote('')
+      if (d?.enrollment_activated === true || d?.payment?.enrollment_activated === true) {
+        setAccessGranted(true)
+      }
+      refetchPlan()
+      onGraceSuccess?.()
+    } catch (e) { setPayError(getApiError(e)) }
+    finally { setPaySaving(false) }
+  }
 
   const accountActive: boolean = userDetail
     ? (userDetail.status === 1 || userDetail.status === '1' || userDetail.status === 'ACTIVE')
@@ -4266,6 +4752,217 @@ function PaymentStudentSidebar({
             </p>
           )}
 
+          {/* Access granted banner */}
+          {accessGranted && (
+            <div className="rounded-[10px] border border-[#bbf7d0] bg-[#ecfdf3] p-4 flex items-start gap-3">
+              <CheckmarkCircle01Icon size={16} color="#027a48" strokeWidth={1.5} className="flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[13px] font-semibold text-[#027a48] font-display">Access granted</p>
+                <p className="text-[12px] text-[#065f46] font-body mt-0.5">Payment threshold met — the student&apos;s cohort access has been automatically activated.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Payment recorded success */}
+          {paySuccess && !accessGranted && (
+            <div className="rounded-[10px] border border-[#bbf7d0] bg-[#ecfdf3] p-4 flex items-start gap-3">
+              <CheckmarkCircle01Icon size={16} color="#027a48" strokeWidth={1.5} className="flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[13px] font-semibold text-[#027a48] font-display">Payment recorded</p>
+                <p className="text-[12px] text-[#065f46] font-body mt-0.5">The manual payment has been saved to the student&apos;s plan.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Price adjustment success */}
+          {adjSuccess && (
+            <div className="rounded-[10px] border border-[#bbf7d0] bg-[#ecfdf3] p-4 flex items-start gap-3">
+              <CheckmarkCircle01Icon size={16} color="#027a48" strokeWidth={1.5} className="flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[13px] font-semibold text-[#027a48] font-display">Price adjusted</p>
+                <p className="text-[12px] text-[#065f46] font-body mt-0.5">The student&apos;s outstanding balance has been updated.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Enrollment plan detail */}
+          {planId && (
+            <div className="rounded-[10px] border border-[#f3f4f6] overflow-hidden">
+              <div className="px-4 py-2.5 bg-[#f9fafb] border-b border-[#f3f4f6]">
+                <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[#6b7280] font-display">Enrollment Plan</p>
+              </div>
+              {loadingPlan ? (
+                <div className="p-4 flex items-center gap-2">
+                  <Loading01Icon size={13} className="animate-spin text-[#9ca3af]" strokeWidth={1.5} />
+                  <span className="text-[12px] text-[#9ca3af] font-body">Loading plan…</span>
+                </div>
+              ) : planDetail ? (
+                <>
+                  {[
+                    { label: 'Mode',        value: (planDetail.payment_mode ?? 'FULL').replace(/_/g, ' ') },
+                    { label: 'Currency',    value: planDetail.currency ?? student.currency ?? '—' },
+                    { label: 'Total',       value: planDetail.total_amount != null ? fmt(planDetail.total_amount) : '—' },
+                    { label: 'Paid',        value: <span className="font-semibold text-[#027a48]">{fmt(planDetail.amount_paid ?? 0)}</span> },
+                    { label: 'Outstanding', value: <span className={`font-semibold ${(planDetail.outstanding_amount ?? 0) > 0 ? 'text-[#d51520]' : 'text-[#9ca3af]'}`}>{fmt(planDetail.outstanding_amount ?? 0)}</span> },
+                    ...(planDetail.status ? [{ label: 'Plan Status', value: <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display ${PAY_STATUS[planDetail.status.toUpperCase()] ?? 'bg-[#f3f4f6] text-[#4b5563]'}`}>{planDetail.status}</span> }] : []),
+                    ...(planDetail.access_status ? [{ label: 'Access Status', value: <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-display bg-[#fffbeb] text-[#d97706]">{planDetail.access_status.replace(/_/g, ' ')}</span> }] : []),
+                  ].map(({ label, value }, i, arr) => (
+                    <div key={label} className={`flex items-center justify-between px-4 py-2.5 ${i < arr.length - 1 ? 'border-b border-[#f3f4f6]' : ''}`}>
+                      <span className="text-[12px] text-[#6b7280] font-body">{label}</span>
+                      <span className="text-[12px] font-medium text-[#111827] font-body text-right">{value}</span>
+                    </div>
+                  ))}
+                  {/* Installments */}
+                  {(planDetail.installments ?? []).length > 0 && (
+                    <div className="border-t border-[#f3f4f6]">
+                      <p className="px-4 py-2 text-[10px] font-bold uppercase tracking-[0.06em] text-[#9ca3af] font-display">Installments</p>
+                      {planDetail.installments!.map((inst, i) => (
+                        <div key={inst.id} className={`flex items-center justify-between px-4 py-2 ${i < planDetail.installments!.length - 1 ? 'border-b border-[#f3f4f6]' : ''}`}>
+                          <div>
+                            <span className="text-[12px] font-medium text-[#374151] font-body">#{inst.installment_number ?? i + 1}</span>
+                            {inst.due_date && <span className="text-[11px] text-[#9ca3af] font-body ml-2">{new Date(inst.due_date).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[12px] font-semibold text-[#111827] font-body">{fmt(inst.amount ?? inst.due_amount ?? 0)}</span>
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold font-display ${PAY_STATUS[inst.status?.toUpperCase() ?? ''] ?? 'bg-[#f3f4f6] text-[#4b5563]'}`}>{inst.status ?? '—'}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* Recent payments */}
+                  {(planDetail.payments ?? []).length > 0 && (
+                    <div className="border-t border-[#f3f4f6]">
+                      <p className="px-4 py-2 text-[10px] font-bold uppercase tracking-[0.06em] text-[#9ca3af] font-display">Payments Recorded</p>
+                      {planDetail.payments!.slice(0, 5).map((p, i) => (
+                        <div key={p.id} className={`flex items-center justify-between px-4 py-2 ${i < Math.min(planDetail.payments!.length, 5) - 1 ? 'border-b border-[#f3f4f6]' : ''}`}>
+                          <div>
+                            <span className="text-[12px] font-medium text-[#374151] font-body">{(p.payment_method ?? p.method ?? 'MANUAL').replace(/_/g, ' ')}</span>
+                            {(p.collected_at ?? p.created_at) && <span className="text-[11px] text-[#9ca3af] font-body ml-2">{new Date((p.collected_at ?? p.created_at)!).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
+                          </div>
+                          <span className="text-[12px] font-semibold text-[#027a48] font-body">{fmt(p.amount ?? 0)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* Adjustments */}
+                  {(planDetail.price_adjustments ?? []).length > 0 && (
+                    <div className="border-t border-[#f3f4f6]">
+                      <p className="px-4 py-2 text-[10px] font-bold uppercase tracking-[0.06em] text-[#9ca3af] font-display">Price Adjustments</p>
+                      {planDetail.price_adjustments!.map((a, i) => (
+                        <div key={a.id} className={`flex items-center justify-between px-4 py-2 ${i < planDetail.price_adjustments!.length - 1 ? 'border-b border-[#f3f4f6]' : ''}`}>
+                          <div>
+                            <span className="text-[12px] font-medium text-[#374151] font-body">{(a.type ?? '—').replace(/_/g, ' ')}</span>
+                            {a.reason && <p className="text-[11px] text-[#9ca3af] font-body mt-0.5 max-w-[180px] truncate">{a.reason}</p>}
+                          </div>
+                          <span className="text-[12px] font-semibold text-[#d97706] font-body">−{fmt(a.amount ?? 0)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="px-4 py-3 text-[12px] text-[#9ca3af] font-body">Plan details unavailable.</p>
+              )}
+            </div>
+          )}
+
+          {/* Adjust price form */}
+          {showAdjust && planId && (
+            <div className="rounded-[10px] border border-[#fde68a] bg-[#fffbeb] p-4 flex flex-col gap-3">
+              <p className="text-[13px] font-semibold text-[#d97706] font-display">Adjust Price</p>
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-medium text-[#374151] font-body">Adjustment Type</label>
+                <select value={adjType} onChange={e => setAdjType(e.target.value)}
+                  className="h-9 px-3 border border-[#fde68a] rounded-[6px] text-[13px] font-body bg-white focus:outline-none focus:border-[#d97706]">
+                  {['SCHOLARSHIP','DISCOUNT','WAIVER','CORRECTION'].map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-medium text-[#374151] font-body">Amount to reduce (₦)</label>
+                <input type="number" value={adjAmount} onChange={e => { setAdjAmount(e.target.value); setAdjError('') }}
+                  placeholder="0.00" min={0}
+                  className="h-9 px-3 border border-[#fde68a] rounded-[6px] text-[13px] font-body bg-white focus:outline-none focus:border-[#d97706] placeholder:text-[#9ca3af]" />
+                {(planDetail?.outstanding_amount ?? 0) > 0 && (
+                  <p className="text-[11px] text-[#9ca3af] font-body">Outstanding: {fmt(planDetail!.outstanding_amount!)}</p>
+                )}
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-medium text-[#374151] font-body">Reason <span className="text-[#9ca3af] font-normal">(optional)</span></label>
+                <input type="text" value={adjReason} onChange={e => setAdjReason(e.target.value)}
+                  placeholder="e.g. Scholarship approved by board"
+                  className="h-9 px-3 border border-[#fde68a] rounded-[6px] text-[13px] font-body bg-white focus:outline-none focus:border-[#d97706] placeholder:text-[#9ca3af]" />
+              </div>
+              {adjError && <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body"><AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} /> {adjError}</p>}
+              <div className="flex gap-2">
+                <button onClick={() => { setShowAdjust(false); setAdjAmount(''); setAdjReason(''); setAdjError('') }}
+                  className="flex-1 h-9 rounded-[8px] border border-[#e5e7eb] text-[12px] font-medium font-body hover:bg-white transition-colors">Cancel</button>
+                <button onClick={handleAdjustPrice} disabled={adjSaving || !adjAmount}
+                  className="flex-1 h-9 rounded-[8px] bg-[#d97706] text-[12px] font-semibold text-white font-display hover:bg-[#b45309] disabled:opacity-60 flex items-center justify-center gap-1.5 transition-colors">
+                  {adjSaving && <Loading01Icon size={12} className="animate-spin" strokeWidth={2} />}
+                  Apply Adjustment
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Record payment form */}
+          {showPayment && planId && (
+            <div className="rounded-[10px] border border-[#bbf7d0] bg-[#f0fdf4] p-4 flex flex-col gap-3">
+              <p className="text-[13px] font-semibold text-[#027a48] font-display">Record Manual Payment</p>
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-medium text-[#374151] font-body">Amount (₦)</label>
+                <input type="number" value={payAmount} onChange={e => { setPayAmount(e.target.value); setPayError('') }}
+                  placeholder="0.00" min={0}
+                  className="h-9 px-3 border border-[#bbf7d0] rounded-[6px] text-[13px] font-body bg-white focus:outline-none focus:border-[#027a48] placeholder:text-[#9ca3af]" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-medium text-[#374151] font-body">Currency</label>
+                <input readOnly value={planDetail?.currency ?? student.currency ?? 'NGN'}
+                  className="h-9 px-3 border border-[#bbf7d0] rounded-[6px] text-[13px] font-body bg-[#f3f4f6] text-[#6b7280]" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-medium text-[#374151] font-body">Payment Method</label>
+                <select value={payMethod} onChange={e => setPayMethod(e.target.value)}
+                  className="h-9 px-3 border border-[#bbf7d0] rounded-[6px] text-[13px] font-body bg-white focus:outline-none focus:border-[#027a48]">
+                  {['BANK_TRANSFER','CASH','POS','CHEQUE','ONLINE','OTHER'].map(m => <option key={m} value={m}>{m.replace(/_/g, ' ')}</option>)}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-medium text-[#374151] font-body">Reference / Receipt No. <span className="text-[#9ca3af] font-normal">(optional)</span></label>
+                <input type="text" value={payReference} onChange={e => setPayReference(e.target.value)}
+                  placeholder="e.g. TXN-20241014-001"
+                  className="h-9 px-3 border border-[#bbf7d0] rounded-[6px] text-[13px] font-body bg-white focus:outline-none focus:border-[#027a48] placeholder:text-[#9ca3af]" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-medium text-[#374151] font-body">Date Collected <span className="text-[#9ca3af] font-normal">(optional)</span></label>
+                <input type="datetime-local" value={payCollectedAt} onChange={e => setPayCollectedAt(e.target.value)}
+                  className="h-9 px-3 border border-[#bbf7d0] rounded-[6px] text-[13px] font-body bg-white focus:outline-none focus:border-[#027a48]" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-medium text-[#374151] font-body">Note <span className="text-[#9ca3af] font-normal">(optional)</span></label>
+                <input type="text" value={payNote} onChange={e => setPayNote(e.target.value)}
+                  placeholder="Internal note for this payment"
+                  className="h-9 px-3 border border-[#bbf7d0] rounded-[6px] text-[13px] font-body bg-white focus:outline-none focus:border-[#027a48] placeholder:text-[#9ca3af]" />
+              </div>
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input type="checkbox" checked={payConfirm} onChange={e => setPayConfirm(e.target.checked)}
+                  className="mt-0.5 accent-[#027a48]" />
+                <span className="text-[12px] text-[#374151] font-body leading-relaxed">I confirm this payment was received from the student and the amount is correct.</span>
+              </label>
+              {payError && <p className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body"><AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} /> {payError}</p>}
+              <div className="flex gap-2">
+                <button onClick={() => { setShowPayment(false); setPayAmount(''); setPayMethod('BANK_TRANSFER'); setPayReference(''); setPayCollectedAt(''); setPayNote(''); setPayConfirm(false); setPayError('') }}
+                  className="flex-1 h-9 rounded-[8px] border border-[#e5e7eb] text-[12px] font-medium font-body hover:bg-white transition-colors">Cancel</button>
+                <button onClick={handleRecordPayment} disabled={paySaving || !payAmount || !payConfirm}
+                  className="flex-1 h-9 rounded-[8px] bg-[#027a48] text-[12px] font-semibold text-white font-display hover:bg-[#065f46] disabled:opacity-60 flex items-center justify-center gap-1.5 transition-colors">
+                  {paySaving && <Loading01Icon size={12} className="animate-spin" strokeWidth={2} />}
+                  Record Payment
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Grace extension success */}
           {graceSuccess && (
             <div className="rounded-[10px] border border-[#bbf7d0] bg-[#ecfdf3] p-4 flex items-start gap-3">
@@ -4354,8 +5051,26 @@ function PaymentStudentSidebar({
         </div>
 
         {/* Footer — only show if we have the user's account details */}
-        {!loadingUser && uid && !confirm && !showGrace && (
+        {!loadingUser && uid && !confirm && !showGrace && !showAdjust && !showPayment && (
           <div className="px-5 py-4 border-t border-[#f3f4f6] flex flex-col gap-2">
+            {/* Record Payment */}
+            {planId && (
+              <button
+                onClick={() => { setShowPayment(true); setPaySuccess(false); setAccessGranted(false); setPayError('') }}
+                className="w-full h-10 rounded-[8px] text-[13px] font-semibold font-display flex items-center justify-center gap-2 transition-colors border border-[#bbf7d0] bg-[#f0fdf4] text-[#027a48] hover:bg-[#dcfce7]"
+              >
+                <Payment01Icon size={15} strokeWidth={1.5} /> Record Manual Payment
+              </button>
+            )}
+            {/* Adjust Price */}
+            {planId && (
+              <button
+                onClick={() => { setShowAdjust(true); setAdjSuccess(false); setAdjError('') }}
+                className="w-full h-10 rounded-[8px] text-[13px] font-semibold font-display flex items-center justify-center gap-2 transition-colors border border-[#fde68a] bg-[#fffbeb] text-[#d97706] hover:bg-[#fef3c7]"
+              >
+                <PencilEdit01Icon size={15} strokeWidth={1.5} /> Adjust Price
+              </button>
+            )}
             {/* Extend grace period */}
             <button
               onClick={() => { setShowGrace(true); setGraceSuccess(false); setGraceError('') }}
@@ -4384,13 +5099,14 @@ function PaymentStudentSidebar({
   )
 }
 
-function PaymentsTab({ cohortId }: { cohortId: string }) {
+function PaymentsTab({ cohortId, programId }: { cohortId: string; programId: number | null }) {
   const [overview, setOverview]           = useState<PaymentOverview | null>(null)
   const [loading,  setLoading]            = useState(true)
   const [error,    setError]              = useState<string | null>(null)
   const [refreshing, setRefreshing]       = useState(false)
   const [selected, setSelected]           = useState<PaymentOverviewStudent | null>(null)
   const [search,   setSearch]             = useState('')
+  const [showEnroll, setShowEnroll]       = useState(false)
 
   const load = useCallback(async (silent = false) => {
     if (silent) setRefreshing(true); else setLoading(true)
@@ -4458,7 +5174,7 @@ function PaymentsTab({ cohortId }: { cohortId: string }) {
         <div className="bg-white rounded-[10px] border border-[#eaecf0] shadow-[0px_1px_2px_rgba(16,24,40,.05)] overflow-hidden">
           <div className="px-5 py-3.5 border-b border-[#f3f4f6] flex items-center gap-3">
             <p className="text-[13px] font-semibold text-[#111827] font-display flex-shrink-0">Per-Student Breakdown</p>
-            <div className="relative flex-1 max-w-[280px]">
+            <div className="relative flex-1 max-w-[240px]">
               <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9ca3af]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607z" />
               </svg>
@@ -4472,10 +5188,16 @@ function PaymentsTab({ cohortId }: { cohortId: string }) {
             <button
               onClick={() => load(true)}
               disabled={refreshing}
-              className="ml-auto flex items-center gap-1.5 h-8 px-3 border border-[#e5e7eb] rounded-[6px] text-[12px] font-body text-[#374151] hover:bg-[#f9fafb] transition-colors disabled:opacity-60 flex-shrink-0"
+              className="flex items-center gap-1.5 h-8 px-3 border border-[#e5e7eb] rounded-[6px] text-[12px] font-body text-[#374151] hover:bg-[#f9fafb] transition-colors disabled:opacity-60 flex-shrink-0"
             >
               <RefreshIcon size={13} color="#4b5563" strokeWidth={1.5} className={refreshing ? 'animate-spin' : ''} />
               Refresh
+            </button>
+            <button
+              onClick={() => setShowEnroll(true)}
+              className="ml-auto flex items-center gap-1.5 h-8 px-3 bg-[#d51520] hover:bg-[#b81119] text-white rounded-[6px] text-[12px] font-semibold font-display flex-shrink-0 transition-colors"
+            >
+              <UserAdd01Icon size={13} strokeWidth={2} /> Enroll Student
             </button>
           </div>
           {students.length === 0 ? (
@@ -4545,6 +5267,14 @@ function PaymentsTab({ cohortId }: { cohortId: string }) {
 
       {selected && (
         <PaymentStudentSidebar student={selected} cohortId={cohortId} onClose={() => setSelected(null)} onGraceSuccess={() => { setSelected(null); load(true) }} />
+      )}
+      {showEnroll && (
+        <EnrollStudentModal
+          cohortId={cohortId}
+          programId={programId}
+          onClose={() => setShowEnroll(false)}
+          onSuccess={() => { setShowEnroll(false); load(true) }}
+        />
       )}
     </>
   )
@@ -5118,7 +5848,7 @@ export default function CohortDetailPage() {
           <ReviewsTab cohortId={cohortId} programId={programId} />
         </div>
         <div style={activeTab === 'Payments' ? { display: 'contents' } : { display: 'none' }}>
-          <PaymentsTab cohortId={cohortId} />
+          <PaymentsTab cohortId={cohortId} programId={programId} />
         </div>
         <div style={activeTab === 'Certificates' ? { display: 'contents' } : { display: 'none' }}>
           <CertificatesTab cohortId={cohortId} programId={programId} />
