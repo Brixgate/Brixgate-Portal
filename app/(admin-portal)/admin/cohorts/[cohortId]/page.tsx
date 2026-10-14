@@ -4508,10 +4508,13 @@ function PaymentStudentSidebar({
   const [graceError,   setGraceError]   = useState('')
   const [graceSuccess, setGraceSuccess] = useState(false)
 
-  // Plan detail state
+  // Plan detail state — resolved from student prop or by user_id lookup
   const [planDetail,     setPlanDetail]     = useState<EnrollmentPlan | null>(null)
   const [loadingPlan,    setLoadingPlan]    = useState(false)
-  const planId = student.plan_id ?? student.planId ?? student.enrollment_payment_plan_id ?? null
+  const [resolvedPlanId, setResolvedPlanId] = useState<number | null>(
+    student.plan_id ?? student.planId ?? student.enrollment_payment_plan_id ?? null
+  )
+  const planId = resolvedPlanId
 
   // Adjust price state
   const [showAdjust,    setShowAdjust]    = useState(false)
@@ -4577,6 +4580,20 @@ function PaymentStudentSidebar({
       }
     }).finally(() => setLoadingUser(false))
   }, [uid, enrollmentId, cohortId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Resolve plan ID if not in student data
+  useEffect(() => {
+    if (resolvedPlanId || !uid) return
+    apiClient.get(`/admin/enrollment-payment-plans?user_id=${uid}&size=5`)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then(r => {
+        const d = unwrap<any>(r.data)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const plans: any[] = d?.enrollment_payment_plans ?? d?.plans ?? []
+        if (plans.length > 0) setResolvedPlanId(plans[0].id ?? null)
+      })
+      .catch(() => {})
+  }, [uid, resolvedPlanId])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch plan detail
   useEffect(() => {
