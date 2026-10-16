@@ -6,6 +6,7 @@ import MyLearning from '@/components/student/MyLearning'
 import NotificationsPanel from '@/components/student/NotificationsPanel'
 import MiniCalendar from '@/components/student/MiniCalendar'
 import NewUserDashboard from '@/components/student/NewUserDashboard'
+import RegisteredDashboard from '@/components/student/RegisteredDashboard'
 import PaymentAlertBanner from '@/components/student/PaymentAlertBanner'
 import { MOCK_ENROLLMENTS } from '@/lib/mock-data'
 import { useAuth } from '@/lib/auth-context'
@@ -19,8 +20,15 @@ function getTodayFormatted() {
 
 export default function DashboardPage() {
   const { user } = useAuth()
+  const isRegistered = user?.role?.toUpperCase() === 'REGISTERED'
   const isNewUser = MOCK_ENROLLMENTS.length === 0
   const firstName = user?.firstName ?? ''
+
+  const greetingSubtitle = isRegistered
+    ? 'Browse our programmes and enrol to start learning.'
+    : isNewUser
+    ? 'Get started by enrolling in a programme.'
+    : "Let's learn something new today"
 
   return (
     <>
@@ -34,7 +42,7 @@ export default function DashboardPage() {
               Welcome{firstName ? ` ${firstName}` : ''}!
             </h1>
             <p className="text-[13px] lg:text-[14px] text-[#4b5563] font-body">
-              {isNewUser ? 'Get started by enrolling in a programme.' : "Let's learn something new today"}
+              {greetingSubtitle}
             </p>
           </div>
           {/* Date — hidden on mobile */}
@@ -43,9 +51,11 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <PaymentAlertBanner />
+        {!isRegistered && <PaymentAlertBanner />}
 
-        {isNewUser ? (
+        {isRegistered ? (
+          <RegisteredDashboard />
+        ) : isNewUser ? (
           <NewUserDashboard />
         ) : (
           <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">

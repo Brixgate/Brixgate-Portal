@@ -16,6 +16,8 @@ import { apiClient, unwrap } from '@/lib/api-client'
 import { stripHtml } from '@/lib/utils'
 import TeamFeature from '@/components/teams/TeamFeature'
 import axios from 'axios'
+import { useAuth } from '@/lib/auth-context'
+import { BRIXGATE_PROGRAMMES, BRIXGATE_WEBSITE, enrollUrl, type BrixgateProgramme } from '@/lib/registered-programmes'
 
 // ── API shape (matches /users/me/programs Swagger spec) ──────────────────────
 interface ApiCohortSummary {
@@ -179,14 +181,106 @@ function formatDisplay(format: string): string {
   return map[format.toUpperCase()] ?? ''
 }
 
+// ── Browse view for registered (non-enrolled) users ───────────────────────────
+function ProgrammeCard({ prog }: { prog: BrixgateProgramme }) {
+  return (
+    <div className="bg-white rounded-[10px] shadow-[0px_1px_3px_rgba(16,24,40,0.06)] overflow-hidden flex flex-col hover:shadow-[0px_4px_12px_rgba(16,24,40,0.10)] transition-shadow">
+      <div
+        className="h-[120px] bg-[#1a1d2e] bg-cover bg-center relative flex-shrink-0"
+        style={{ backgroundImage: `url(${prog.image})` }}
+      >
+        <div className="absolute inset-0 bg-black/40" />
+        <div className="absolute top-3 left-3">
+          <span className="bg-[#d51520] text-white text-[9px] font-semibold px-2 py-0.5 rounded-full font-display uppercase tracking-wide">
+            {prog.category === 'foundations' ? 'Foundations' : 'Professional'}
+          </span>
+        </div>
+      </div>
+      <div className="flex flex-col flex-1 p-4">
+        <p className="text-[14px] font-semibold text-[#111827] font-display leading-snug mb-1">
+          {prog.title}
+        </p>
+        <p className="text-[12px] text-[#4b5563] font-body leading-[1.5] line-clamp-2 mb-4 flex-1">
+          {prog.subtitle}
+        </p>
+        <a
+          href={enrollUrl(prog)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center justify-center gap-1.5 bg-[#d51520] text-white text-[12px] font-medium font-display px-4 py-2 rounded-[8px] hover:bg-[#b81119] transition-colors"
+        >
+          Enrol Now
+          <ArrowRight01Icon size={12} color="white" strokeWidth={2} />
+        </a>
+      </div>
+    </div>
+  )
+}
+
+function BrowseProgrammesView() {
+  const professionals = BRIXGATE_PROGRAMMES.filter(p => p.category === 'professionals')
+  const foundations   = BRIXGATE_PROGRAMMES.filter(p => p.category === 'foundations')
+
+  return (
+    <>
+      {/* AI for Professionals */}
+      <section className="mb-10">
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-[16px] font-semibold text-[#111827] font-display">AI for Professionals</h2>
+          <a
+            href={`${BRIXGATE_WEBSITE}/professionals`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[13px] font-medium text-[#d51520] font-display hover:underline"
+          >
+            View on website
+          </a>
+        </div>
+        <p className="text-[13px] text-[#4b5563] font-body mb-5">
+          Industry-focused programmes for working professionals.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {professionals.map(p => <ProgrammeCard key={p.slug} prog={p} />)}
+        </div>
+      </section>
+
+      {/* AI Foundations */}
+      <section>
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-[16px] font-semibold text-[#111827] font-display">AI Foundations</h2>
+          <a
+            href={`${BRIXGATE_WEBSITE}/foundations`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[13px] font-medium text-[#d51520] font-display hover:underline"
+          >
+            View on website
+          </a>
+        </div>
+        <p className="text-[13px] text-[#4b5563] font-body mb-5">
+          Beginner-friendly tracks — no prior experience required.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {foundations.map(p => <ProgrammeCard key={p.slug} prog={p} />)}
+        </div>
+      </section>
+    </>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function ProgramsPage() {
+  const { user } = useAuth()
+  const isRegistered = user?.role?.toUpperCase() === 'REGISTERED'
+
   const [programs, setPrograms]   = useState<ProgramRow[]>([])
   const [loading, setLoading]     = useState(true)
   const [error, setError]         = useState<string | null>(null)
   const [teamProgram, setTeamProgram] = useState<ProgramRow | null>(null)
 
   useEffect(() => {
+    if (isRegistered) { setLoading(false); return }
+
     async function load() {
       try {
         const res = await apiClient.get('/users/me/programs')
@@ -196,7 +290,6 @@ export default function ProgramsPage() {
         setPrograms(rows)
       } catch (err) {
         if (axios.isAxiosError(err) && err.response?.status === 401) {
-          // Not logged in — show empty state, not an error
           setPrograms([])
         } else {
           setError('Unable to load programmes. Please try again.')
@@ -206,7 +299,26 @@ export default function ProgramsPage() {
       }
     }
     load()
-  }, [])
+  }, [isRegistered])
+
+  if (isRegistered) {
+    return (
+      <>
+        <TopNav title="Programmes" />
+        <div className="px-4 md:px-8 pb-10">
+          <div className="pt-7 pb-6">
+            <h1 className="text-[24px] font-bold text-[#111827] font-display leading-tight">
+              Programmes
+            </h1>
+            <p className="text-[14px] text-[#4b5563] font-body mt-1">
+              Choose a programme and enrol to start your learning journey.
+            </p>
+          </div>
+          <BrowseProgrammesView />
+        </div>
+      </>
+    )
+  }
 
   return (
     <>
