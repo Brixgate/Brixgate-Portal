@@ -271,7 +271,7 @@ function BrowseProgrammesView() {
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function ProgramsPage() {
   const { user } = useAuth()
-  const isRegistered = user?.role?.toUpperCase() === 'REGISTERED'
+  const isRegistered = user?.role?.toUpperCase() === 'PROSPECT'
 
   const [programs, setPrograms]   = useState<ProgramRow[]>([])
   const [loading, setLoading]     = useState(true)

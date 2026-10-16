@@ -20,7 +20,7 @@ function getTodayFormatted() {
 
 export default function DashboardPage() {
   const { user } = useAuth()
-  const isRegistered = user?.role?.toUpperCase() === 'REGISTERED'
+  const isRegistered = user?.role?.toUpperCase() === 'PROSPECT'
   const isNewUser = MOCK_ENROLLMENTS.length === 0
   const firstName = user?.firstName ?? ''
 

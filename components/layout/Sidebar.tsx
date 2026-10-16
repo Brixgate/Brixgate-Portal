@@ -39,7 +39,7 @@ const NAV_ITEMS = [
 ]
 
 // Items marked enrolledOnly are hidden for users who are registered but not yet enrolled
-const REGISTERED_ROLE = 'REGISTERED'
+const REGISTERED_ROLE = 'PROSPECT'
 
 function NavItem({
   href,
