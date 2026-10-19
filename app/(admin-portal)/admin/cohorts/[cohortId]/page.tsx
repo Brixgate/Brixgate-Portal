@@ -4585,11 +4585,9 @@ function PaymentStudentSidebar({
   useEffect(() => {
     if (resolvedPlanId || !uid) return
     apiClient.get(`/admin/enrollment-payment-plans?user_id=${uid}&size=5`)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .then(r => {
-        const d = unwrap<any>(r.data)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const plans: any[] = d?.enrollment_payment_plans ?? d?.plans ?? []
+        const d = unwrap<{ enrollment_payment_plans?: { id?: number }[]; plans?: { id?: number }[] }>(r.data)
+        const plans = d?.enrollment_payment_plans ?? d?.plans ?? []
         if (plans.length > 0) setResolvedPlanId(plans[0].id ?? null)
       })
       .catch(() => {})
