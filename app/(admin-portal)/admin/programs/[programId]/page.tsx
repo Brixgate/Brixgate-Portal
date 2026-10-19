@@ -41,6 +41,14 @@ interface Program {
   partners?: string; testimonials?: string; tools?: string
   images?: string; includes_summary?: string; demand?: string
   eligibility?: string; application_process?: string
+  access_fee_config?: AccessFeeConfig
+  access_fee_page_key?: string
+}
+
+interface AccessFeeConfig {
+  enabled: boolean
+  terms?: string
+  amounts?: { NGN?: string; USD?: string }
 }
 
 const CONTENT_TYPES   = ['VIDEO', 'ARTICLE', 'QUIZ']
@@ -2575,8 +2583,240 @@ function CohortsTab({ programId }: { programId: string }) {
   )
 }
 
+// ── Access Fee Tab ────────────────────────────────────────────────────────────
+function AccessFeeTab({ programId, program }: { programId: string; program: Program | null }) {
+  const { toasts, toast, removeToast } = useToast()
+
+  const cfg = program?.access_fee_config
+  const [enabled, setEnabled]               = useState(cfg?.enabled ?? false)
+  const [ngnAmount, setNgn]                 = useState(cfg?.amounts?.NGN ?? '')
+  const [usdAmount, setUsd]                 = useState(cfg?.amounts?.USD ?? '')
+  const [terms, setTerms]                   = useState(cfg?.terms ?? '')
+  const [saving, setSaving]                 = useState(false)
+  const [error, setError]                   = useState('')
+  const [copied, setCopied]                 = useState(false)
+  const [showDisableConfirm, setShowDisableConfirm] = useState(false)
+  const [pageKey, setPageKey]               = useState(program?.access_fee_page_key ?? '')
+
+  const accessFeeLink = pageKey
+    ? `https://brixgate.com/program-access?key=${pageKey}`
+    : ''
+
+  useEffect(() => {
+    if (!program) return
+    const c = program.access_fee_config
+    if (c) {
+      setEnabled(c.enabled)
+      setNgn(c.amounts?.NGN ?? '')
+      setUsd(c.amounts?.USD ?? '')
+      setTerms(c.terms ?? '')
+    }
+    if (program.access_fee_page_key) setPageKey(program.access_fee_page_key)
+  }, [program])
+
+  async function handleSave(forceEnabled?: boolean) {
+    setSaving(true)
+    setError('')
+    try {
+      const res = await apiClient.patch(`/admin/programs/${programId}`, {
+        access_fee_config: {
+          enabled: forceEnabled !== undefined ? forceEnabled : enabled,
+          terms,
+          amounts: { NGN: ngnAmount, USD: usdAmount },
+        },
+      })
+      const data = unwrap<{ program?: Program } & Program>(res.data)
+      const prog = (data?.program ?? data) as Program
+      if (prog?.access_fee_page_key) setPageKey(prog.access_fee_page_key)
+      if (forceEnabled === false) setEnabled(false)
+      toast.success('Access fee settings saved')
+      setShowDisableConfirm(false)
+    } catch (e) {
+      setError(getApiError(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function handleToggle(next: boolean) {
+    if (!next && enabled) { setShowDisableConfirm(true); return }
+    setEnabled(next)
+  }
+
+  function copyLink() {
+    navigator.clipboard.writeText(accessFeeLink).catch(() => {})
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="p-8 max-w-[720px] mx-auto space-y-6">
+      {/* Header / toggle */}
+      <div className="bg-white border border-[#f3f4f6] rounded-[12px] p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-[15px] font-bold text-[#111827] font-display">Access Fee</h3>
+            <p className="text-[13px] text-[#6b7280] font-body mt-1">
+              Charge a one-time registration fee. Prospects pay, get portal access, and see a locked dashboard until full tuition is paid.
+            </p>
+          </div>
+          <button
+            onClick={() => handleToggle(!enabled)}
+            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+              enabled ? 'bg-[#d51520]' : 'bg-[#e5e7eb]'
+            }`}
+          >
+            <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+              enabled ? 'translate-x-5' : 'translate-x-0'
+            }`} />
+          </button>
+        </div>
+        {!enabled && (
+          <div className="mt-4 flex items-center gap-2 bg-[#fffbeb] border border-[#fde68a] rounded-[8px] px-4 py-3">
+            <AlertCircleIcon size={14} strokeWidth={1.5} className="text-[#b45309] flex-shrink-0" />
+            <p className="text-[12px] text-[#b45309] font-body">Access fee is disabled. Enable it to start accepting registrations for this programme.</p>
+          </div>
+        )}
+      </div>
+
+      {/* Fee amounts */}
+      <div className="bg-white border border-[#f3f4f6] rounded-[12px] p-6 space-y-5">
+        <h4 className="text-[11px] font-bold text-[#9ca3af] font-display uppercase tracking-widest">Fee Amounts</h4>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-[12px] font-semibold text-[#374151] font-display mb-1.5">NGN Amount</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] text-[#9ca3af] font-body select-none">₦</span>
+              <input
+                type="text"
+                value={ngnAmount}
+                onChange={e => setNgn(e.target.value)}
+                placeholder="50000"
+                className="w-full h-10 pl-7 pr-3 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520]"
+              />
+            </div>
+            <p className="mt-1 text-[11px] text-[#9ca3af] font-body">Processed via Paystack</p>
+          </div>
+          <div>
+            <label className="block text-[12px] font-semibold text-[#374151] font-display mb-1.5">USD Amount</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] text-[#9ca3af] font-body select-none">$</span>
+              <input
+                type="text"
+                value={usdAmount}
+                onChange={e => setUsd(e.target.value)}
+                placeholder="30"
+                className="w-full h-10 pl-7 pr-3 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520]"
+              />
+            </div>
+            <p className="mt-1 text-[11px] text-[#9ca3af] font-body">Processed via Stripe</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Terms */}
+      <div className="bg-white border border-[#f3f4f6] rounded-[12px] p-6 space-y-4">
+        <div>
+          <h4 className="text-[11px] font-bold text-[#9ca3af] font-display uppercase tracking-widest">Terms & Conditions</h4>
+          <p className="text-[12px] text-[#9ca3af] font-body mt-0.5">Displayed to the prospect on the registration page before payment.</p>
+        </div>
+        <textarea
+          value={terms}
+          onChange={e => setTerms(e.target.value)}
+          rows={6}
+          placeholder="By paying this access fee, you confirm that you understand..."
+          className="w-full px-4 py-3 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body text-[#111827] placeholder-[#9ca3af] resize-none focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520]"
+        />
+        {terms && (
+          <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-[8px] p-4">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#9ca3af] font-display mb-2">Preview — what the prospect reads</p>
+            <p className="text-[13px] text-[#374151] font-body leading-relaxed whitespace-pre-wrap">{terms}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Registration link */}
+      {pageKey && (
+        <div className="bg-white border border-[#f3f4f6] rounded-[12px] p-6 space-y-3">
+          <h4 className="text-[11px] font-bold text-[#9ca3af] font-display uppercase tracking-widest">Registration Link</h4>
+          <p className="text-[12px] text-[#6b7280] font-body">
+            This link registers people for{' '}
+            <span className="font-semibold text-[#111827]">{program?.title}</span>.
+            Share it to start accepting registrations.
+          </p>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 flex items-center gap-2 h-10 px-3 bg-[#f9fafb] border border-[#e5e7eb] rounded-[8px] min-w-0">
+              <Link01Icon size={13} strokeWidth={1.5} className="text-[#9ca3af] flex-shrink-0" />
+              <span className="text-[12px] text-[#374151] font-body truncate flex-1">{accessFeeLink}</span>
+            </div>
+            <button
+              onClick={copyLink}
+              className="flex items-center gap-1.5 h-10 px-4 border border-[#e5e7eb] rounded-[8px] text-[12px] font-semibold font-display text-[#374151] hover:bg-[#f9fafb] transition-colors flex-shrink-0"
+            >
+              {copied
+                ? <CheckmarkCircle01Icon size={13} strokeWidth={1.5} className="text-[#16a34a]" />
+                : <Link01Icon size={13} strokeWidth={1.5} />}
+              {copied ? 'Copied!' : 'Copy link'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Error */}
+      {error && (
+        <div className="flex items-center gap-2 bg-[#fef2f2] border border-[#fecaca] rounded-[8px] px-4 py-3">
+          <AlertCircleIcon size={14} strokeWidth={1.5} className="text-[#d51520] flex-shrink-0" />
+          <p className="text-[12px] text-[#d51520] font-body">{error}</p>
+        </div>
+      )}
+
+      {/* Save */}
+      <div className="flex justify-end pb-2">
+        <button
+          onClick={() => handleSave()}
+          disabled={saving}
+          className="flex items-center gap-2 h-10 px-6 bg-[#d51520] text-white rounded-[8px] text-[13px] font-semibold font-display hover:bg-[#b81119] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {saving && <Loading01Icon size={14} strokeWidth={2} className="animate-spin" />}
+          {saving ? 'Saving…' : 'Save changes'}
+        </button>
+      </div>
+
+      {/* Disable confirm modal */}
+      {showDisableConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={() => setShowDisableConfirm(false)}>
+          <div className="bg-white rounded-[14px] shadow-xl w-full max-w-[440px] p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-[15px] font-bold text-[#111827] font-display mb-2">Disable access fee?</h3>
+            <p className="text-[13px] text-[#6b7280] font-body mb-6">
+              This will stop accepting new registrations via the link. Existing payment records are preserved and will not be affected.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowDisableConfirm(false)}
+                className="h-9 px-4 border border-[#e5e7eb] rounded-[8px] text-[13px] font-semibold font-display text-[#374151] hover:bg-[#f9fafb] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleSave(false)}
+                disabled={saving}
+                className="flex items-center gap-2 h-9 px-4 bg-[#d51520] text-white rounded-[8px] text-[13px] font-semibold font-display hover:bg-[#b81119] transition-colors disabled:opacity-50"
+              >
+                {saving && <Loading01Icon size={14} strokeWidth={2} className="animate-spin" />}
+                Disable
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
-type PageTab = 'General' | 'Cohorts' | 'Pricing' | 'General Curriculum'
+type PageTab = 'General' | 'Cohorts' | 'Pricing' | 'General Curriculum' | 'Access Fee'
 
 export default function ProgramDetailPage() {
   const params    = useParams()
@@ -2703,6 +2943,7 @@ export default function ProgramDetailPage() {
             {activeTab === 'General'            ? 'Overview and programme details'
             : activeTab === 'Cohorts'           ? 'Cohorts running this programme'
             : activeTab === 'Pricing'           ? 'Pricing plans and payment options'
+            : activeTab === 'Access Fee'        ? 'Registration access fee and payment link'
             : 'General curriculum — modules, lessons & resources'}
           </p>
         </div>
@@ -2716,7 +2957,7 @@ export default function ProgramDetailPage() {
 
       {/* Tab bar */}
       <div className="flex items-center gap-1 px-6 bg-white border-b border-[#f3f4f6] flex-shrink-0">
-        {(['General', 'Cohorts', 'Pricing', 'General Curriculum'] as PageTab[]).map(tab => (
+        {(['General', 'Cohorts', 'Pricing', 'Access Fee', 'General Curriculum'] as PageTab[]).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             className={`flex items-center gap-1.5 px-4 py-3 text-[13px] font-semibold font-display border-b-2 transition-colors ${
               activeTab === tab ? 'border-[#d51520] text-[#d51520]' : 'border-transparent text-[#4b5563] hover:text-[#374151]'
@@ -2724,6 +2965,7 @@ export default function ProgramDetailPage() {
             {tab === 'General'            && <Building04Icon  size={14} strokeWidth={1.5} />}
             {tab === 'Cohorts'            && <BookOpen01Icon  size={14} strokeWidth={1.5} />}
             {tab === 'Pricing'            && <Invoice01Icon   size={14} strokeWidth={1.5} />}
+            {tab === 'Access Fee'         && <Payment01Icon   size={14} strokeWidth={1.5} />}
             {tab === 'General Curriculum' && <File01Icon      size={14} strokeWidth={1.5} />}
             {tab}
           </button>
@@ -2746,6 +2988,12 @@ export default function ProgramDetailPage() {
       {activeTab === 'Pricing' && (
         <div className="flex-1 overflow-y-auto bg-[#f9fafb]">
           <PricingTab programId={programId} />
+        </div>
+      )}
+
+      {activeTab === 'Access Fee' && (
+        <div className="flex-1 overflow-y-auto bg-[#f9fafb]">
+          <AccessFeeTab programId={programId} program={program} />
         </div>
       )}
 
