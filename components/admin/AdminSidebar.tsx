@@ -22,6 +22,7 @@ import {
   Queue01Icon,
   Notification01Icon,
   Settings01Icon,
+  Payment01Icon,
 } from 'hugeicons-react'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -54,6 +55,7 @@ const NAV_GROUPS = [
   {
     label: 'PIPELINE',
     items: [
+      { label: 'Registrations',           href: '/admin/registrations',         icon: Payment01Icon     },
       { label: 'Expert Applications',    href: '/admin/expert-applications',   icon: UserSearch01Icon  },
       { label: 'Organisation Requests',  href: '/admin/organization-requests', icon: Building01Icon    },
       { label: 'Waitlist',               href: '/admin/waitlist',              icon: Queue01Icon       },
