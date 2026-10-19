@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   Search01Icon, Download01Icon, RefreshIcon, Loading01Icon,
   AlertCircleIcon, UserGroup02Icon, Link01Icon, CheckmarkCircle01Icon,
-  Payment01Icon,
+  Payment01Icon, ArrowReloadHorizontalIcon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 
@@ -91,29 +91,75 @@ function PayStatusBadge({ status }: { status: string }) {
   )
 }
 
-// ── Copy-link cell button ─────────────────────────────────────────────────────
-function CopyLinkButton({ link }: { link: string }) {
-  const [copied, setCopied] = useState(false)
+// ── Action cell — Requery (PENDING/FAILED) or Copy link (NOT_PAID/CANCELLED) ──
+function ActionCell({
+  status, reference, link, onRequeryDone,
+}: {
+  status: string
+  reference: string
+  link: string
+  onRequeryDone: (updated: Partial<Registration>) => void
+}) {
+  const [loading, setLoading]   = useState(false)
+  const [error, setError]       = useState('')
+  const [copied, setCopied]     = useState(false)
 
-  function copy() {
-    navigator.clipboard.writeText(link).catch(() => {})
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+  // Requery: PENDING or FAILED — there's a reference to check
+  if (status === 'PENDING' || status === 'FAILED') {
+    if (!reference) return <span className="text-[12px] text-[#d0d5dd] font-body">No reference</span>
+
+    const requery = async () => {
+      setLoading(true); setError('')
+      try {
+        const res  = await apiClient.get(`/waitlist/access-fee-payments/${reference}`)
+        const data = unwrap<Record<string, unknown>>(res.data)
+        onRequeryDone(data as Partial<Registration>)
+      } catch (e) {
+        setError(getApiError(e))
+      } finally { setLoading(false) }
+    }
+
+    return (
+      <div className="flex flex-col items-end gap-1">
+        <button
+          onClick={requery}
+          disabled={loading}
+          className="inline-flex items-center gap-1.5 h-7 px-3 border border-[#e5e7eb] rounded-[6px] text-[11px] font-semibold font-display text-[#374151] hover:bg-[#fef2f2] hover:border-[#d51520] hover:text-[#d51520] disabled:opacity-50 transition-colors"
+        >
+          {loading
+            ? <Loading01Icon size={12} strokeWidth={2} className="animate-spin" />
+            : <ArrowReloadHorizontalIcon size={12} strokeWidth={1.5} />}
+          {loading ? 'Checking…' : 'Requery'}
+        </button>
+        {error && <p className="text-[10px] text-[#d51520] font-body max-w-[140px] text-right">{error}</p>}
+      </div>
+    )
   }
 
-  if (!link) return <span className="text-[12px] text-[#d0d5dd] font-body">—</span>
+  // Copy link: NOT_PAID or CANCELLED — re-share the registration URL
+  if (status === 'NOT_PAID' || status === 'CANCELLED') {
+    if (!link) return <span className="text-[12px] text-[#d0d5dd] font-body">—</span>
 
-  return (
-    <button
-      onClick={copy}
-      className="inline-flex items-center gap-1.5 h-7 px-3 border border-[#e5e7eb] rounded-[6px] text-[11px] font-semibold font-display text-[#374151] hover:bg-[#f9fafb] hover:border-[#d51520] hover:text-[#d51520] transition-colors"
-    >
-      {copied
-        ? <CheckmarkCircle01Icon size={12} strokeWidth={1.5} className="text-[#16a34a]" />
-        : <Link01Icon size={12} strokeWidth={1.5} />}
-      {copied ? 'Copied!' : 'Copy link'}
-    </button>
-  )
+    const copy = () => {
+      navigator.clipboard.writeText(link).catch(() => {})
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+
+    return (
+      <button
+        onClick={copy}
+        className="inline-flex items-center gap-1.5 h-7 px-3 border border-[#e5e7eb] rounded-[6px] text-[11px] font-semibold font-display text-[#374151] hover:bg-[#f9fafb] hover:border-[#d51520] hover:text-[#d51520] transition-colors"
+      >
+        {copied
+          ? <CheckmarkCircle01Icon size={12} strokeWidth={1.5} className="text-[#16a34a]" />
+          : <Link01Icon size={12} strokeWidth={1.5} />}
+        {copied ? 'Copied!' : 'Copy link'}
+      </button>
+    )
+  }
+
+  return <span className="text-[12px] text-[#d0d5dd] font-body">—</span>
 }
 
 // ── CSV export ────────────────────────────────────────────────────────────────
@@ -227,10 +273,8 @@ export default function AdminRegistrationsPage() {
   const total      = pagination?.totalElements ?? pagination?.total_elements ?? pagination?.total ?? entries.length
   const totalPages = pagination?.totalPages ?? pagination?.total_pages ?? 1
 
-  // Rows that should show "Copy link" — payment not finalised
-  function showCopyLink(r: Registration) {
-    const s = accessFeeStatus(r)
-    return s === 'PENDING' || s === 'FAILED' || s === 'CANCELLED' || s === 'NOT_PAID'
+  function handleRequeryDone(id: number, updated: Partial<Registration>) {
+    setEntries(prev => prev.map(r => r.id === id ? { ...r, ...updated } : r))
   }
 
   return (
@@ -408,9 +452,12 @@ export default function AdminRegistrationsPage() {
                       </td>
                       {/* Action */}
                       <td className="px-4 py-3.5 text-right">
-                        {showCopyLink(r)
-                          ? <CopyLinkButton link={link} />
-                          : <span className="text-[12px] text-[#d0d5dd] font-body">—</span>}
+                        <ActionCell
+                          status={status}
+                          reference={r.paymentReference ?? r.payment_reference ?? ''}
+                          link={link}
+                          onRequeryDone={updated => handleRequeryDone(r.id, updated)}
+                        />
                       </td>
                     </tr>
                   )
