@@ -28,15 +28,18 @@ import { apiClient, unwrap } from '@/lib/api-client'
 const LOGO_URL = '/images/Logo red.png'
 
 const NAV_ITEMS = [
-  { label: 'Dashboard',        href: '/student/dashboard',    icon: Home01Icon         },
-  { label: 'My Programs',      href: '/student/programs',     icon: BookOpen01Icon     },
-  { label: 'My Certificate',   href: '/student/certificate',  icon: Award01Icon        },
-  { label: 'My Calendar',      href: '/student/calendar',     icon: Calendar01Icon     },
-  { label: 'Notifications',   href: '/student/notifications', icon: Notification01Icon  },
-  { label: 'Resources',        href: '/student/resources',    icon: Folder01Icon       },
-  { label: 'Finance',          href: '/student/finance',      icon: Wallet01Icon       },
-  { label: 'Profile Settings', href: '/student/settings',     icon: Settings01Icon     },
+  { label: 'Dashboard',        href: '/student/dashboard',    icon: Home01Icon,         enrolledOnly: false },
+  { label: 'My Programs',      href: '/student/programs',     icon: BookOpen01Icon,     enrolledOnly: false },
+  { label: 'My Certificate',   href: '/student/certificate',  icon: Award01Icon,        enrolledOnly: true  },
+  { label: 'My Calendar',      href: '/student/calendar',     icon: Calendar01Icon,     enrolledOnly: true  },
+  { label: 'Notifications',   href: '/student/notifications', icon: Notification01Icon,  enrolledOnly: false },
+  { label: 'Resources',        href: '/student/resources',    icon: Folder01Icon,       enrolledOnly: true  },
+  { label: 'Finance',          href: '/student/finance',      icon: Wallet01Icon,       enrolledOnly: false },
+  { label: 'Profile Settings', href: '/student/settings',     icon: Settings01Icon,     enrolledOnly: false },
 ]
+
+// Items marked enrolledOnly are hidden for users who are registered but not yet enrolled
+const REGISTERED_ROLE = 'PROSPECT'
 
 function NavItem({
   href,
@@ -100,6 +103,9 @@ export default function Sidebar() {
       setIsAlumnus(raw?.is_alumnus ?? false)
     }).catch(() => { /* silently ignore — forum link stays hidden */ })
   }, [])
+
+  const isRegistered = user?.role?.toUpperCase() === REGISTERED_ROLE
+  const visibleNavItems = NAV_ITEMS.filter(item => !isRegistered || !item.enrolledOnly)
 
   const displayName = user ? `${user.firstName} ${user.lastName}`.trim() : ''
   const initials    = user
@@ -179,7 +185,7 @@ export default function Sidebar() {
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-4 flex flex-col gap-1 px-2 lg:px-2 max-lg:px-3">
-          {NAV_ITEMS.map((item) => (
+          {visibleNavItems.map((item) => (
             <NavItem
               key={item.href}
               href={item.href}
