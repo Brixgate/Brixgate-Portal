@@ -2584,6 +2584,14 @@ function CohortsTab({ programId }: { programId: string }) {
 }
 
 // ── Access Fee Tab ────────────────────────────────────────────────────────────
+function fmtInputNum(raw: string) {
+  const digits = raw.replace(/[^\d]/g, '')
+  return digits ? Number(digits).toLocaleString('en-NG') : ''
+}
+function stripInputNum(formatted: string) {
+  return formatted.replace(/[^\d]/g, '')
+}
+
 function AccessFeeTab({ programId, program }: { programId: string; program: Program | null }) {
   const { toasts, toast, removeToast } = useToast()
 
@@ -2689,9 +2697,9 @@ function AccessFeeTab({ programId, program }: { programId: string; program: Prog
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] text-[#9ca3af] font-body select-none">₦</span>
               <input
                 type="text"
-                value={ngnAmount}
-                onChange={e => setNgn(e.target.value)}
-                placeholder="50000"
+                value={fmtInputNum(ngnAmount)}
+                onChange={e => setNgn(stripInputNum(e.target.value))}
+                placeholder="50,000"
                 className="w-full h-10 pl-7 pr-3 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520]"
               />
             </div>
@@ -2703,8 +2711,8 @@ function AccessFeeTab({ programId, program }: { programId: string; program: Prog
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] text-[#9ca3af] font-body select-none">$</span>
               <input
                 type="text"
-                value={usdAmount}
-                onChange={e => setUsd(e.target.value)}
+                value={fmtInputNum(usdAmount)}
+                onChange={e => setUsd(stripInputNum(e.target.value))}
                 placeholder="30"
                 className="w-full h-10 pl-7 pr-3 border border-[#e5e7eb] rounded-[8px] text-[13px] font-body text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520]"
               />
