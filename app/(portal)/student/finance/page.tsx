@@ -158,6 +158,10 @@ const dig = (val: unknown): Record<string, unknown> => {
   return {}
 }
 
+function currencySymbol(code?: string) {
+  return code === 'USD' ? '$' : '₦'
+}
+
 function fmt(amount: number, currency = '₦') {
   return `${currency}${amount.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
@@ -313,7 +317,7 @@ function PayButton({ plan, installment, onSuccess }: {
       const amt = Number(partAmount.replace(/[^0-9.]/g, ''))
       if (!amt || amt <= 0) { setError('Enter a valid amount.'); return }
       if (amt > plan.amountOutstanding) {
-        setError(`Amount cannot exceed outstanding balance of ${fmt(plan.amountOutstanding)}.`)
+        setError(`Amount cannot exceed outstanding balance of ${fmt(plan.amountOutstanding, currencySymbol(plan.currency))}.`)
         return
       }
     }
@@ -332,6 +336,8 @@ function PayButton({ plan, installment, onSuccess }: {
         entity_id:                 plan.cohortId || plan.id,
         pricingPlanId:             resolvedPricingPlanId,
         pricing_plan_id:           resolvedPricingPlanId,
+        paymentOptionId:           plan.paymentOptionId,
+        payment_option_id:         plan.paymentOptionId,
         enrollmentPaymentPlanId:   plan.id,
         enrollment_payment_plan_id: plan.id,
       }
@@ -366,7 +372,7 @@ function PayButton({ plan, installment, onSuccess }: {
     <div className="flex flex-col items-end gap-1.5">
       {isFlexible && (
         <div className="flex items-center gap-1.5">
-          <span className="text-[12px] text-[#374151] font-body">₦</span>
+          <span className="text-[12px] text-[#374151] font-body">{currencySymbol(plan.currency)}</span>
           <input
             type="number"
             min={1}
@@ -403,6 +409,7 @@ function PlanCard({ plan, onPaySuccess }: { plan: PaymentPlan; onPaySuccess: () 
   const progressPct = plan.totalAmount > 0
     ? Math.min(100, Math.round((plan.amountPaid / plan.totalAmount) * 100))
     : 0
+  const sym = currencySymbol(plan.currency)
 
   const modeLabel = plan.paymentMode === 'FIXED_INSTALLMENT' ? 'Fixed Installment'
     : plan.paymentMode === 'FLEXIBLE' ? 'Flexible'
@@ -468,9 +475,9 @@ function PlanCard({ plan, onPaySuccess }: { plan: PaymentPlan; onPaySuccess: () 
       {/* Summary row */}
       <div className="mx-6 mb-4 grid grid-cols-3 divide-x divide-[#eaecf0] rounded-[8px] border border-[#eaecf0]">
         {[
-          { label: 'Total',       value: fmt(plan.totalAmount)       },
-          { label: 'Paid',        value: fmt(plan.amountPaid)        },
-          { label: 'Outstanding', value: fmt(plan.amountOutstanding) },
+          { label: 'Total',       value: fmt(plan.totalAmount, sym)       },
+          { label: 'Paid',        value: fmt(plan.amountPaid, sym)        },
+          { label: 'Outstanding', value: fmt(plan.amountOutstanding, sym) },
         ].map(({ label, value }) => (
           <div key={label} className="flex flex-col items-center py-3 px-4">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">{label}</p>
@@ -500,7 +507,7 @@ function PlanCard({ plan, onPaySuccess }: { plan: PaymentPlan; onPaySuccess: () 
             <Calendar03Icon size={15} color="#d51520" strokeWidth={1.5} className="flex-shrink-0" />
             <div>
               <p className="text-[12px] font-semibold text-[#d51520] font-display">
-                Next payment: {fmt(nextDue.outstanding || nextDue.amountDue)} due {nextDue.dueDate}
+                Next payment: {fmt(nextDue.outstanding || nextDue.amountDue, sym)} due {nextDue.dueDate}
               </p>
               {nextDue.graceDueDate && (
                 <p className="text-[11px] text-[#9ca3af] font-body mt-0.5">
@@ -541,7 +548,7 @@ function PlanCard({ plan, onPaySuccess }: { plan: PaymentPlan; onPaySuccess: () 
                       </div>
                       <div>
                         <p className="text-[13px] font-semibold text-[#111827] font-display">
-                          {fmt(inst.amountDue)}
+                          {fmt(inst.amountDue, sym)}
                         </p>
                         <div className="flex items-center gap-1.5 mt-0.5">
                           <Clock01Icon size={10} color="#9ca3af" strokeWidth={1.5} />
@@ -553,7 +560,7 @@ function PlanCard({ plan, onPaySuccess }: { plan: PaymentPlan; onPaySuccess: () 
                         </div>
                         {inst.status !== 'PAID' && inst.outstanding > 0 && (
                           <p className="text-[11px] text-[#d51520] font-body mt-0.5">
-                            {fmt(inst.outstanding)} outstanding
+                            {fmt(inst.outstanding, sym)} outstanding
                           </p>
                         )}
                       </div>
@@ -597,7 +604,7 @@ function PlanCard({ plan, onPaySuccess }: { plan: PaymentPlan; onPaySuccess: () 
                       </p>
                     </div>
                     <div className="flex items-center gap-2.5 flex-shrink-0">
-                      <p className="text-[13px] font-semibold text-[#111827] font-display">{fmt(p.amount)}</p>
+                      <p className="text-[13px] font-semibold text-[#111827] font-display">{fmt(p.amount, currencySymbol(p.currency))}</p>
                       <PaymentStatusDot status={p.status} />
                     </div>
                   </div>
