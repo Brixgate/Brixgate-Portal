@@ -326,12 +326,14 @@ function PayButton({ plan, installment, onSuccess }: {
     setError(null)
     try {
       const resolvedPricingPlanId = plan.pricingPlanId ?? plan.pricingBreakdownId ?? null
+      // USD plans route via Stripe; NGN plans route via Paystack
+      const resolvedMethod = plan.currency === 'USD' ? 'STRIPE' : 'PAYSTACK'
       // Send both camelCase and snake_case so the backend reads whichever it expects.
       const payload: Record<string, unknown> = {
         paymentType:               'ENROLLMENT',
         payment_type:              'ENROLLMENT',
-        paymentMethod:             'PAYSTACK',
-        payment_method:            'PAYSTACK',
+        paymentMethod:             resolvedMethod,
+        payment_method:            resolvedMethod,
         entityId:                  plan.cohortId || plan.id,
         entity_id:                 plan.cohortId || plan.id,
         pricingPlanId:             resolvedPricingPlanId,
@@ -340,6 +342,8 @@ function PayButton({ plan, installment, onSuccess }: {
         payment_option_id:         plan.paymentOptionId,
         enrollmentPaymentPlanId:   plan.id,
         enrollment_payment_plan_id: plan.id,
+        installmentId:             installment.id,
+        installment_id:            installment.id,
       }
       if (isFlexible) {
         const amt = Number(partAmount.replace(/[^0-9.]/g, ''))
@@ -632,7 +636,7 @@ function WalletCard({ wallet }: { wallet: Wallet | null }) {
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9ca3af] font-display">Wallet Balance</p>
             <p className="text-[22px] font-bold text-[#111827] font-display leading-tight mt-0.5">
-              {fmt(wallet.balance)}
+              {fmt(wallet.balance, currencySymbol(wallet.currency))}
             </p>
           </div>
         </div>
@@ -667,7 +671,7 @@ function WalletCard({ wallet }: { wallet: Wallet | null }) {
                   <p className={`text-[13px] font-semibold font-display ${
                     tx.type === 'CREDIT' ? 'text-[#16a34a]' : 'text-[#d51520]'
                   }`}>
-                    {tx.type === 'CREDIT' ? '+' : '−'}{fmt(tx.amount)}
+                    {tx.type === 'CREDIT' ? '+' : '−'}{fmt(tx.amount, currencySymbol(wallet.currency))}
                   </p>
                 </div>
               ))}
