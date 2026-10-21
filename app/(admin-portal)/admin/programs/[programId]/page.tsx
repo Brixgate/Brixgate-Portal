@@ -2592,14 +2592,17 @@ function stripInputNum(formatted: string) {
   return formatted.replace(/[^\d]/g, '')
 }
 
-function AccessFeeTab({ programId, program }: { programId: string; program: Program | null }) {
+function AccessFeeTab({ programId, program, onProgramUpdated }: {
+  programId: string
+  program: Program | null
+  onProgramUpdated?: (p: Program) => void
+}) {
   const { toasts, toast, removeToast } = useToast()
 
   const cfg = program?.access_fee_config
-  const toUnit = (v?: string) => v ? String(Math.round(Number(v) / 100)) : ''
   const [enabled, setEnabled]               = useState(cfg?.enabled ?? false)
-  const [ngnAmount, setNgn]                 = useState(toUnit(cfg?.amounts?.NGN))
-  const [usdAmount, setUsd]                 = useState(toUnit(cfg?.amounts?.USD))
+  const [ngnAmount, setNgn]                 = useState(cfg?.amounts?.NGN ?? '')
+  const [usdAmount, setUsd]                 = useState(cfg?.amounts?.USD ?? '')
   const [terms, setTerms]                   = useState(cfg?.terms ?? '')
   const [saving, setSaving]                 = useState(false)
   const [error, setError]                   = useState('')
@@ -2616,8 +2619,8 @@ function AccessFeeTab({ programId, program }: { programId: string; program: Prog
     const c = program.access_fee_config
     if (c) {
       setEnabled(c.enabled)
-      setNgn(toUnit(c.amounts?.NGN))
-      setUsd(toUnit(c.amounts?.USD))
+      setNgn(c.amounts?.NGN ?? '')
+      setUsd(c.amounts?.USD ?? '')
       setTerms(c.terms ?? '')
     }
     if (program.access_fee_page_key) setPageKey(program.access_fee_page_key)
@@ -2627,19 +2630,19 @@ function AccessFeeTab({ programId, program }: { programId: string; program: Prog
     setSaving(true)
     setError('')
     try {
-      // API stores amounts in kobo/cents — multiply by 100 before saving
-      const toKobo = (v: string) => v ? String(Number(v) * 100) : v
       const res = await apiClient.patch(`/admin/programs/${programId}`, {
         access_fee_config: {
           enabled: forceEnabled !== undefined ? forceEnabled : enabled,
           terms,
-          amounts: { NGN: toKobo(ngnAmount), USD: toKobo(usdAmount) },
+          amounts: { NGN: ngnAmount, USD: usdAmount },
         },
       })
       const data = unwrap<{ program?: Program } & Program>(res.data)
       const prog = (data?.program ?? data) as Program
       if (prog?.access_fee_page_key) setPageKey(prog.access_fee_page_key)
       if (forceEnabled === false) setEnabled(false)
+      // Propagate updated program to parent so remounting tab shows fresh data
+      if (prog && onProgramUpdated) onProgramUpdated(prog)
       toast.success('Access fee settings saved')
       setShowDisableConfirm(false)
     } catch (e) {
@@ -3004,7 +3007,7 @@ export default function ProgramDetailPage() {
 
       {activeTab === 'Access Fee' && (
         <div className="flex-1 overflow-y-auto bg-[#f9fafb]">
-          <AccessFeeTab programId={programId} program={program} />
+          <AccessFeeTab programId={programId} program={program} onProgramUpdated={setProgram} />
         </div>
       )}
 
