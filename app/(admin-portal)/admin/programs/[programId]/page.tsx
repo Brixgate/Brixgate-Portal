@@ -2600,9 +2600,12 @@ function AccessFeeTab({ programId, program, onProgramUpdated }: {
   const { toasts, toast, removeToast } = useToast()
 
   const cfg = program?.access_fee_config
+  // API stores amounts in kobo (NGN) / cents (USD) — divide by 100 for display
+  const fromMinorUnit = (v?: string) => v ? String(Math.round(Number(v) / 100)) : ''
+  const toMinorUnit   = (v: string)  => v ? String(Number(v) * 100) : v
   const [enabled, setEnabled]               = useState(cfg?.enabled ?? false)
-  const [ngnAmount, setNgn]                 = useState(cfg?.amounts?.NGN ?? '')
-  const [usdAmount, setUsd]                 = useState(cfg?.amounts?.USD ?? '')
+  const [ngnAmount, setNgn]                 = useState(fromMinorUnit(cfg?.amounts?.NGN))
+  const [usdAmount, setUsd]                 = useState(fromMinorUnit(cfg?.amounts?.USD))
   const [terms, setTerms]                   = useState(cfg?.terms ?? '')
   const [saving, setSaving]                 = useState(false)
   const [error, setError]                   = useState('')
@@ -2619,8 +2622,8 @@ function AccessFeeTab({ programId, program, onProgramUpdated }: {
     const c = program.access_fee_config
     if (c) {
       setEnabled(c.enabled)
-      setNgn(c.amounts?.NGN ?? '')
-      setUsd(c.amounts?.USD ?? '')
+      setNgn(fromMinorUnit(c.amounts?.NGN))
+      setUsd(fromMinorUnit(c.amounts?.USD))
       setTerms(c.terms ?? '')
     }
     if (program.access_fee_page_key) setPageKey(program.access_fee_page_key)
@@ -2634,7 +2637,7 @@ function AccessFeeTab({ programId, program, onProgramUpdated }: {
         access_fee_config: {
           enabled: forceEnabled !== undefined ? forceEnabled : enabled,
           terms,
-          amounts: { NGN: ngnAmount, USD: usdAmount },
+          amounts: { NGN: toMinorUnit(ngnAmount), USD: toMinorUnit(usdAmount) },
         },
       })
       const data = unwrap<{ program?: Program } & Program>(res.data)
