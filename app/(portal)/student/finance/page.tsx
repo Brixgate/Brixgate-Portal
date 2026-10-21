@@ -338,12 +338,12 @@ function PayButton({ plan, installment, onSuccess }: {
         entity_id:                 plan.cohortId || plan.id,
         pricingPlanId:             resolvedPricingPlanId,
         pricing_plan_id:           resolvedPricingPlanId,
-        paymentOptionId:           plan.paymentOptionId,
-        payment_option_id:         plan.paymentOptionId,
+        paymentOptionId:              plan.paymentOptionId,
+        payment_option_id:            plan.paymentOptionId,
+        pricingPaymentOptionsId:      plan.paymentOptionId,
+        pricing_payment_options_id:   plan.paymentOptionId,
         enrollmentPaymentPlanId:   plan.id,
         enrollment_payment_plan_id: plan.id,
-        installmentId:             installment.id,
-        installment_id:            installment.id,
       }
       if (isFlexible) {
         const amt = Number(partAmount.replace(/[^0-9.]/g, ''))
