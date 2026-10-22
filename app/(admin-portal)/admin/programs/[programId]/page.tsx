@@ -2584,8 +2584,9 @@ function CohortsTab({ programId }: { programId: string }) {
 }
 
 // ── Access Fee Tab ────────────────────────────────────────────────────────────
-function fmtInputNum(raw: string) {
-  const digits = raw.replace(/[^\d]/g, '')
+function fmtInputNum(raw: string | number | undefined) {
+  const str = raw === undefined || raw === null ? '' : String(raw)
+  const digits = str.replace(/[^\d.]/g, '').split('.')[0]
   return digits ? Number(digits).toLocaleString('en-NG') : ''
 }
 function stripInputNum(formatted: string) {
@@ -2601,8 +2602,8 @@ function AccessFeeTab({ programId, program, onProgramUpdated }: {
 
   const cfg = program?.access_fee_config
   const [enabled, setEnabled]               = useState(cfg?.enabled ?? false)
-  const [ngnAmount, setNgn]                 = useState(cfg?.amounts?.NGN ?? '')
-  const [usdAmount, setUsd]                 = useState(cfg?.amounts?.USD ?? '')
+  const [ngnAmount, setNgn]                 = useState(String(cfg?.amounts?.NGN ?? ''))
+  const [usdAmount, setUsd]                 = useState(String(cfg?.amounts?.USD ?? ''))
   const [terms, setTerms]                   = useState(cfg?.terms ?? '')
   const [saving, setSaving]                 = useState(false)
   const [error, setError]                   = useState('')
@@ -2619,8 +2620,8 @@ function AccessFeeTab({ programId, program, onProgramUpdated }: {
     const c = program.access_fee_config
     if (c) {
       setEnabled(c.enabled)
-      setNgn(c.amounts?.NGN ?? '')
-      setUsd(c.amounts?.USD ?? '')
+      setNgn(String(c.amounts?.NGN ?? ''))
+      setUsd(String(c.amounts?.USD ?? ''))
       setTerms(c.terms ?? '')
     }
     if (program.access_fee_page_key) setPageKey(program.access_fee_page_key)
