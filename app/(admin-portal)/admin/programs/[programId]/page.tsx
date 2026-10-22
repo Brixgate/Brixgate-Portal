@@ -14,6 +14,7 @@ import {
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
 import { useSidebar } from '@/lib/sidebar-context'
 import { useToast, ToastContainer } from '@/components/shared/Toast'
+import DeleteConfirmModal from '@/components/shared/DeleteConfirmModal'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import PriceInput from '@/components/admin/PriceInput'
 
@@ -1317,6 +1318,8 @@ function PaymentOptionsModal({ planId, breakdown, planTitle, onClose }: {
   const [saving,      setSaving]      = useState(false)
   const [toggling,    setToggling]    = useState<number | null>(null)
   const [error,       setError]       = useState('')
+  const [confirmDeleteOpt, setConfirmDeleteOpt] = useState<number | null>(null)
+  const [deletingOpt, setDeletingOpt] = useState(false)
   const [expandedOpt, setExpandedOpt] = useState<number | null>(null)
 
   // Form state
@@ -1410,11 +1413,14 @@ function PaymentOptionsModal({ planId, breakdown, planTitle, onClose }: {
     } catch { /* ignore */ } finally { setToggling(null) }
   }
 
-  async function handleDelete(optId: number) {
+  async function handleDelete() {
+    if (!confirmDeleteOpt) return
+    setDeletingOpt(true)
     try {
-      await apiClient.delete(`/admin/pricing-plans/${planId}/breakdowns/${bdId}/payment-options/${optId}`)
+      await apiClient.delete(`/admin/pricing-plans/${planId}/breakdowns/${bdId}/payment-options/${confirmDeleteOpt}`)
+      setConfirmDeleteOpt(null)
       await loadOptions()
-    } catch { /* ignore */ }
+    } catch { /* ignore */ } finally { setDeletingOpt(false) }
   }
 
   const MODE_LABELS: Record<string, string> = {
@@ -1504,7 +1510,7 @@ function PaymentOptionsModal({ planId, breakdown, planTitle, onClose }: {
                               : <span className={`absolute top-0.5 left-0 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${isActive ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
                             }
                           </button>
-                          <button onClick={() => handleDelete(opt.id)}
+                          <button onClick={() => setConfirmDeleteOpt(opt.id)}
                             className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-[#fef2f2] transition-colors">
                             <Delete01Icon size={13} color="#d51520" strokeWidth={1.5} />
                           </button>
@@ -1761,6 +1767,16 @@ function PaymentOptionsModal({ planId, breakdown, planTitle, onClose }: {
           </div>
         )}
       </div>
+
+      {confirmDeleteOpt !== null && (
+        <DeleteConfirmModal
+          title="Delete payment option?"
+          message="This payment option will be permanently deleted. Students who have already enrolled with this option will not be affected."
+          onConfirm={handleDelete}
+          onCancel={() => setConfirmDeleteOpt(null)}
+          deleting={deletingOpt}
+        />
+      )}
     </>
   )
 }

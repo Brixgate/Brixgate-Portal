@@ -8,6 +8,7 @@ import {
   ArrowDown01Icon, ArrowUp01Icon, BubbleChatIcon,
 } from 'hugeicons-react'
 import { apiClient, unwrap, getApiError } from '@/lib/api-client'
+import DeleteConfirmModal from '@/components/shared/DeleteConfirmModal'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface ForumGroup {
@@ -131,6 +132,8 @@ function AdminPostsFeed({ groups }: { groups: ForumGroup[] }) {
   const [deletingPostId,  setDeletingPostId] = useState<number | null>(null)
   const [deletingCid,     setDeletingCid]    = useState<number | null>(null)
   const [submittingCid,   setSubmittingCid]  = useState<number | null>(null)
+  const [confirmDeletePost,    setConfirmDeletePost]    = useState<number | null>(null)
+  const [confirmDeleteComment, setConfirmDeleteComment] = useState<{ postId: number; commentId: number } | null>(null)
 
   const loadPosts = useCallback(async () => {
     setLoading(true)
@@ -215,6 +218,7 @@ function AdminPostsFeed({ groups }: { groups: ForumGroup[] }) {
   }
 
   return (
+    <>
     <div className="flex gap-6 min-h-0">
       {/* Left: scope selector */}
       <div className="w-[220px] flex-shrink-0">
@@ -327,7 +331,7 @@ function AdminPostsFeed({ groups }: { groups: ForumGroup[] }) {
                       </div>
                       <div className="flex items-center gap-1 flex-shrink-0">
                         <button
-                          onClick={e => { e.stopPropagation(); deletePost(post.id) }}
+                          onClick={e => { e.stopPropagation(); setConfirmDeletePost(post.id) }}
                           disabled={deletingPostId === post.id}
                           title="Delete post"
                           className="w-7 h-7 flex items-center justify-center rounded-[6px] text-[#9ca3af] hover:text-[#d51520] hover:bg-[#fef2f2] transition-colors"
@@ -368,7 +372,7 @@ function AdminPostsFeed({ groups }: { groups: ForumGroup[] }) {
                                     <span className="text-[11px] text-[#9ca3af] font-body">{formatTimeAgo(c.created_at)}</span>
                                   </div>
                                   <button
-                                    onClick={() => deleteComment(post.id, c.id)}
+                                    onClick={() => setConfirmDeleteComment({ postId: post.id, commentId: c.id })}
                                     disabled={deletingCid === c.id}
                                     className="text-[#d1d5db] hover:text-[#d51520] transition-colors"
                                   >
@@ -410,6 +414,26 @@ function AdminPostsFeed({ groups }: { groups: ForumGroup[] }) {
         </div>
       </div>
     </div>
+
+      {confirmDeletePost !== null && (
+        <DeleteConfirmModal
+          title="Delete post?"
+          message="This post and all its comments will be permanently deleted."
+          onConfirm={() => { deletePost(confirmDeletePost); setConfirmDeletePost(null) }}
+          onCancel={() => setConfirmDeletePost(null)}
+          deleting={deletingPostId !== null}
+        />
+      )}
+      {confirmDeleteComment !== null && (
+        <DeleteConfirmModal
+          title="Delete comment?"
+          message="This comment will be permanently deleted."
+          onConfirm={() => { deleteComment(confirmDeleteComment.postId, confirmDeleteComment.commentId); setConfirmDeleteComment(null) }}
+          onCancel={() => setConfirmDeleteComment(null)}
+          deleting={deletingCid !== null}
+        />
+      )}
+    </>
   )
 }
 

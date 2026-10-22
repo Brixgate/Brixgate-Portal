@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { apiClient, getApiError } from '@/lib/api-client'
+import DeleteConfirmModal from '@/components/shared/DeleteConfirmModal'
 import {
   Invoice01Icon,
   PlusSignIcon,
@@ -229,15 +230,16 @@ function PayoutRow({ payout, onRefresh }: { payout: Payout; onRefresh: () => voi
   const [adjModal, setAdjModal]       = useState(false)
   const [statusModal, setStatusModal] = useState(false)
   const [delAdj, setDelAdj]           = useState<number | null>(null)
+  const [confirmDelAdj, setConfirmDelAdj] = useState<number | null>(null)
 
   const canAdjust = payout.status === 'DRAFT'
   const canTransition = NEXT_STATUS[payout.status]?.length > 0
 
   async function deleteAdj(adjId: number) {
-    if (!confirm('Remove this adjustment?')) return
     setDelAdj(adjId)
     try {
       await apiClient.delete(`/admin/instructor-payouts/${payout.id}/adjustments/${adjId}`)
+      setConfirmDelAdj(null)
       onRefresh()
     } catch { /* swallow */ }
     finally { setDelAdj(null) }
@@ -325,7 +327,7 @@ function PayoutRow({ payout, onRefresh }: { payout: Payout; onRefresh: () => voi
                       {adj.type === 'BONUS' ? '+' : '−'}{fmt(adj.amount)}
                     </span>
                     {canAdjust && (
-                      <button onClick={() => deleteAdj(adj.id)} disabled={delAdj === adj.id}
+                      <button onClick={() => setConfirmDelAdj(adj.id)} disabled={delAdj === adj.id}
                         className="p-1 rounded hover:bg-red-50 transition-colors" title="Remove">
                         <Delete01Icon size={13} color="#d51520" strokeWidth={1.5} />
                       </button>
@@ -355,6 +357,16 @@ function PayoutRow({ payout, onRefresh }: { payout: Payout; onRefresh: () => voi
           payout={payout}
           onClose={() => setStatusModal(false)}
           onSaved={() => { setStatusModal(false); onRefresh() }}
+        />
+      )}
+      {confirmDelAdj !== null && (
+        <DeleteConfirmModal
+          title="Remove adjustment?"
+          message="This adjustment will be permanently removed from the payout."
+          onConfirm={() => deleteAdj(confirmDelAdj)}
+          onCancel={() => setConfirmDelAdj(null)}
+          deleting={delAdj !== null}
+          confirmLabel="Remove"
         />
       )}
     </>

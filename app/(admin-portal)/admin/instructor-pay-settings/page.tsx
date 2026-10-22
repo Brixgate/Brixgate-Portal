@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { apiClient, getApiError } from '@/lib/api-client'
+import DeleteConfirmModal from '@/components/shared/DeleteConfirmModal'
 import PriceInput from '@/components/admin/PriceInput'
 import {
   PlusSignIcon,
@@ -293,6 +294,7 @@ export default function InstructorPaySettingsPage() {
   const [loading,   setLoading]   = useState(true)
   const [modal,     setModal]     = useState<'new' | PaySetting | null>(null)
   const [deleting,  setDeleting]  = useState<number | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
   const [progNames, setProgNames] = useState<Record<number, string>>({})
   const [cohortNames, setCohortNames] = useState<Record<number, string>>({})
 
@@ -341,11 +343,11 @@ export default function InstructorPaySettingsPage() {
   useEffect(() => { load() }, [])
 
   async function handleDelete(id: number) {
-    if (!confirm('Delete this pay setting? This cannot be undone.')) return
     setDeleting(id)
     try {
       await apiClient.delete(`/admin/instructor-pay-settings/${id}`)
       setSettings(s => s.filter(x => x.id !== id))
+      setConfirmDeleteId(null)
     } catch { /* swallow */ }
     finally { setDeleting(null) }
   }
@@ -409,7 +411,7 @@ export default function InstructorPaySettingsPage() {
                   className="p-1.5 rounded-[6px] hover:bg-[#f3f4f6] transition-colors" title="Edit">
                   <PencilEdit01Icon size={15} color="#374151" strokeWidth={1.5} />
                 </button>
-                <button onClick={() => handleDelete(s.id)} disabled={deleting === s.id}
+                <button onClick={() => setConfirmDeleteId(s.id)} disabled={deleting === s.id}
                   className="p-1.5 rounded-[6px] hover:bg-red-50 transition-colors" title="Delete">
                   <Delete01Icon size={15} color="#d51520" strokeWidth={1.5} />
                 </button>
@@ -424,6 +426,16 @@ export default function InstructorPaySettingsPage() {
           editing={modal === 'new' ? null : modal}
           onClose={() => setModal(null)}
           onSaved={() => { setModal(null); load() }}
+        />
+      )}
+
+      {confirmDeleteId !== null && (
+        <DeleteConfirmModal
+          title="Delete pay setting?"
+          message="This pay setting will be permanently deleted. Instructors assigned to it will fall back to the next applicable rule."
+          onConfirm={() => handleDelete(confirmDeleteId)}
+          onCancel={() => setConfirmDeleteId(null)}
+          deleting={deleting !== null}
         />
       )}
     </div>
