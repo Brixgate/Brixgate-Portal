@@ -54,12 +54,15 @@ const PAYMENT_TYPES = ['', 'ENROLLMENT', 'CERTIFICATE', 'MEMBERSHIP']
 const PAY_STATUSES  = ['', 'PENDING', 'SUCCESS', 'FAILED']
 const INTENT_STATUSES = ['', 'CREATED', 'INITIALIZED', 'PAID', 'CONSUMED', 'FAILED', 'EXPIRED', 'CANCELLED']
 
-type AnyUser = { name?: string; first_name?: string; firstName?: string; last_name?: string; lastName?: string; email?: string }
+type AnyUser = { name?: string; first_name?: string; firstName?: string; last_name?: string; lastName?: string; email?: string; full_phone_number?: string; fullPhoneNumber?: string; phone_number?: string; phoneNumber?: string; phone?: string }
 
 function userName(u?: AnyUser): string {
   if (!u) return '—'
   if (u.name) return u.name
   return `${u.firstName ?? u.first_name ?? ''} ${u.lastName ?? u.last_name ?? ''}`.trim() || u.email || '—'
+}
+function userPhone(u?: AnyUser): string {
+  return u?.full_phone_number ?? u?.fullPhoneNumber ?? u?.phone_number ?? u?.phoneNumber ?? u?.phone ?? '—'
 }
 function formatDate(d?: string) {
   if (!d) return '—'
@@ -420,6 +423,7 @@ function IntentDetailPanel({ intent, onClose, onUpdated }: {
             <div className="space-y-2.5">
               <Row label="Name"  value={userName(intent.user)} />
               <Row label="Email" value={intent.user?.email ?? '—'} />
+              <Row label="Phone" value={userPhone(intent.user)} />
             </div>
           </div>
 
