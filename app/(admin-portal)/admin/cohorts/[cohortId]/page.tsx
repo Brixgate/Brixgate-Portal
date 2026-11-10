@@ -4097,6 +4097,27 @@ interface AdjustmentRow {
   reason?: string; created_at?: string
 }
 
+interface EnrollUser { id: number; name?: string; email?: string; role?: string }
+
+// Match every typed word against name + email; names/emails that start with
+// the text come first. Show the closest 8.
+function matchUsers(users: EnrollUser[], query: string): EnrollUser[] {
+  const q = query.trim().toLowerCase()
+  if (!q) return []
+  const words = q.split(/\s+/)
+  return users
+    .filter(u => {
+      const hay = `${u.name ?? ''} ${u.email ?? ''}`.toLowerCase()
+      return words.every(w => hay.includes(w))
+    })
+    .sort((a, b) => {
+      const score = (u: EnrollUser) =>
+        ((u.email ?? '').toLowerCase().startsWith(q) || (u.name ?? '').toLowerCase().startsWith(q)) ? 0 : 1
+      return score(a) - score(b)
+    })
+    .slice(0, 8)
+}
+
 // ── Enroll Student Modal ───────────────────────────────────────────────────────
 function EnrollStudentModal({
   cohortId, programId, onClose, onSuccess,
@@ -4106,8 +4127,9 @@ function EnrollStudentModal({
 
   // User selection
   const [userSearch,   setUserSearch]   = useState('')
-  const [userResults,  setUserResults]  = useState<{ id: number; name?: string; email?: string; role?: string }[]>([])
+  const [allUsers,     setAllUsers]     = useState<EnrollUser[]>([])
   const [searchingUser,setSearchingUser] = useState(false)
+  const [usersError,   setUsersError]   = useState('')
   const [selectedUser, setSelectedUser] = useState<{ id: number; name?: string; email?: string } | null>(null)
   const [createMode,   setCreateMode]   = useState(false)
   const [newName,      setNewName]      = useState('')
@@ -4132,22 +4154,32 @@ function EnrollStudentModal({
   const [submitError, setSubmitError] = useState('')
   const [submitSuccess, setSubmitSuccess] = useState(false)
 
-  // Search users (debounced)
+  // The users API has no search parameter and returns at most 100 per page,
+  // so load every user once (page by page) and filter them as the admin types.
   useEffect(() => {
-    if (!userSearch.trim() || createMode) { setUserResults([]); return }
-    const t = setTimeout(async () => {
-      setSearchingUser(true)
+    let cancelled = false
+    async function loadAll() {
+      setSearchingUser(true); setUsersError('')
       try {
-        const res = await apiClient.get(`/admin/users?size=20&search=${encodeURIComponent(userSearch.trim())}`)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const raw = unwrap<any>(res.data)
-        const list = Array.isArray(raw?.users) ? raw.users : Array.isArray(raw?.content) ? raw.content : Array.isArray(raw) ? raw : []
-        setUserResults(list)
-      } catch { setUserResults([]) }
-      finally { setSearchingUser(false) }
-    }, 350)
-    return () => clearTimeout(t)
-  }, [userSearch, createMode])
+        const all: EnrollUser[] = []
+        for (let page = 1; page <= 50; page++) {
+          const res = await apiClient.get(`/admin/users?page=${page}&size=100`)
+          const d = unwrap<{ users?: EnrollUser[]; pagination?: { has_next?: boolean } }>(res.data)
+          all.push(...(Array.isArray(d?.users) ? d.users : []))
+          if (!d?.pagination?.has_next) break
+        }
+        if (!cancelled) setAllUsers(all)
+      } catch (e) {
+        if (!cancelled) setUsersError(getApiError(e))
+      } finally {
+        if (!cancelled) setSearchingUser(false)
+      }
+    }
+    loadAll()
+    return () => { cancelled = true }
+  }, [])
+
+  const userResults = matchUsers(allUsers, userSearch)
 
   // Load plans when entering plan step.
   // Pricing plans belong to the programme, not the cohort: the API returns none
@@ -4275,6 +4307,10 @@ function EnrollStudentModal({
                   </svg>
                   {searchingUser && <Loading01Icon size={13} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-[#9ca3af]" strokeWidth={1.5} />}
                 </div>
+                {usersError && <p className="text-[11px] text-[#d51520] font-body mt-1">Couldn&apos;t load users: {usersError}</p>}
+                {!searchingUser && !usersError && userSearch.trim() && userResults.length === 0 && !selectedUser && (
+                  <p className="text-[11px] text-[#9ca3af] font-body mt-1">No user matches &ldquo;{userSearch.trim()}&rdquo;. Create a new student account below.</p>
+                )}
                 {userResults.length > 0 && !selectedUser && (
                   <div className="mt-1 border border-[#e5e7eb] rounded-[8px] overflow-hidden divide-y divide-[#f3f4f6]">
                     {userResults.map(u => (
