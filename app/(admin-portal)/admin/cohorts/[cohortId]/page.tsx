@@ -4695,16 +4695,20 @@ function PaymentStudentSidebar({
     if (!planId || !payAmount) { setPayError('Amount is required.'); return }
     const amt = parseFloat(payAmount)
     if (isNaN(amt) || amt <= 0) { setPayError('Enter a valid positive amount.'); return }
+    if (!payNote.trim()) { setPayError('Add a note for this payment.'); return }
     setPaySaving(true); setPayError('')
     try {
       const body: Record<string, unknown> = {
         amount: amt,
         currency: planDetail?.currency ?? student.currency ?? 'NGN',
+        // The API validates `method` (it rejects the request when only payment_method is sent).
+        method: payMethod,
         payment_method: payMethod,
+        // The API requires a non-blank note.
+        note: payNote.trim(),
       }
       if (payReference.trim()) body.reference = payReference.trim()
       if (payCollectedAt) body.collected_at = new Date(payCollectedAt).toISOString()
-      if (payNote.trim()) body.note = payNote.trim()
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const res = await apiClient.post(`/admin/enrollment-payment-plans/${planId}/manual-payments`, body)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -5016,9 +5020,9 @@ function PaymentStudentSidebar({
                   className="h-9 px-3 border border-[#bbf7d0] rounded-[6px] text-[13px] font-body bg-white focus:outline-none focus:border-[#027a48]" />
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-[11px] font-medium text-[#374151] font-body">Note <span className="text-[#9ca3af] font-normal">(optional)</span></label>
+                <label className="text-[11px] font-medium text-[#374151] font-body">Note</label>
                 <input type="text" value={payNote} onChange={e => setPayNote(e.target.value)}
-                  placeholder="Internal note for this payment"
+                  placeholder="e.g. Transfer from student's GTBank account"
                   className="h-9 px-3 border border-[#bbf7d0] rounded-[6px] text-[13px] font-body bg-white focus:outline-none focus:border-[#027a48] placeholder:text-[#9ca3af]" />
               </div>
               <label className="flex items-start gap-2 cursor-pointer">
