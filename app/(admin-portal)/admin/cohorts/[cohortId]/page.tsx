@@ -4052,6 +4052,23 @@ interface PricingBreakdown {
 interface PaymentOption {
   id: number; title?: string; payment_mode?: string; paymentMode?: string
   installment_count?: number; initial_payment_percent?: number
+  number_of_installments?: number
+}
+
+// Symbol for a breakdown's own currency (the list mixes NGN, USD and GBP).
+const CURRENCY_SYMBOL: Record<string, string> = { NGN: '₦', USD: '$', GBP: '£' }
+function priceLabel(currency: string | undefined, amount: number) {
+  const code = (currency ?? '').toUpperCase()
+  const sym = CURRENCY_SYMBOL[code]
+  return sym ? `${sym}${amount.toLocaleString()}` : `${code} ${amount.toLocaleString()}`
+}
+
+// Options often share the plan's title, so add the mode and installment count.
+function optionLabel(o: PaymentOption) {
+  const mode = (o.payment_mode ?? o.paymentMode ?? '').replace(/_/g, ' ').toLowerCase()
+  const n = o.number_of_installments ?? o.installment_count
+  const parts = [o.title, mode && mode.charAt(0).toUpperCase() + mode.slice(1), n ? `${n} installments` : '']
+  return parts.filter(Boolean).join(' · ')
 }
 interface EnrollmentPlan {
   id: number
@@ -4101,6 +4118,7 @@ function EnrollStudentModal({
   const [plans,        setPlans]        = useState<PricingPlan[]>([])
   const [selectedPlan, setSelectedPlan] = useState<PricingPlan | null>(null)
   const [loadingPlans, setLoadingPlans] = useState(false)
+  const [plansError,   setPlansError]   = useState('')
 
   const [breakdowns,       setBreakdowns]       = useState<PricingBreakdown[]>([])
   const [selectedBreakdown,setSelectedBreakdown] = useState<PricingBreakdown | null>(null)
@@ -4131,16 +4149,22 @@ function EnrollStudentModal({
     return () => clearTimeout(t)
   }, [userSearch, createMode])
 
-  // Load plans when entering plan step
+  // Load plans when entering plan step.
+  // Pricing plans belong to the programme, not the cohort: the API returns none
+  // when cohort_id is added, so filter by programme only. The list comes back
+  // under `plans`; only ACTIVE plans can be used for a new enrolment.
   useEffect(() => {
     if (step !== 'plan' || !programId) return
-    setLoadingPlans(true)
-    apiClient.get(`/admin/pricing-plans?program_id=${programId}&cohort_id=${cohortId}`)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .then(r => { const d = unwrap<any>(r.data); setPlans(Array.isArray(d?.pricing_plans) ? d.pricing_plans : Array.isArray(d) ? d : []) })
-      .catch(() => setPlans([]))
+    setLoadingPlans(true); setPlansError('')
+    apiClient.get(`/admin/pricing-plans?program_id=${programId}`)
+      .then(r => {
+        const d = unwrap<{ plans?: PricingPlan[]; pricing_plans?: PricingPlan[] } | PricingPlan[]>(r.data)
+        const list = Array.isArray(d) ? d : (d?.plans ?? d?.pricing_plans ?? [])
+        setPlans(list.filter(p => !p.status || p.status.toUpperCase() === 'ACTIVE'))
+      })
+      .catch(e => { setPlans([]); setPlansError(getApiError(e)) })
       .finally(() => setLoadingPlans(false))
-  }, [step, programId, cohortId])
+  }, [step, programId])
 
   // Load breakdowns when plan selected
   useEffect(() => {
@@ -4350,7 +4374,8 @@ function EnrollStudentModal({
                     {plans.map(p => <option key={p.id} value={p.id}>{p.title} ({p.plan_type})</option>)}
                   </select>
                 )}
-                {!loadingPlans && plans.length === 0 && programId && <p className="text-[11px] text-[#9ca3af] font-body mt-1">No active pricing plans found for this cohort.</p>}
+                {!loadingPlans && plansError && <p className="text-[11px] text-[#d51520] font-body mt-1">Couldn&apos;t load pricing plans: {plansError}</p>}
+                {!loadingPlans && !plansError && plans.length === 0 && programId && <p className="text-[11px] text-[#9ca3af] font-body mt-1">No active pricing plans for this programme. Add one on the programme&apos;s Pricing tab.</p>}
               </div>
 
               {/* Currency breakdown */}
@@ -4364,7 +4389,7 @@ function EnrollStudentModal({
                       className="w-full h-9 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520] bg-white"
                     >
                       <option value="">Select currency…</option>
-                      {breakdowns.map(b => <option key={b.id} value={b.id}>{b.currency} — ₦{(b.final_price ?? b.base_price ?? 0).toLocaleString()}</option>)}
+                      {breakdowns.map(b => <option key={b.id} value={b.id}>{b.currency} — {priceLabel(b.currency, b.final_price ?? b.base_price ?? 0)}</option>)}
                     </select>
                   )}
                 </div>
@@ -4384,7 +4409,7 @@ function EnrollStudentModal({
                       className="w-full h-9 px-3 border border-[#e5e7eb] rounded-[6px] text-[13px] font-body focus:outline-none focus:ring-2 focus:ring-[#d51520]/20 focus:border-[#d51520] bg-white"
                     >
                       <option value="FULL">Full Payment (no installment)</option>
-                      {options.map(o => <option key={o.id} value={o.id}>{o.title ?? (o.payment_mode ?? o.paymentMode)?.replace(/_/g, ' ')}</option>)}
+                      {options.map(o => <option key={o.id} value={o.id}>{optionLabel(o)}</option>)}
                     </select>
                   )}
                 </div>
