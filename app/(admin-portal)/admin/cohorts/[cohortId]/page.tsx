@@ -4269,7 +4269,10 @@ function EnrollStudentModal({
         const found = all.find(x => sameEmail(x.email, email))
         if (found) { pickUser(found); return }
       } catch { /* keep the original error below */ }
-      setCreateError(msg || 'Could not create the account. Try again.')
+      const taken = /already (taken|registered)/i.test(msg)
+      setCreateError(taken
+        ? `${email} is already registered, but that account isn't in the user list. Ask the backend team to check it, or try another email.`
+        : (msg || 'Could not create the account. Try again.'))
     } finally { setCreatingUser(false) }
   }
 
