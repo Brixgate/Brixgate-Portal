@@ -4099,6 +4099,21 @@ interface AdjustmentRow {
 
 interface EnrollUser { id: number; name?: string; email?: string; role?: string }
 
+// The users API has no search parameter and returns at most 100 per page,
+// so load every user page by page.
+async function fetchAllUsers(): Promise<EnrollUser[]> {
+  const all: EnrollUser[] = []
+  for (let page = 1; page <= 50; page++) {
+    const res = await apiClient.get(`/admin/users?page=${page}&size=100`)
+    const d = unwrap<{ users?: EnrollUser[]; pagination?: { has_next?: boolean } }>(res.data)
+    all.push(...(Array.isArray(d?.users) ? d.users : []))
+    if (!d?.pagination?.has_next) break
+  }
+  return all
+}
+
+const sameEmail = (a?: string, b?: string) => !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase()
+
 // Match every typed word against name + email; names/emails that start with
 // the text come first. Show the closest 8.
 function matchUsers(users: EnrollUser[], query: string): EnrollUser[] {
@@ -4135,6 +4150,7 @@ function EnrollStudentModal({
   const [newName,      setNewName]      = useState('')
   const [newEmail,     setNewEmail]     = useState('')
   const [creatingUser, setCreatingUser] = useState(false)
+  const [createError,  setCreateError]  = useState('')
 
   // Plan selection
   const [plans,        setPlans]        = useState<PricingPlan[]>([])
@@ -4154,20 +4170,13 @@ function EnrollStudentModal({
   const [submitError, setSubmitError] = useState('')
   const [submitSuccess, setSubmitSuccess] = useState(false)
 
-  // The users API has no search parameter and returns at most 100 per page,
-  // so load every user once (page by page) and filter them as the admin types.
+  // Load every user once and filter them as the admin types.
   useEffect(() => {
     let cancelled = false
     async function loadAll() {
       setSearchingUser(true); setUsersError('')
       try {
-        const all: EnrollUser[] = []
-        for (let page = 1; page <= 50; page++) {
-          const res = await apiClient.get(`/admin/users?page=${page}&size=100`)
-          const d = unwrap<{ users?: EnrollUser[]; pagination?: { has_next?: boolean } }>(res.data)
-          all.push(...(Array.isArray(d?.users) ? d.users : []))
-          if (!d?.pagination?.has_next) break
-        }
+        const all = await fetchAllUsers()
         if (!cancelled) setAllUsers(all)
       } catch (e) {
         if (!cancelled) setUsersError(getApiError(e))
@@ -4220,18 +4229,48 @@ function EnrollStudentModal({
       .finally(() => setLoadingOptions(false))
   }, [selectedPlan, selectedBreakdown])
 
+  function pickUser(u: EnrollUser) {
+    setSelectedUser({ id: u.id, name: u.name, email: u.email })
+    setCreateMode(false); setNewName(''); setNewEmail(''); setCreateError('')
+  }
+
   async function handleCreateUser() {
-    if (!newName.trim() || !newEmail.trim()) return
-    setCreatingUser(true)
+    const name = newName.trim()
+    const email = newEmail.trim()
+    if (!name || !email) return
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setCreateError('Enter a valid email address.'); return }
+
+    // The account may already exist: select it instead of creating a duplicate.
+    const existing = allUsers.find(u => sameEmail(u.email, email))
+    if (existing) { pickUser(existing); return }
+
+    setCreatingUser(true); setCreateError('')
     try {
-      const res = await apiClient.post('/admin/users', { name: newName.trim(), email: newEmail.trim(), role: 'PROSPECT' })
+      const res = await apiClient.post('/admin/users', { name, email, role: 'PROSPECT' })
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const raw = unwrap<any>(res.data)
-      const u = raw?.user ?? raw
-      setSelectedUser({ id: u.id, name: u.name, email: u.email })
-      setCreateMode(false); setNewName(''); setNewEmail('')
-    } catch (e) { setSubmitError(getApiError(e)) }
-    finally { setCreatingUser(false) }
+      const u = raw?.user ?? raw?.data?.user ?? raw?.data ?? raw
+      let created: EnrollUser | undefined = typeof u?.id === 'number' ? { id: u.id, name: u.name ?? name, email: u.email ?? email } : undefined
+      // If the reply has no id, find the new account in the user list.
+      if (!created) {
+        const all = await fetchAllUsers()
+        setAllUsers(all)
+        created = all.find(x => sameEmail(x.email, email))
+      }
+      if (!created) { setCreateError('The account was created but could not be loaded. Search for it by email above.'); return }
+      setAllUsers(prev => prev.some(x => x.id === created!.id) ? prev : [...prev, created!])
+      pickUser(created)
+    } catch (e) {
+      // e.g. the email is already registered but was not in the loaded list
+      const msg = getApiError(e)
+      try {
+        const all = await fetchAllUsers()
+        setAllUsers(all)
+        const found = all.find(x => sameEmail(x.email, email))
+        if (found) { pickUser(found); return }
+      } catch { /* keep the original error below */ }
+      setCreateError(msg || 'Could not create the account. Try again.')
+    } finally { setCreatingUser(false) }
   }
 
   async function handleSubmit() {
@@ -4349,7 +4388,7 @@ function EnrollStudentModal({
 
               <div>
                 <button
-                  onClick={() => setCreateMode(v => !v)}
+                  onClick={() => { setCreateMode(v => !v); setCreateError('') }}
                   className="text-[12px] font-semibold text-[#d51520] font-display hover:underline"
                 >
                   {createMode ? 'Cancel — find existing instead' : '+ Create new student account'}
@@ -4374,6 +4413,11 @@ function EnrollStudentModal({
                       {creatingUser && <Loading01Icon size={12} className="animate-spin" strokeWidth={2} />}
                       Create &amp; Select
                     </button>
+                    {createError && (
+                      <p role="alert" className="flex items-center gap-1.5 text-[12px] text-[#d51520] font-body bg-[#fef2f2] border border-[#fecdca] rounded-[8px] px-3 py-2">
+                        <AlertCircleIcon size={13} color="#d51520" strokeWidth={1.5} /> {createError}
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
