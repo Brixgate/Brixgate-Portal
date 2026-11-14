@@ -4824,7 +4824,7 @@ function PaymentStudentSidebar({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-5">
+        <div className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-5 [&>*]:shrink-0">
           {/* Student identity */}
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-full bg-[#f3f4f6] flex items-center justify-center flex-shrink-0">
